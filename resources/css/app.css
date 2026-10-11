@@ -1,9 +1,76 @@
-@import 'tailwindcss';
+@import "bootstrap/dist/css/bootstrap.min.css";
 
-@source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
-@source '../../storage/framework/views/*.php';
+:root {
+    --mydoc-ink: #16324f;
+    --mydoc-muted: #5d7285;
+    --mydoc-primary: #167d91;
+    --mydoc-primary-dark: #0f5f70;
+    --mydoc-surface: #f4fafb;
+    --mydoc-radius: 1rem;
+}
 
-@theme {
-    --font-sans: 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
-        'Segoe UI Symbol', 'Noto Color Emoji';
+body {
+    color: var(--mydoc-ink);
+    font-family: "Instrument Sans", system-ui, sans-serif;
+}
+
+a {
+    color: var(--mydoc-primary);
+}
+
+.navbar-brand {
+    color: var(--mydoc-ink);
+    font-weight: 700;
+
+    &:hover,
+    &:focus {
+        color: var(--mydoc-primary-dark);
+    }
+}
+
+.hero {
+    background:
+        radial-gradient(circle at 85% 20%, rgba(109, 202, 213, 0.3), transparent 32%),
+        var(--mydoc-surface);
+    border-radius: var(--mydoc-radius);
+}
+
+.hero__eyebrow {
+    color: var(--mydoc-primary-dark);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.hero__title {
+    color: var(--mydoc-ink);
+    max-width: 14ch;
+}
+
+.hero__description,
+.feature-card__description {
+    color: var(--mydoc-muted);
+}
+
+.feature-card {
+    border: 1px solid rgba(22, 125, 145, 0.12);
+    border-radius: var(--mydoc-radius);
+    height: 100%;
+
+    &:hover {
+        border-color: rgba(22, 125, 145, 0.35);
+    }
+}
+
+.feature-card__icon {
+    align-items: center;
+    background: #e1f3f4;
+    border-radius: 0.75rem;
+    color: var(--mydoc-primary-dark);
+    display: inline-flex;
+    font-size: 1.25rem;
+    height: 2.75rem;
+    justify-content: center;
+    width: 2.75rem;
 }
