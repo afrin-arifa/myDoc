@@ -28,7 +28,7 @@
                 </form>
             </div>
             <div class="col-lg-5">
-                @include('profile.password-form')
+                <x-forms.password-form />
                 <form class="card border-0 shadow-sm p-4 mt-4" method="POST" action="{{ route('patient.account.deactivate') }}">
                     @csrf @method('DELETE')
                     <h2 class="h5">Deactivate account</h2><p class="small text-secondary">You will be signed out and can contact support to restore access.</p>

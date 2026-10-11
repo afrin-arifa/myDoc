@@ -6,12 +6,19 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 class AuthenticatedSessionController extends Controller
 {
-    public function create(): View
+    public function create(Request $request): View
     {
+        $redirect = $request->string('redirect')->toString();
+
+        if (Str::startsWith($redirect, '/') && ! Str::startsWith($redirect, '//')) {
+            $request->session()->put('url.intended', $redirect);
+        }
+
         return view('auth.login');
     }
 

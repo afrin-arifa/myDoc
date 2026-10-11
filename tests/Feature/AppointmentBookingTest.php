@@ -33,6 +33,28 @@ class AppointmentBookingTest extends TestCase
         $this->get(route('doctors.show', $doctor->doctorProfile))
             ->assertOk()
             ->assertSee($doctor->doctorProfile->appointmentSlots->first()->starts_at->format('M j'));
+
+        $this->get(route('home'))
+            ->assertOk()
+            ->assertSee($doctor->name);
+    }
+
+    public function test_booking_rechecks_that_the_doctor_accepts_patients(): void
+    {
+        $doctor = $this->doctorWithProfile();
+        $doctor->doctorProfile->update(['is_accepting_patients' => false]);
+        $patient = User::factory()->create(['role' => 'patient']);
+        $slot = $this->slotFor($doctor);
+
+        $this->actingAs($patient)
+            ->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])
+            ->assertSessionHasErrors('slot');
+
+        $this->assertDatabaseMissing('appointments', [
+            'appointment_slot_id' => $slot->id,
+            'patient_id' => $patient->id,
+        ]);
+        $this->assertSame('available', $slot->fresh()->status);
     }
 
     public function test_only_patients_can_book_and_booking_claims_the_slot(): void
@@ -44,18 +66,19 @@ class AppointmentBookingTest extends TestCase
         $this->actingAs($doctor)->post(route('appointment-slots.book', $slot))->assertForbidden();
 
         $this->actingAs($patient)
-            ->post(route('appointment-slots.book', $slot))
+            ->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])
             ->assertRedirect(route('patient.appointments.index'));
 
         $this->assertDatabaseHas('appointments', [
             'appointment_slot_id' => $slot->id,
             'patient_id' => $patient->id,
             'status' => 'booked',
+            'consultation_type' => 'physical',
         ]);
         $this->assertSame('booked', $slot->fresh()->status);
 
         $this->actingAs(User::factory()->create(['role' => 'patient']))
-            ->post(route('appointment-slots.book', $slot))
+            ->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])
             ->assertSessionHasErrors('slot');
     }
 
@@ -66,10 +89,35 @@ class AppointmentBookingTest extends TestCase
         $past = $this->slotFor($doctor, now()->subHour(), 'available');
         $blocked = $this->slotFor($doctor, now()->addDay(), 'blocked');
 
-        $this->actingAs($patient)->post(route('appointment-slots.book', $past))
+        $this->actingAs($patient)->post(route('appointment-slots.book', $past), ['consultation_type' => 'physical'])
             ->assertSessionHasErrors('slot');
-        $this->actingAs($patient)->post(route('appointment-slots.book', $blocked))
+        $this->actingAs($patient)->post(route('appointment-slots.book', $blocked), ['consultation_type' => 'physical'])
             ->assertSessionHasErrors('slot');
+    }
+
+    public function test_booking_persists_each_supported_consultation_type_and_rejects_invalid_values(): void
+    {
+        $doctor = $this->doctorWithProfile();
+        $patient = User::factory()->create(['role' => 'patient']);
+
+        foreach (['physical', 'voice', 'video'] as $type) {
+            $slot = $this->slotFor($doctor);
+
+            $this->actingAs($patient)
+                ->post(route('appointment-slots.book', $slot), ['consultation_type' => $type])
+                ->assertRedirect(route('patient.appointments.index'));
+
+            $this->assertDatabaseHas('appointments', [
+                'appointment_slot_id' => $slot->id,
+                'consultation_type' => $type,
+            ]);
+        }
+
+        $slot = $this->slotFor($doctor);
+
+        $this->actingAs($patient)
+            ->post(route('appointment-slots.book', $slot), ['consultation_type' => 'teleportation'])
+            ->assertSessionHasErrors('consultation_type');
     }
 
     public function test_patients_can_cancel_only_their_own_eligible_appointments_and_restore_slot(): void

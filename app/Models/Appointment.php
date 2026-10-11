@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'appointment_slot_id',
     'patient_id',
     'status',
+    'consultation_type',
     'patient_notes',
     'provider_notes',
     'booked_at',

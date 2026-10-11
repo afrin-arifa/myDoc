@@ -13,7 +13,9 @@ class AdminSpecialtyController extends Controller
 {
     public function index(): View
     {
-        return view('admin.specialties.index', ['specialties' => Specialty::withCount('doctorProfiles')->orderBy('name')->paginate(15)]);
+        return view('admin.specialties.index', [
+            'specialties' => Specialty::withCount('doctorProfiles')->orderBy('name')->paginate(15)->withQueryString(),
+        ]);
     }
 
     public function store(Request $request): RedirectResponse

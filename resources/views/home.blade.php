@@ -9,15 +9,22 @@
                 <div class="col-lg-7">
                     <p class="hero__eyebrow mb-3">Care that starts with listening</p>
                     <h1 class="hero__title display-4 fw-bold mb-4" id="hero-title">
-                        Find the right doctor for your next step.
+                        Find trusted care for your next step.
                     </h1>
                     <p class="hero__description lead mb-4">
-                        myDoc is a calm, convenient starting point for finding care that matches your needs and schedule.
+                        Search real doctor profiles, compare care options, and book a time that works for you.
                     </p>
-                    <div class="d-flex flex-column flex-sm-row gap-3" id="find-doctor">
-                        <a class="btn btn-primary btn-lg px-4" href="{{ route('doctors.index') }}">Find a doctor</a>
-                        <a class="btn btn-outline-secondary btn-lg px-4" href="#how-it-works">Learn more</a>
-                    </div>
+                    <form class="row g-2 mb-3" method="GET" action="{{ route('doctors.index') }}">
+                        <div class="col-sm-8">
+                            <label class="visually-hidden" for="homepage-search">Search doctors</label>
+                            <input class="form-control form-control-lg" id="homepage-search" name="search"
+                                placeholder="Search by name or specialty" type="search">
+                        </div>
+                        <div class="col-sm-4 d-grid">
+                            <button class="btn btn-primary btn-lg" type="submit">Find a doctor</button>
+                        </div>
+                    </form>
+                    <a class="btn btn-link px-0" href="#how-it-works">Learn how booking works &darr;</a>
                 </div>
                 <div class="col-lg-5" aria-hidden="true">
                     <div class="bg-white rounded-4 shadow-sm p-4 p-lg-5">
@@ -34,6 +41,53 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </section>
+
+        <section class="py-5" aria-labelledby="specialties-title">
+            <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+                <div>
+                    <p class="hero__eyebrow mb-2">Start with a specialty</p>
+                    <h2 class="h3 mb-0" id="specialties-title">Find care that fits your needs.</h2>
+                </div>
+                <a href="{{ route('doctors.index') }}">View all doctors</a>
+            </div>
+            <div class="row g-3">
+                @forelse ($featuredSpecialties as $specialty)
+                    <div class="col-6 col-lg-4">
+                        <a class="feature-card d-block bg-white p-3 text-decoration-none" href="{{ route('doctors.index', ['specialty' => $specialty->id]) }}">
+                            <span class="fw-semibold">{{ $specialty->name }}</span>
+                            <span class="d-block small text-secondary">{{ $specialty->doctor_profiles_count }} available doctors</span>
+                        </a>
+                    </div>
+                @empty
+                    <div class="col-12"><p class="text-secondary mb-0">Doctor specialties will appear here as providers join myDoc.</p></div>
+                @endforelse
+            </div>
+        </section>
+
+        <section class="pb-5" aria-labelledby="featured-doctors-title">
+            <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
+                <div>
+                    <p class="hero__eyebrow mb-2">Featured doctors</p>
+                    <h2 class="h3 mb-0" id="featured-doctors-title">Meet providers accepting patients.</h2>
+                </div>
+                <a href="{{ route('doctors.index') }}">Browse the directory</a>
+            </div>
+            <div class="row g-4">
+                @forelse ($featuredDoctors as $doctor)
+                    <div class="col-sm-6 col-lg-3">
+                        <x-doctors.doctor-card :doctor="$doctor" :show-booking="false" />
+                    </div>
+                @empty
+                    <div class="col-12">
+                        <div class="empty-state">
+                            <h3 class="h5">Doctors are joining myDoc soon.</h3>
+                            <p class="text-secondary mb-3">Browse the directory to check back for available providers.</p>
+                            <a class="btn btn-outline-primary" href="{{ route('doctors.index') }}">Open doctor directory</a>
+                        </div>
+                    </div>
+                @endforelse
             </div>
         </section>
 

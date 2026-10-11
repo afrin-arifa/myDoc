@@ -11,6 +11,7 @@
                 <p class="feature-card__description">{{ $doctor->bio }}</p>
                 <p><strong>Experience:</strong> {{ $doctor->years_of_experience ?? 'Not specified' }} years</p>
                 <p><strong>Consultation fee:</strong> {{ number_format((float) $doctor->consultation_fee, 2) }}</p>
+                <p><strong>Availability:</strong> <span class="status-badge status-badge--success">Accepting patients</span></p>
                 <div class="d-flex flex-wrap gap-2">
                     @foreach ($doctor->specialties as $specialty)
                         <span class="badge text-bg-light">{{ $specialty->name }}</span>
@@ -26,13 +27,10 @@
                                 <span>{{ $slot->starts_at->format('D, M j, Y g:i A') }}</span>
                                 @auth
                                     @if (auth()->user()->role === 'patient')
-                                        <form method="POST" action="{{ route('appointment-slots.book', $slot) }}">
-                                            @csrf
-                                            <button class="btn btn-sm btn-primary" type="submit">Book</button>
-                                        </form>
+                                        <a class="btn btn-sm btn-primary" href="{{ route('appointment-slots.confirm', $slot) }}">Book</a>
                                     @endif
                                 @else
-                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('login') }}">Log in</a>
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('login', ['redirect' => route('appointment-slots.confirm', $slot, false)]) }}">Log in to book</a>
                                 @endauth
                             </div>
                         @empty

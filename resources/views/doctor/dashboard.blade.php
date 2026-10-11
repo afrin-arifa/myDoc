@@ -12,6 +12,40 @@
             <p class="text-secondary mb-0">Keep your professional profile and weekly availability up to date.</p>
         </div>
 
+        <div class="row g-3 mb-5">
+            @foreach (['total' => 'Appointments', 'booked' => 'Awaiting action', 'confirmed' => 'Confirmed'] as $key => $label)
+                <div class="col-6 col-lg-4">
+                    <div class="card border-0 shadow-sm h-100">
+                        <div class="card-body">
+                            <p class="text-secondary mb-1">{{ $label }}</p>
+                            <p class="h3 mb-0">{{ $appointmentCounts[$key] }}</p>
+                        </div>
+                    </div>
+                </div>
+            @endforeach
+        </div>
+
+        <div class="card border-0 shadow-sm mb-5">
+            <div class="card-body p-4">
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                    <h2 class="h4 mb-0">Recent appointments</h2>
+                    <a href="{{ route('doctor.appointments.index') }}">Open appointment manager</a>
+                </div>
+                @forelse ($appointments as $appointment)
+                    <div class="border-top py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+                        <div>
+                            <strong>{{ $appointment->patient->name }}</strong>
+                            <div class="small text-secondary">{{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</div>
+                            <x-appointments.consultation-type :type="$appointment->consultation_type" />
+                        </div>
+                        <x-ui.status-badge :status="$appointment->status" />
+                    </div>
+                @empty
+                    <p class="text-secondary mb-0">Appointments will appear here after patients book your available slots.</p>
+                @endforelse
+            </div>
+        </div>
+
         <div class="row g-4">
             <div class="col-lg-7">
                 <div class="card border-0 shadow-sm mb-4">
@@ -111,7 +145,7 @@
             </div>
 
             <div class="col-lg-5">
-                @include('profile.password-form')
+                <x-forms.password-form />
                 <div class="card border-0 shadow-sm mb-4">
                     <div class="card-body p-4">
                         <h2 class="h4 mb-3">Generate appointment slots</h2>
@@ -167,16 +201,42 @@
                             <hr>
                             <ul class="list-group list-group-flush">
                                 @foreach ($profile->availabilities as $availability)
-                                    <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                                        <span>
-                                            {{ ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][$availability->day_of_week] }}
-                                            {{ substr($availability->start_time, 0, 5) }}–{{ substr($availability->end_time, 0, 5) }}
-                                            <small class="text-secondary">({{ $availability->slot_duration_minutes }} min)</small>
-                                        </span>
-                                        <form method="POST" action="{{ route('doctor.availability.destroy', $availability) }}">
+                                    <li class="list-group-item px-0">
+                                        <form class="row g-2 align-items-end" method="POST" action="{{ route('doctor.availability.update', $availability) }}">
+                                            @csrf
+                                            @method('PATCH')
+                                            <div class="col-6">
+                                                <label class="form-label small" for="availability-day-{{ $availability->id }}">Day</label>
+                                                <select class="form-select form-select-sm" id="availability-day-{{ $availability->id }}" name="day_of_week" required>
+                                                    @foreach (['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] as $day)
+                                                        <option value="{{ $loop->index }}" @selected($availability->day_of_week === $loop->index)>{{ $day }}</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small" for="availability-duration-{{ $availability->id }}">Minutes</label>
+                                                <input class="form-control form-control-sm" id="availability-duration-{{ $availability->id }}" name="slot_duration_minutes" type="number" min="5" max="240" value="{{ $availability->slot_duration_minutes }}" required>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small" for="availability-start-{{ $availability->id }}">Start</label>
+                                                <input class="form-control form-control-sm" id="availability-start-{{ $availability->id }}" name="start_time" type="time" value="{{ substr($availability->start_time, 0, 5) }}" required>
+                                            </div>
+                                            <div class="col-6">
+                                                <label class="form-label small" for="availability-end-{{ $availability->id }}">End</label>
+                                                <input class="form-control form-control-sm" id="availability-end-{{ $availability->id }}" name="end_time" type="time" value="{{ substr($availability->end_time, 0, 5) }}" required>
+                                            </div>
+                                            <div class="col-6 form-check ms-2">
+                                                <input class="form-check-input" id="availability-active-{{ $availability->id }}" name="is_active" type="checkbox" value="1" @checked($availability->is_active)>
+                                                <label class="form-check-label small" for="availability-active-{{ $availability->id }}">Active</label>
+                                            </div>
+                                            <div class="col-auto d-flex gap-2">
+                                                <button class="btn btn-sm btn-outline-primary" type="submit">Save</button>
+                                            </div>
+                                        </form>
+                                        <form class="mt-2" method="POST" action="{{ route('doctor.availability.destroy', $availability) }}">
                                             @csrf
                                             @method('DELETE')
-                                            <button class="btn btn-sm btn-outline-danger" type="submit">Remove</button>
+                                            <button class="btn btn-sm btn-outline-danger" type="submit">Remove availability</button>
                                         </form>
                                     </li>
                                 @endforeach

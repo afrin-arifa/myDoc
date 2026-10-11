@@ -11,12 +11,23 @@ use Illuminate\Validation\ValidationException;
 
 class AppointmentBookingService
 {
-    public function book(User $patient, int $slotId): Appointment
+    public function book(User $patient, int $slotId, string $consultationType): Appointment
     {
-        return DB::transaction(function () use ($patient, $slotId): Appointment {
+        if (! in_array($consultationType, ['physical', 'voice', 'video'], true)) {
+            throw ValidationException::withMessages([
+                'consultation_type' => 'Choose a supported consultation type.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($patient, $slotId, $consultationType): Appointment {
             $slot = AppointmentSlot::query()->lockForUpdate()->find($slotId);
 
-            if (! $slot || $slot->status !== 'available' || $slot->starts_at->lte(CarbonImmutable::now())) {
+            $slot?->loadMissing('doctorProfile');
+
+            if (! $slot
+                || $slot->status !== 'available'
+                || $slot->starts_at->lte(CarbonImmutable::now())
+                || ! $slot->doctorProfile?->is_accepting_patients) {
                 throw ValidationException::withMessages([
                     'slot' => 'This appointment slot is no longer available.',
                 ]);
@@ -26,6 +37,7 @@ class AppointmentBookingService
                 'appointment_slot_id' => $slot->id,
                 'patient_id' => $patient->id,
                 'status' => 'booked',
+                'consultation_type' => $consultationType,
                 'booked_at' => now(),
             ]);
 

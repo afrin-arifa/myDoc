@@ -39,6 +39,33 @@ class PhaseSevenTest extends TestCase
         $this->assertSame('available', $second->slot->fresh()->status);
     }
 
+    public function test_doctor_start_is_owned_time_bound_and_provider_aware(): void
+    {
+        $doctor = $this->doctor();
+        $otherDoctor = $this->doctor();
+        $patient = User::factory()->create(['role' => 'patient']);
+        $appointment = $this->appointment($doctor, $patient);
+        $appointment->update(['status' => 'confirmed', 'consultation_type' => 'video']);
+        $appointment->slot->update([
+            'starts_at' => now()->subMinutes(5),
+            'ends_at' => now()->addMinutes(20),
+        ]);
+
+        $this->actingAs($otherDoctor)
+            ->post(route('doctor.appointments.start', $appointment))
+            ->assertForbidden();
+
+        $this->actingAs($doctor)
+            ->post(route('doctor.appointments.start', $appointment))
+            ->assertSessionHasErrors('consultation');
+
+        $appointment->update(['status' => 'completed']);
+
+        $this->actingAs($doctor)
+            ->post(route('doctor.appointments.start', $appointment))
+            ->assertSessionHasErrors('consultation');
+    }
+
     public function test_admin_dashboard_and_management_are_protected_and_specialties_validate(): void
     {
         $admin = User::factory()->create(['role' => 'admin']);

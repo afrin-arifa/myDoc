@@ -13,6 +13,8 @@ class BookAppointmentRequest extends FormRequest
 
     public function rules(): array
     {
-        return [];
+        return [
+            'consultation_type' => ['required', 'in:physical,voice,video'],
+        ];
     }
 }

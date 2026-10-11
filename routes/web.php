@@ -13,12 +13,11 @@ use App\Http\Controllers\Doctor\DoctorAvailabilityController;
 use App\Http\Controllers\Doctor\DoctorProfileController;
 use App\Http\Controllers\Doctor\DoctorSlotController;
 use App\Http\Controllers\DoctorDirectoryController;
+use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return view('home');
-})->name('home');
+Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::get('/doctors', [DoctorDirectoryController::class, 'index'])->name('doctors.index');
 Route::get('/doctors/{doctor}', [DoctorDirectoryController::class, 'show'])->name('doctors.show');
@@ -45,6 +44,8 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
     Route::get('/patient/appointments', [AppointmentController::class, 'index'])->name('patient.appointments.index');
     Route::get('/patient/appointments/{appointment}', [AppointmentController::class, 'show'])
         ->name('patient.appointments.show');
+    Route::get('/appointment-slots/{slot}/confirm', [AppointmentController::class, 'confirm'])
+        ->name('appointment-slots.confirm');
     Route::post('/appointment-slots/{slot}/book', [AppointmentController::class, 'store'])
         ->name('appointment-slots.book');
     Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel'])
@@ -69,6 +70,8 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.appointments.confirm');
     Route::post('/doctor/appointments/{appointment}/reject', [DoctorAppointmentController::class, 'reject'])
         ->name('doctor.appointments.reject');
+    Route::post('/doctor/appointments/{appointment}/start', [DoctorAppointmentController::class, 'start'])
+        ->name('doctor.appointments.start');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
