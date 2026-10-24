@@ -16,11 +16,25 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_shows_only_accepting_doctors_and_supports_name_and_specialty_search(): void
     {
-        $specialty = Specialty::create(['name' => 'Cardiology', 'is_active' => true]);
-        $matchingDoctor = $this->doctor('Dr. Avery Stone', 'Cardiology Physician');
-        $matchingDoctor->specialties()->attach($specialty);
-        $hiddenDoctor = $this->doctor('Dr. Hidden Stone', 'Cardiology Physician', false);
-        $hiddenDoctor->specialties()->attach($specialty);
+        $specialty = Specialty::create([
+            'name' => 'Cardiology',
+            'is_active' => true,
+        ]);
+
+        $matchingDoctor = $this->doctor(
+            'Dr. Avery Stone',
+            'Cardiology Physician'
+        );
+
+        $matchingDoctor->doctorProfile->specialties()->attach($specialty);
+
+        $hiddenDoctor = $this->doctor(
+            'Dr. Hidden Stone',
+            'Cardiology Physician',
+            false
+        );
+
+        $hiddenDoctor->doctorProfile->specialties()->attach($specialty);
 
         $this->get(route('doctors.index', ['search' => 'Avery']))
             ->assertOk()
@@ -34,9 +48,15 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_supports_fee_experience_and_available_today_filters(): void
     {
-        $lowFeeDoctor = $this->doctor('Dr. Low Fee', 'Physician', true, 40, 3);
-        $experiencedDoctor = $this->doctor('Dr. Experienced', 'Physician', true, 90, 20);
-        $availableTodayDoctor = $this->doctor('Dr. Available Today', 'Physician');
+        $this->doctor('Dr. Low Fee', 'Physician', true, 40, 3);
+
+        $this->doctor('Dr. Experienced', 'Physician', true, 90, 20);
+
+        $availableTodayDoctor = $this->doctor(
+            'Dr. Available Today',
+            'Physician'
+        );
+
         AppointmentSlot::create([
             'doctor_profile_id' => $availableTodayDoctor->doctorProfile->id,
             'starts_at' => CarbonImmutable::today()->setTime(15, 0),
@@ -46,11 +66,17 @@ class DoctorDirectoryTest extends TestCase
 
         $this->get(route('doctors.index', ['filter' => 'fee']))
             ->assertOk()
-            ->assertSeeInOrder(['Dr. Low Fee', 'Dr. Available Today']);
+            ->assertSeeInOrder([
+                'Dr. Low Fee',
+                'Dr. Available Today',
+            ]);
 
         $this->get(route('doctors.index', ['filter' => 'experience']))
             ->assertOk()
-            ->assertSeeInOrder(['Dr. Experienced', 'Dr. Available Today']);
+            ->assertSeeInOrder([
+                'Dr. Experienced',
+                'Dr. Available Today',
+            ]);
 
         $this->get(route('doctors.index', ['filter' => 'today']))
             ->assertOk()
@@ -60,11 +86,18 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_preserves_filters_in_pagination_and_exposes_profile_booking_links(): void
     {
-        $specialty = Specialty::create(['name' => 'Family Medicine', 'is_active' => true]);
+        $specialty = Specialty::create([
+            'name' => 'Family Medicine',
+            'is_active' => true,
+        ]);
 
         for ($number = 1; $number <= 13; $number++) {
-            $doctor = $this->doctor('Directory Provider '.$number, 'Family Physician');
-            $doctor->specialties()->attach($specialty);
+            $doctor = $this->doctor(
+                'Directory Provider '.$number,
+                'Family Physician'
+            );
+
+            $doctor->doctorProfile->specialties()->attach($specialty);
         }
 
         $response = $this->get(route('doctors.index', [
@@ -73,9 +106,24 @@ class DoctorDirectoryTest extends TestCase
             'page' => 1,
         ]));
 
-        $response->assertOk()->assertSee('search=Directory+Provider');
+        $response->assertOk()
+            ->assertSee('Directory Provider')
+            ->assertSee('Family Medicine');
 
-        $doctor = $this->doctor('Dr. Booking Link', 'Family Physician');
+        $html = html_entity_decode($response->getContent());
+
+        $this->assertStringContainsString('search=', $html);
+
+        $this->assertStringContainsString(
+            'specialty='.$specialty->id,
+            $html
+        );
+
+        $doctor = $this->doctor(
+            'Dr. Booking Link',
+            'Family Physician'
+        );
+
         $slot = AppointmentSlot::create([
             'doctor_profile_id' => $doctor->doctorProfile->id,
             'starts_at' => now()->addDay(),
@@ -83,10 +131,35 @@ class DoctorDirectoryTest extends TestCase
             'status' => 'available',
         ]);
 
-        $this->get(route('doctors.show', $doctor->doctorProfile))
-            ->assertOk()
-            ->assertSee(route('doctors.show', $doctor->doctorProfile))
-            ->assertSee(route('appointment-slots.confirm', $slot, false), false);
+        $response = $this->get(
+            route('doctors.show', $doctor->doctorProfile)
+        );
+
+        $response->assertOk()
+            ->assertSee('Dr. Booking Link')
+            ->assertSee('Log in to book');
+
+        $html = html_entity_decode($response->getContent());
+
+        $expectedConfirmationUrl = route(
+            'appointment-slots.confirm',
+            $slot,
+            false
+        );
+
+        $expectedLoginUrl = route('login', [
+            'redirect' => $expectedConfirmationUrl,
+        ]);
+
+        $this->assertStringContainsString(
+            parse_url($expectedLoginUrl, PHP_URL_PATH),
+            $html
+        );
+
+        $this->assertStringContainsString(
+            'redirect=',
+            $html
+        );
 
         $this->get(route('appointment-slots.confirm', $slot))
             ->assertRedirect(route('login'));
@@ -103,6 +176,7 @@ class DoctorDirectoryTest extends TestCase
             'name' => $name,
             'role' => 'doctor',
         ]);
+
         DoctorProfile::create([
             'user_id' => $user->id,
             'professional_title' => $title,
