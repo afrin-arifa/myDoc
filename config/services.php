@@ -9,8 +9,7 @@ return [
     |
     | This file is for storing the credentials for third party services such
     | as Resend, Postmark, AWS, and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
+    | location for these credentials.
     |
     */
 
@@ -32,6 +31,14 @@ return [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
+        ],
+    ],
+
+    'google' => [
+        'calendar' => [
+            'client_id' => env('GOOGLE_CALENDAR_CLIENT_ID'),
+            'client_secret' => env('GOOGLE_CALENDAR_CLIENT_SECRET'),
+            'redirect_uri' => env('GOOGLE_CALENDAR_REDIRECT_URI'),
         ],
     ],
 
