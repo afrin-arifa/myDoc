@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
 use App\Models\User;
@@ -74,5 +75,7 @@ class AppointmentBookingService
             ]);
             $slot->update(['status' => 'available']);
         });
+
+        SyncAppointmentToGoogleCalendar::dispatch($appointmentId, 'delete')->afterCommit();
     }
 }

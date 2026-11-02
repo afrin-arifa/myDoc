@@ -16,7 +16,7 @@ class DoctorProfileController extends Controller
     public function show(): View
     {
         $user = request()->user();
-        $profile = $user->doctorProfile?->load(['specialties', 'availabilities']);
+        $profile = $user->doctorProfile?->load(['specialties', 'availabilities', 'googleCalendarConnection']);
         $appointments = $profile
             ? Appointment::query()
                 ->whereHas('slot', fn ($slots) => $slots->where('doctor_profile_id', $profile->id))

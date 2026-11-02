@@ -12,6 +12,7 @@ use App\Http\Controllers\Doctor\DoctorAppointmentController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
 use App\Http\Controllers\Doctor\DoctorProfileController;
 use App\Http\Controllers\Doctor\DoctorSlotController;
+use App\Http\Controllers\Doctor\GoogleCalendarController;
 use App\Http\Controllers\DoctorDirectoryController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
@@ -56,6 +57,12 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::get('/doctor/dashboard', [DoctorProfileController::class, 'show'])->name('doctor.dashboard');
     Route::put('/doctor/profile', [DoctorProfileController::class, 'update'])->name('doctor.profile.update');
     Route::put('/doctor/account', [DoctorProfileController::class, 'updateAccount'])->name('doctor.account.update');
+    Route::get('/doctor/google-calendar/connect', [GoogleCalendarController::class, 'connect'])
+        ->name('doctor.google-calendar.connect');
+    Route::get('/doctor/google-calendar/callback', [GoogleCalendarController::class, 'callback'])
+        ->name('doctor.google-calendar.callback');
+    Route::delete('/doctor/google-calendar/disconnect', [GoogleCalendarController::class, 'disconnect'])
+        ->name('doctor.google-calendar.disconnect');
     Route::post('/doctor/availability', [DoctorAvailabilityController::class, 'store'])->name('doctor.availability.store');
     Route::patch('/doctor/availability/{availability}', [DoctorAvailabilityController::class, 'update'])
         ->name('doctor.availability.update');

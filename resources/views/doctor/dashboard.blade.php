@@ -26,6 +26,32 @@
         </div>
 
         <div class="card border-0 shadow-sm mb-5">
+            <div class="card-body p-4 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                <div>
+                    <h2 class="h4 mb-2">Google Calendar</h2>
+                    @if ($profile?->googleCalendarConnection?->is_connected)
+                        <p class="mb-1">Connected to {{ $profile->googleCalendarConnection->google_account_email }}.</p>
+                        <p class="small text-secondary mb-0">
+                            Last synchronized:
+                            {{ $profile->googleCalendarConnection->last_synced_at?->format('M j, Y g:i A') ?? 'Not synchronized yet' }}
+                        </p>
+                    @else
+                        <p class="text-secondary mb-0">Not connected. Confirmed appointments can be synchronized automatically after you connect.</p>
+                    @endif
+                </div>
+                @if ($profile?->googleCalendarConnection?->is_connected)
+                    <form method="POST" action="{{ route('doctor.google-calendar.disconnect') }}">
+                        @csrf
+                        @method('DELETE')
+                        <button class="btn btn-outline-danger" type="submit">Disconnect Google Calendar</button>
+                    </form>
+                @else
+                    <a class="btn btn-primary" href="{{ route('doctor.google-calendar.connect') }}">Connect Google Calendar</a>
+                @endif
+            </div>
+        </div>
+
+        <div class="card border-0 shadow-sm mb-5">
             <div class="card-body p-4">
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                     <h2 class="h4 mb-0">Recent appointments</h2>

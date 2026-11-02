@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -32,6 +33,11 @@ class DoctorAppointmentService
                 $appointment->slot()->lockForUpdate()->first()->update(['status' => 'available']);
             }
         });
+
+        SyncAppointmentToGoogleCalendar::dispatch(
+            $appointment->id,
+            $status === 'confirmed' ? 'sync' : 'delete'
+        )->afterCommit();
     }
 
     public function start(User $doctor, Appointment $appointment): void
