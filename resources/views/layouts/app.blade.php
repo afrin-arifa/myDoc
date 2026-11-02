@@ -11,9 +11,11 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="d-flex min-vh-100 flex-column bg-white">
-        <header>
-            <x-layout.navbar />
-        </header>
+        @unless ($__env->hasSection('doctor_workspace'))
+            <header>
+                <x-layout.navbar />
+            </header>
+        @endunless
 
         <main class="flex-grow-1">
             @if (session('status'))
@@ -38,6 +40,8 @@
             @yield('content')
         </main>
 
-        <x-layout.footer />
+        @unless ($__env->hasSection('doctor_workspace'))
+            <x-layout.footer />
+        @endunless
     </body>
 </html>

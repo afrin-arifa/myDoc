@@ -41,7 +41,7 @@ class DoctorSlotGenerator
                         $date->toDateString().' '.$availability->end_time,
                         $timezone
                     );
-                    $duration = $availability->slot_duration_minutes;
+                    $duration = 10;
 
                     for ($slotStart = $start; $slotStart->addMinutes($duration)->lte($end); $slotStart = $slotStart->addMinutes($duration)) {
                         $slotEnd = $slotStart->addMinutes($duration);

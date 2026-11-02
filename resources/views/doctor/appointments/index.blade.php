@@ -8,7 +8,7 @@
     <div class="container py-5">
         <div class="row g-4">
             <div class="col-lg-3">
-                <x-doctors.profile-summary :profile="$profile" />
+                <x-doctors.profile-summary :profile="$profile" active="appointments" :pending-count="$pendingCount" />
             </div>
             <div class="col-lg-9">
                 <nav class="small mb-3" aria-label="Breadcrumb">

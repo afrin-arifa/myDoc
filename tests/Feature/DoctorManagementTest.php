@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Appointment;
 use App\Models\AppointmentSlot;
 use App\Models\DoctorAvailability;
 use App\Models\DoctorProfile;
@@ -134,15 +135,15 @@ class DoctorManagementTest extends TestCase
             ->assertRedirect();
 
         $slots = AppointmentSlot::all();
-        $this->assertCount(1, $slots);
+        $this->assertCount(9, $slots);
         $this->assertSame('09:00:00', $slots->first()->starts_at->format('H:i:s'));
-        $this->assertSame('10:00:00', $slots->first()->ends_at->format('H:i:s'));
+        $this->assertSame('09:10:00', $slots->first()->ends_at->format('H:i:s'));
 
         $this->actingAs($doctor)
             ->post(route('doctor.slots.generate'), ['days' => 1])
             ->assertRedirect();
 
-        $this->assertCount(1, AppointmentSlot::all());
+        $this->assertCount(9, AppointmentSlot::all());
     }
 
     public function test_slot_generation_preserves_booked_and_blocked_slots(): void
@@ -173,5 +174,189 @@ class DoctorManagementTest extends TestCase
         $this->assertSame('booked', $slots[0]->fresh()->status);
         $this->assertSame('blocked', $slots[1]->fresh()->status);
         $this->travelBack();
+    }
+
+    public function test_new_availability_is_normalized_to_ten_minute_slots(): void
+    {
+        $doctor = User::factory()->create(['role' => 'doctor']);
+        $profile = DoctorProfile::create([
+            'user_id' => $doctor->id,
+            'professional_title' => 'Physician',
+            'license_number' => 'LIC-TEN',
+            'consultation_fee' => 50,
+        ]);
+
+        $this->actingAs($doctor)
+            ->post(route('doctor.availability.store'), [
+                'day_of_week' => 1,
+                'start_time' => '09:00',
+                'end_time' => '10:00',
+                'slot_duration_minutes' => 30,
+            ])
+            ->assertRedirect();
+
+        $this->assertSame(10, $profile->availabilities()->firstOrFail()->slot_duration_minutes);
+    }
+
+    public function test_doctor_can_create_a_manual_appointment_for_a_registered_patient(): void
+    {
+        $doctor = User::factory()->create(['role' => 'doctor']);
+        $patient = User::factory()->create(['role' => 'patient']);
+        $profile = DoctorProfile::create([
+            'user_id' => $doctor->id,
+            'professional_title' => 'Physician',
+            'license_number' => 'LIC-MANUAL',
+            'consultation_fee' => 50,
+        ]);
+        $slot = AppointmentSlot::create([
+            'doctor_profile_id' => $profile->id,
+            'starts_at' => now()->addHour(),
+            'ends_at' => now()->addHour()->addMinutes(10),
+            'status' => 'available',
+        ]);
+
+        $this->actingAs($doctor)
+            ->post(route('doctor.appointments.store'), [
+                'patient_id' => $patient->id,
+                'slot_id' => $slot->id,
+                'consultation_type' => 'video',
+                'provider_notes' => 'Follow-up consultation',
+            ])
+            ->assertRedirect(route('doctor.schedule'));
+
+        $this->assertDatabaseHas('appointments', [
+            'appointment_slot_id' => $slot->id,
+            'patient_id' => $patient->id,
+            'status' => 'booked',
+            'provider_notes' => 'Follow-up consultation',
+        ]);
+        $this->assertSame('booked', $slot->fresh()->status);
+    }
+
+    public function test_schedule_returns_only_the_doctors_selected_calendar_range(): void
+    {
+        $this->travelTo(CarbonImmutable::create(2026, 11, 2, 8, 0, 0, config('app.timezone')));
+        $doctor = User::factory()->create(['role' => 'doctor']);
+        $profile = DoctorProfile::create([
+            'user_id' => $doctor->id,
+            'professional_title' => 'Physician',
+            'license_number' => 'LIC-SCHEDULE',
+            'consultation_fee' => 50,
+        ]);
+        $patient = User::factory()->create(['role' => 'patient', 'name' => 'Calendar Patient']);
+        $slot = AppointmentSlot::create([
+            'doctor_profile_id' => $profile->id,
+            'starts_at' => '2026-11-02 09:00:00',
+            'ends_at' => '2026-11-02 09:10:00',
+            'status' => 'booked',
+        ]);
+        Appointment::create([
+            'appointment_slot_id' => $slot->id,
+            'patient_id' => $patient->id,
+            'status' => 'booked',
+            'consultation_type' => 'video',
+        ]);
+        $otherDoctor = $this->makeDoctor();
+        $otherPatient = User::factory()->create(['role' => 'patient', 'name' => 'Other Doctor Patient']);
+        $otherSlot = AppointmentSlot::create([
+            'doctor_profile_id' => $otherDoctor->doctorProfile->id,
+            'starts_at' => '2026-11-02 10:00:00',
+            'ends_at' => '2026-11-02 10:10:00',
+            'status' => 'booked',
+        ]);
+        Appointment::create([
+            'appointment_slot_id' => $otherSlot->id,
+            'patient_id' => $otherPatient->id,
+            'status' => 'booked',
+            'consultation_type' => 'physical',
+        ]);
+
+        $response = $this->actingAs($doctor)->get(route('doctor.schedule', [
+            'date' => '2026-11-02',
+            'view' => 'day',
+        ]));
+
+        $response->assertOk()
+            ->assertSee('Calendar Patient')
+            ->assertSee('data-event-type="appointment"', false)
+            ->assertSee('9:00 AM')
+            ->assertSee('Total slots');
+        $response->assertDontSee('Other Doctor Patient');
+        $this->travelBack();
+    }
+
+    public function test_schedule_uses_monday_to_sunday_week_and_month_ranges(): void
+    {
+        $doctor = $this->makeDoctor();
+        $mondaySlot = AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => '2026-11-02 09:00:00',
+            'ends_at' => '2026-11-02 09:10:00',
+            'status' => 'available',
+        ]);
+        $sundaySlot = AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => '2026-11-08 09:00:00',
+            'ends_at' => '2026-11-08 09:10:00',
+            'status' => 'available',
+        ]);
+
+        $this->actingAs($doctor)
+            ->get(route('doctor.schedule', ['date' => '2026-11-04', 'view' => 'week']))
+            ->assertOk()
+            ->assertSee('data-event-date="2026-11-02"', false)
+            ->assertSee('data-event-date="2026-11-08"', false);
+
+        $this->actingAs($doctor)
+            ->get(route('doctor.schedule', ['date' => '2026-11-15', 'view' => 'month']))
+            ->assertOk()
+            ->assertSee('data-calendar-date="2026-11-08"', false);
+    }
+
+    public function test_schedule_status_filters_limit_calendar_events_without_changing_summary_counts(): void
+    {
+        $doctor = $this->makeDoctor();
+        $patient = User::factory()->create(['role' => 'patient', 'name' => 'Pending Patient']);
+        $bookedSlot = AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => '2026-11-02 09:00:00',
+            'ends_at' => '2026-11-02 09:10:00',
+            'status' => 'booked',
+        ]);
+        Appointment::create([
+            'appointment_slot_id' => $bookedSlot->id,
+            'patient_id' => $patient->id,
+            'status' => 'booked',
+            'consultation_type' => 'physical',
+        ]);
+        AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => '2026-11-02 10:00:00',
+            'ends_at' => '2026-11-02 10:10:00',
+            'status' => 'available',
+        ]);
+
+        $this->actingAs($doctor)
+            ->get(route('doctor.schedule', [
+                'date' => '2026-11-02',
+                'view' => 'day',
+                'filters' => ['available'],
+            ]))
+            ->assertOk()
+            ->assertDontSee('data-event-type="appointment"', false)
+            ->assertSee('data-event-type="available"', false);
+    }
+
+    private function makeDoctor(): User
+    {
+        $doctor = User::factory()->create(['role' => 'doctor']);
+        DoctorProfile::create([
+            'user_id' => $doctor->id,
+            'professional_title' => 'Physician',
+            'license_number' => 'LIC-'.$doctor->id,
+            'consultation_fee' => 50,
+        ]);
+
+        return $doctor->load('doctorProfile');
     }
 }

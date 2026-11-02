@@ -78,4 +78,39 @@ class AppointmentBookingService
 
         SyncAppointmentToGoogleCalendar::dispatch($appointmentId, 'delete')->afterCommit();
     }
+
+    public function bookForDoctor(User $doctor, User $patient, int $slotId, string $consultationType, ?string $notes = null): Appointment
+    {
+        if (! in_array($consultationType, ['physical', 'voice', 'video'], true)) {
+            throw ValidationException::withMessages([
+                'consultation_type' => 'Choose a supported consultation type.',
+            ]);
+        }
+
+        return DB::transaction(function () use ($doctor, $patient, $slotId, $consultationType, $notes): Appointment {
+            $slot = AppointmentSlot::query()->lockForUpdate()->find($slotId);
+
+            if (! $slot
+                || $slot->doctor_profile_id !== $doctor->doctorProfile?->id
+                || $slot->status !== 'available'
+                || $slot->starts_at->lte(CarbonImmutable::now())) {
+                throw ValidationException::withMessages([
+                    'slot' => 'This appointment slot is no longer available.',
+                ]);
+            }
+
+            $appointment = Appointment::create([
+                'appointment_slot_id' => $slot->id,
+                'patient_id' => $patient->id,
+                'status' => 'booked',
+                'consultation_type' => $consultationType,
+                'provider_notes' => $notes,
+                'booked_at' => now(),
+            ]);
+
+            $slot->update(['status' => 'booked']);
+
+            return $appointment;
+        });
+    }
 }

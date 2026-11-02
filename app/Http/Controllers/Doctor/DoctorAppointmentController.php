@@ -3,7 +3,11 @@
 namespace App\Http\Controllers\Doctor;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Doctor\StoreDoctorAppointmentRequest;
 use App\Models\Appointment;
+use App\Models\AppointmentSlot;
+use App\Models\User;
+use App\Services\AppointmentBookingService;
 use App\Services\DoctorAppointmentService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
@@ -70,7 +74,47 @@ class DoctorAppointmentController extends Controller
             })
             ->modelKeys();
 
-        return view('doctor.appointments.index', compact('appointments', 'profile', 'startableAppointmentIds'));
+        $pendingCount = Appointment::query()
+            ->where('appointments.status', 'booked')
+            ->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $profileId))
+            ->count();
+
+        return view('doctor.appointments.index', compact('appointments', 'profile', 'startableAppointmentIds', 'pendingCount'));
+    }
+
+    public function create(Request $request): View
+    {
+        $profile = $request->user()->doctorProfile;
+        abort_unless($profile, 403);
+
+        $date = $request->date('date') ?? today();
+
+        return view('doctor.appointments.create', [
+            'profile' => $profile,
+            'patients' => User::query()->where('role', 'patient')->orderBy('name')->get(['id', 'name', 'email']),
+            'slots' => AppointmentSlot::query()
+                ->where('doctor_profile_id', $profile->id)
+                ->where('status', 'available')
+                ->whereDate('starts_at', $date)
+                ->where('starts_at', '>', now())
+                ->orderBy('starts_at')
+                ->get(),
+            'selectedDate' => $date,
+        ]);
+    }
+
+    public function store(StoreDoctorAppointmentRequest $request, AppointmentBookingService $booking): RedirectResponse
+    {
+        $patient = User::query()->where('role', 'patient')->findOrFail($request->integer('patient_id'));
+        $booking->bookForDoctor(
+            $request->user(),
+            $patient,
+            $request->integer('slot_id'),
+            $request->string('consultation_type')->toString(),
+            $request->input('provider_notes')
+        );
+
+        return redirect()->route('doctor.schedule')->with('status', 'Appointment request created.');
     }
 
     public function show(Request $request, Appointment $appointment): View

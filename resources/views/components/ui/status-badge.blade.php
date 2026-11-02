@@ -2,8 +2,9 @@
 
 @php
     $tone = match ($status) {
-        'confirmed' => 'success',
+        'confirmed', 'completed' => 'success',
         'booked' => 'warning',
+        'available' => 'neutral',
         default => 'danger',
     };
 @endphp

@@ -16,6 +16,7 @@ class DoctorAvailabilityController extends Controller
 
         $profile->availabilities()->create([
             ...$request->validated(),
+            'slot_duration_minutes' => 10,
             'is_active' => $request->boolean('is_active'),
         ]);
 
@@ -26,6 +27,7 @@ class DoctorAvailabilityController extends Controller
     {
         $availability->update([
             ...$request->validated(),
+            'slot_duration_minutes' => 10,
             'is_active' => $request->boolean('is_active'),
         ]);
 

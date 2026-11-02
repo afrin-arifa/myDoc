@@ -11,6 +11,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Doctor\DoctorAppointmentController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
 use App\Http\Controllers\Doctor\DoctorProfileController;
+use App\Http\Controllers\Doctor\DoctorScheduleController;
 use App\Http\Controllers\Doctor\DoctorSlotController;
 use App\Http\Controllers\Doctor\GoogleCalendarController;
 use App\Http\Controllers\DoctorDirectoryController;
@@ -55,6 +56,9 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
 
 Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::get('/doctor/dashboard', [DoctorProfileController::class, 'show'])->name('doctor.dashboard');
+    Route::get('/doctor/schedule', [DoctorScheduleController::class, 'index'])->name('doctor.schedule');
+    Route::get('/doctor/profile', [DoctorProfileController::class, 'profile'])->name('doctor.profile');
+    Route::get('/doctor/settings', [DoctorProfileController::class, 'settings'])->name('doctor.settings');
     Route::put('/doctor/profile', [DoctorProfileController::class, 'update'])->name('doctor.profile.update');
     Route::put('/doctor/account', [DoctorProfileController::class, 'updateAccount'])->name('doctor.account.update');
     Route::get('/doctor/google-calendar/connect', [GoogleCalendarController::class, 'connect'])
@@ -71,6 +75,10 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::post('/doctor/slots/generate', [DoctorSlotController::class, 'store'])->name('doctor.slots.generate');
     Route::get('/doctor/appointments', [DoctorAppointmentController::class, 'index'])
         ->name('doctor.appointments.index');
+    Route::get('/doctor/appointments/create', [DoctorAppointmentController::class, 'create'])
+        ->name('doctor.appointments.create');
+    Route::post('/doctor/appointments', [DoctorAppointmentController::class, 'store'])
+        ->name('doctor.appointments.store');
     Route::get('/doctor/appointments/{appointment}', [DoctorAppointmentController::class, 'show'])
         ->name('doctor.appointments.show');
     Route::post('/doctor/appointments/{appointment}/confirm', [DoctorAppointmentController::class, 'confirm'])

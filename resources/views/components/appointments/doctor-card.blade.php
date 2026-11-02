@@ -42,7 +42,7 @@
     </div>
 
     <div class="appointment-management-card__footer">
-        <div class="appointment-management-card__actions">
+        <div class="d-flex flex-wrap align-items-center gap-2">
             <a
                 class="appointment-management-card__icon"
                 href="{{ route('doctor.appointments.show', $appointment) }}"
@@ -52,22 +52,35 @@
                 <i class="fa-regular fa-eye" aria-hidden="true"></i>
             </a>
 
-            <span
-                class="appointment-management-card__icon"
-                title="{{ ucfirst($appointment->status) }}"
-                aria-label="Appointment status: {{ $appointment->status }}"
-            >
-                <i class="fa-solid fa-user-check" aria-hidden="true"></i>
-            </span>
-
-            <span
-                class="appointment-management-card__icon"
-                title="{{ ucfirst($appointment->status) }}"
-                aria-hidden="true"
-            >
-                <i class="fa-solid fa-circle-xmark"></i>
-            </span>
+            <x-ui.status-badge :status="$appointment->status" />
         </div>
+
+        @if ($appointment->status === 'booked')
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <form
+                    method="POST"
+                    action="{{ route('doctor.appointments.confirm', $appointment) }}"
+                >
+                    @csrf
+                    <button class="btn btn-sm btn-success" type="submit">
+                        <i class="fa-solid fa-check me-1"></i>
+                        Approve
+                    </button>
+                </form>
+
+                <form
+                    method="POST"
+                    action="{{ route('doctor.appointments.reject', $appointment) }}"
+                    onsubmit="return confirm('Are you sure you want to reject this appointment?')"
+                >
+                    @csrf
+                    <button class="btn btn-sm btn-outline-danger" type="submit">
+                        <i class="fa-solid fa-xmark me-1"></i>
+                        Reject
+                    </button>
+                </form>
+            </div>
+        @endif
 
         @if ($canStart && $appointment->status === 'confirmed')
             @if (in_array($appointment->consultation_type, ['voice', 'video'], true))
@@ -91,7 +104,7 @@
                         </form>
                     </div>
                 </details>
-            @else
+            @elseif ($appointment->consultation_type === 'physical')
                 <span class="appointment-management-card__physical">
                     Physical Visit
                 </span>
