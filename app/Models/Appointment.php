@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -32,6 +33,11 @@ class Appointment extends Model
     public function googleCalendarEvent(): HasOne
     {
         return $this->hasOne(AppointmentGoogleCalendarEvent::class);
+    }
+
+    public function rescheduleHistories(): HasMany
+    {
+        return $this->hasMany(AppointmentRescheduleHistory::class);
     }
 
     protected function casts(): array

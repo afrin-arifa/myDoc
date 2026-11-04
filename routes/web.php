@@ -72,6 +72,7 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.availability.update');
     Route::delete('/doctor/availability/{availability}', [DoctorAvailabilityController::class, 'destroy'])
         ->name('doctor.availability.destroy');
+    Route::post('/doctor/slots/preview', [DoctorSlotController::class, 'preview'])->name('doctor.slots.preview');
     Route::post('/doctor/slots/generate', [DoctorSlotController::class, 'store'])->name('doctor.slots.generate');
     Route::get('/doctor/appointments', [DoctorAppointmentController::class, 'index'])
         ->name('doctor.appointments.index');
@@ -87,6 +88,12 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.appointments.reject');
     Route::post('/doctor/appointments/{appointment}/start', [DoctorAppointmentController::class, 'start'])
         ->name('doctor.appointments.start');
+    Route::post('/doctor/appointments/{appointment}/complete', [DoctorAppointmentController::class, 'complete'])
+        ->name('doctor.appointments.complete');
+    Route::get('/doctor/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'rescheduleForm'])
+        ->name('doctor.appointments.reschedule');
+    Route::post('/doctor/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'reschedule'])
+        ->name('doctor.appointments.reschedule.store');
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {

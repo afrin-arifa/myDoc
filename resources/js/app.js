@@ -32,4 +32,30 @@ document.querySelectorAll("[data-schedule-tab], [data-open-schedule-tab]").forEa
             panel.hidden = panel.dataset.schedulePanel !== tab;
         });
     });
+
+    document.querySelector("[data-slot-preview]")?.addEventListener("click", async () => {
+        const form = document.querySelector("[data-slot-generation-form]");
+        const output = document.querySelector("[data-slot-preview-output]");
+        const data = new FormData(form);
+        data.delete("_token");
+
+        output.textContent = "Loading preview...";
+        try {
+            const response = await fetch("/doctor/slots/preview", {
+                method: "POST",
+                headers: {
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": form.querySelector("[name='_token']").value,
+                },
+                body: data,
+            });
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || "Unable to preview slots.");
+            }
+            output.textContent = `${result.total} slot(s) match this range; ${result.existing} already exist and ${result.past} are in the past.`;
+        } catch (error) {
+            output.textContent = error.message;
+        }
+    });
 });

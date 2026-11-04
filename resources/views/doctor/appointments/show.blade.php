@@ -32,6 +32,15 @@
                         </form>
                     </div>
                 @endif
+                @if (in_array($appointment->status, ['booked', 'confirmed'], true))
+                    <a class="btn btn-outline-primary mt-3" href="{{ route('doctor.appointments.reschedule', $appointment) }}">Reschedule</a>
+                @endif
+                @if ($appointment->status === 'confirmed')
+                    <form class="d-inline-block mt-3" method="POST" action="{{ route('doctor.appointments.complete', $appointment) }}">
+                        @csrf
+                        <button class="btn btn-outline-success" type="submit">Mark completed</button>
+                    </form>
+                @endif
                 @if ($canStart)
                     <details class="consultation-launch mt-3">
                         <summary class="btn btn-primary">Start now</summary>

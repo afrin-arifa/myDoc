@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Doctor;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Doctor\RescheduleAppointmentRequest;
 use App\Http\Requests\Doctor\StoreDoctorAppointmentRequest;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
@@ -153,6 +154,43 @@ class DoctorAppointmentController extends Controller
         $service->start($request->user(), $appointment);
 
         return back()->with('status', 'This consultation is ready to launch when a provider is configured.');
+    }
+
+    public function complete(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
+    {
+        $this->authorizeAppointment($request, $appointment);
+        $service->complete($request->user(), $appointment);
+
+        return back()->with('status', 'Appointment marked as completed.');
+    }
+
+    public function rescheduleForm(Request $request, Appointment $appointment): View
+    {
+        $this->authorizeAppointment($request, $appointment);
+        $appointment->load('slot');
+
+        return view('doctor.appointments.reschedule', [
+            'appointment' => $appointment,
+            'slots' => AppointmentSlot::query()
+                ->where('doctor_profile_id', $request->user()->doctorProfile?->id)
+                ->where('status', 'available')
+                ->where('starts_at', '>', now())
+                ->where('id', '!=', $appointment->appointment_slot_id)
+                ->orderBy('starts_at')
+                ->get(),
+        ]);
+    }
+
+    public function reschedule(RescheduleAppointmentRequest $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
+    {
+        $service->reschedule(
+            $request->user(),
+            $appointment,
+            $request->integer('slot_id'),
+            $request->input('reason')
+        );
+
+        return redirect()->route('doctor.appointments.show', $appointment)->with('status', 'Appointment rescheduled.');
     }
 
     private function authorizeAppointment(Request $request, Appointment $appointment): void

@@ -306,11 +306,19 @@
                         <section class="doctor-panel">
                             <p class="doctor-eyebrow mb-1">Slot generation</p>
                             <h2 class="doctor-panel__title mb-3">Generate 10-minute appointment slots</h2>
-                            <form class="row g-3 align-items-end" method="POST" action="{{ route('doctor.slots.generate') }}">
+                            <form class="row g-3 align-items-end" method="POST" action="{{ route('doctor.slots.generate') }}" data-slot-generation-form>
                                 @csrf
-                                <div class="col-md-5"><label class="form-label" for="days">Generate next number of days</label><input class="form-control" id="days" name="days" type="number" min="1" max="90" value="30" required></div>
-                                <div class="col-md-3"><button class="btn btn-primary" type="submit">Generate Slots</button></div>
+                                <div class="col-md-3"><label class="form-label" for="start_date">Start date</label><input class="form-control" id="start_date" name="start_date" type="date" value="{{ today()->toDateString() }}" required></div>
+                                <div class="col-md-3"><label class="form-label" for="end_date">End date</label><input class="form-control" id="end_date" name="end_date" type="date" value="{{ today()->addDays(30)->toDateString() }}" required></div>
+                                <div class="col-md-6">
+                                    <span class="form-label d-block">Weekdays</span>
+                                    @foreach (['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as $weekday => $label)
+                                        <label class="form-check form-check-inline"><input class="form-check-input" name="weekdays[]" type="checkbox" value="{{ $weekday + 1 }}" checked><span class="form-check-label">{{ substr($label, 0, 3) }}</span></label>
+                                    @endforeach
+                                </div>
+                                <div class="col-md-4"><button class="btn btn-outline-primary" type="button" data-slot-preview>Preview slots</button> <button class="btn btn-primary" type="submit">Generate Slots</button></div>
                             </form>
+                            <div class="small text-secondary mt-3" data-slot-preview-output aria-live="polite"></div>
                         </section>
                     </section>
                 </div>

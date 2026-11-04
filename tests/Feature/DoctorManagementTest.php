@@ -10,6 +10,7 @@ use App\Models\Specialty;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class DoctorManagementTest extends TestCase
@@ -345,6 +346,80 @@ class DoctorManagementTest extends TestCase
             ->assertOk()
             ->assertDontSee('data-event-type="appointment"', false)
             ->assertSee('data-event-type="available"', false);
+    }
+
+    public function test_doctor_can_reschedule_without_replacing_the_appointment(): void
+    {
+        Queue::fake();
+        $doctor = $this->makeDoctor();
+        $patient = User::factory()->create(['role' => 'patient']);
+        $oldSlot = AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => now()->addHour(),
+            'ends_at' => now()->addHour()->addMinutes(10),
+            'status' => 'booked',
+        ]);
+        $newSlot = AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => now()->addHours(2),
+            'ends_at' => now()->addHours(2)->addMinutes(10),
+            'status' => 'available',
+        ]);
+        $appointment = Appointment::create([
+            'appointment_slot_id' => $oldSlot->id,
+            'patient_id' => $patient->id,
+            'status' => 'confirmed',
+            'consultation_type' => 'video',
+            'provider_notes' => 'Keep this note',
+        ]);
+
+        $this->actingAs($doctor)
+            ->post(route('doctor.appointments.reschedule.store', $appointment), [
+                'slot_id' => $newSlot->id,
+                'reason' => 'Patient requested a later time.',
+            ])
+            ->assertRedirect(route('doctor.appointments.show', $appointment));
+
+        $this->assertSame($appointment->id, $appointment->fresh()->id);
+        $this->assertSame($patient->id, $appointment->fresh()->patient_id);
+        $this->assertSame('confirmed', $appointment->fresh()->status);
+        $this->assertSame('available', $oldSlot->fresh()->status);
+        $this->assertSame('booked', $newSlot->fresh()->status);
+        $this->assertDatabaseHas('appointment_reschedule_histories', [
+            'appointment_id' => $appointment->id,
+            'previous_slot_id' => $oldSlot->id,
+            'new_slot_id' => $newSlot->id,
+            'performed_by' => $doctor->id,
+        ]);
+    }
+
+    public function test_only_confirmed_appointments_can_be_completed_by_the_owning_doctor(): void
+    {
+        $doctor = $this->makeDoctor();
+        $patient = User::factory()->create(['role' => 'patient']);
+        $slot = AppointmentSlot::create([
+            'doctor_profile_id' => $doctor->doctorProfile->id,
+            'starts_at' => now()->addHour(),
+            'ends_at' => now()->addHour()->addMinutes(10),
+            'status' => 'booked',
+        ]);
+        $appointment = Appointment::create([
+            'appointment_slot_id' => $slot->id,
+            'patient_id' => $patient->id,
+            'status' => 'booked',
+            'consultation_type' => 'physical',
+        ]);
+
+        $this->actingAs($doctor)
+            ->post(route('doctor.appointments.complete', $appointment))
+            ->assertSessionHasErrors('status');
+        $this->assertSame('booked', $appointment->fresh()->status);
+
+        $appointment->update(['status' => 'confirmed']);
+        $this->actingAs($doctor)
+            ->post(route('doctor.appointments.complete', $appointment))
+            ->assertRedirect();
+        $this->assertSame('completed', $appointment->fresh()->status);
     }
 
     private function makeDoctor(): User
