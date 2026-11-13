@@ -3,6 +3,7 @@
 use App\Http\Controllers\Admin\AdminAppointmentController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDoctorController;
+use App\Http\Controllers\Admin\AdminMedicalDocumentController;
 use App\Http\Controllers\Admin\AdminSpecialtyController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\AppointmentController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Doctor\DoctorAppointmentController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
 use App\Http\Controllers\Doctor\DoctorInvitationController;
+use App\Http\Controllers\Doctor\DoctorMedicalRecordController;
 use App\Http\Controllers\Doctor\DoctorPatientController;
 use App\Http\Controllers\Doctor\DoctorProfileController;
 use App\Http\Controllers\Doctor\DoctorScheduleController;
@@ -21,6 +23,7 @@ use App\Http\Controllers\Doctor\GoogleCalendarController;
 use App\Http\Controllers\DoctorDirectoryController;
 use App\Http\Controllers\DoctorPhotoController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\MedicalDocumentController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -62,12 +65,29 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
 Route::middleware('auth')->put('/profile/password', [ProfileController::class, 'updatePassword'])
     ->name('profile.password.update');
 
+// Medical documents: one download and one delete route for every role, authorized per document by
+// MedicalDocumentPolicy (patients: own documents; doctors: patients in their care; admins: all).
+Route::middleware('auth')->group(function () {
+    Route::get('/medical-documents/{document}/download', [MedicalDocumentController::class, 'download'])
+        ->middleware('throttle:60,1')
+        ->name('medical-documents.download');
+    Route::get('/medical-documents/{document}/preview', [MedicalDocumentController::class, 'preview'])
+        ->middleware('throttle:120,1')
+        ->name('medical-documents.preview');
+    Route::delete('/medical-documents/{document}', [MedicalDocumentController::class, 'destroy'])
+        ->name('medical-documents.destroy');
+});
+
 Route::middleware(['auth', 'role:patient'])->group(function () {
     Route::get('/patient/dashboard', [AppointmentController::class, 'index'])->name('patient.dashboard');
     Route::get('/patient/profile', [ProfileController::class, 'patient'])->name('patient.profile');
     Route::put('/patient/profile', [ProfileController::class, 'updatePatient'])->name('patient.profile.update');
     Route::delete('/patient/account', [ProfileController::class, 'deactivate'])->name('patient.account.deactivate');
     Route::get('/patient/appointments', [AppointmentController::class, 'index'])->name('patient.appointments.index');
+    Route::get('/patient/documents', [MedicalDocumentController::class, 'index'])->name('patient.documents.index');
+    Route::post('/patient/documents', [MedicalDocumentController::class, 'store'])
+        ->middleware('throttle:20,1')
+        ->name('patient.documents.store');
     Route::get('/patient/appointments/{appointment}', [AppointmentController::class, 'show'])
         ->name('patient.appointments.show');
     Route::get('/appointment-slots/{slot}/confirm', [AppointmentController::class, 'confirm'])
@@ -107,6 +127,7 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::post('/doctor/appointments', [DoctorAppointmentController::class, 'store'])
         ->name('doctor.appointments.store');
     Route::get('/doctor/patients', [DoctorPatientController::class, 'index'])->name('doctor.patients.index');
+    Route::get('/doctor/medical-records', [DoctorMedicalRecordController::class, 'index'])->name('doctor.medical-records.index');
     Route::get('/doctor/patients/search', [DoctorAppointmentController::class, 'searchPatients'])
         ->middleware('throttle:60,1')
         ->name('doctor.patients.search');
@@ -145,5 +166,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::patch('/admin/specialties/{specialty}', [AdminSpecialtyController::class, 'update'])->name('admin.specialties.update');
     Route::delete('/admin/specialties/{specialty}', [AdminSpecialtyController::class, 'destroy'])->name('admin.specialties.destroy');
     Route::get('/admin/appointments', [AdminAppointmentController::class, 'index'])->name('admin.appointments.index');
+    Route::get('/admin/medical-documents', [AdminMedicalDocumentController::class, 'index'])->name('admin.medical-documents.index');
+    Route::get('/admin/medical-documents/{document}', [AdminMedicalDocumentController::class, 'show'])->name('admin.medical-documents.show');
     Route::get('/admin/appointments/{appointment}', [AdminAppointmentController::class, 'show'])->name('admin.appointments.show');
 });

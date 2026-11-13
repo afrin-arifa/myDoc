@@ -25,8 +25,10 @@
                     @if (auth()->user()->role === 'admin')
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">Users</a></li>
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.doctors.*') ? 'active' : '' }}" href="{{ route('admin.doctors.index') }}">Doctors</a></li>
+                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.medical-documents.*') ? 'active' : '' }}" href="{{ route('admin.medical-documents.index') }}">Documents</a></li>
                     @elseif (auth()->user()->role === 'patient')
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.appointments.*') ? 'active' : '' }}" href="{{ route('patient.appointments.index') }}">My appointments</a></li>
+                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.documents.*') ? 'active' : '' }}" href="{{ route('patient.documents.index') }}">Medical records</a></li>
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.profile') ? 'active' : '' }}" href="{{ route('patient.profile') }}">Profile</a></li>
                     @elseif (auth()->user()->role === 'doctor')
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('doctor.appointments.*') ? 'active' : '' }}" href="{{ route('doctor.appointments.index') }}">Appointments</a></li>

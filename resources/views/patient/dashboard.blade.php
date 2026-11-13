@@ -34,6 +34,14 @@
             @endforeach
         </div>
 
+        <section class="card border-0 shadow-sm p-4 mb-5" aria-labelledby="dashboard-upload-heading">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h2 class="h5 mb-0" id="dashboard-upload-heading">Add a medical document</h2>
+                <a href="{{ route('patient.documents.index') }}">View all medical records</a>
+            </div>
+            <x-medical-documents.upload-form compact />
+        </section>
+
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h4 mb-0">Upcoming appointments</h2>
             <a href="{{ route('patient.appointments.index') }}">View appointment history</a>

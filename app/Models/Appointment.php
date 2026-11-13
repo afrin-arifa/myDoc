@@ -48,6 +48,11 @@ class Appointment extends Model
         return $this->hasMany(AppointmentRescheduleHistory::class);
     }
 
+    public function medicalDocuments(): HasMany
+    {
+        return $this->hasMany(MedicalDocument::class);
+    }
+
     public function emailNotifications(): HasMany
     {
         return $this->hasMany(AppointmentNotification::class);

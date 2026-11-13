@@ -31,6 +31,11 @@ class User extends Authenticatable
         return $this->hasMany(Appointment::class, 'patient_id');
     }
 
+    public function medicalDocuments(): HasMany
+    {
+        return $this->hasMany(MedicalDocument::class, 'patient_id');
+    }
+
     /**
      * Send the password reset link with the application's branded template.
      */

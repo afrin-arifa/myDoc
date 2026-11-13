@@ -153,6 +153,66 @@ document.querySelectorAll("form[data-confirm]").forEach((form) => {
     });
 });
 
+// Medical document previews: one shared modal, filled from the thumbnail that opened it. Images come from the
+// authorized preview endpoint, never from a storage URL.
+const documentPreview = document.querySelector("[data-document-preview]");
+
+if (documentPreview) {
+    const previewImage = documentPreview.querySelector("[data-preview-modal-image]");
+    const previewTitle = documentPreview.querySelector("[data-preview-modal-title]");
+    const previewDownload = documentPreview.querySelector("[data-preview-modal-download]");
+
+    documentPreview.addEventListener("show.bs.modal", (event) => {
+        const trigger = event.relatedTarget;
+
+        if (!trigger?.dataset.previewSrc) {
+            event.preventDefault();
+
+            return;
+        }
+
+        previewTitle.textContent = trigger.dataset.previewTitle;
+        previewImage.alt = `Preview of ${trigger.dataset.previewTitle}`;
+        previewImage.src = trigger.dataset.previewSrc;
+        previewDownload.href = trigger.dataset.previewDownload;
+    });
+
+    documentPreview.addEventListener("hidden.bs.modal", () => {
+        previewImage.removeAttribute("src");
+        previewImage.alt = "";
+    });
+}
+
+document.querySelectorAll("[data-preview-thumbnail]").forEach((thumbnail) => {
+    const showFallback = () => {
+        thumbnail.hidden = true;
+        thumbnail.parentElement.querySelector("[data-preview-fallback]").hidden = false;
+        thumbnail.closest("button").disabled = true;
+    };
+
+    thumbnail.addEventListener("error", showFallback);
+    if (thumbnail.complete && thumbnail.naturalWidth === 0 && thumbnail.getAttribute("src")) {
+        showFallback();
+    }
+});
+
+// Reject files above the server's real upload limit before they are sent: PHP silently discards them otherwise.
+document.querySelectorAll("input[type='file'][data-max-file-bytes]").forEach((input) => {
+    const feedback = input.parentElement.querySelector("[data-file-size-error]");
+
+    input.addEventListener("change", () => {
+        const file = input.files[0];
+        const tooLarge = file !== undefined && file.size > Number(input.dataset.maxFileBytes);
+        const message = tooLarge ? `"${file.name}" is larger than ${input.dataset.maxFileLabel}. Choose a smaller file.` : "";
+
+        input.setCustomValidity(message);
+        input.classList.toggle("is-invalid", tooLarge);
+        if (feedback) {
+            feedback.textContent = message;
+        }
+    });
+});
+
 document.querySelectorAll("form[data-disable-on-submit]").forEach((form) => {
     form.addEventListener("submit", (event) => {
         if (event.defaultPrevented) {

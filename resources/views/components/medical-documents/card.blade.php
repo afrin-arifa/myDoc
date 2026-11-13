@@ -1,0 +1,73 @@
+@props(['document'])
+
+@php
+    $name = $document->title ?: $document->original_name;
+    $downloadUrl = route('medical-documents.download', $document);
+@endphp
+
+<article class="card document-card h-100">
+    <div class="document-card__media">
+        @if ($document->isPreviewableImage())
+            <button class="document-card__preview" type="button" data-bs-toggle="modal" data-bs-target="#document-preview"
+                data-preview-src="{{ route('medical-documents.preview', $document) }}" data-preview-title="{{ $name }}"
+                data-preview-download="{{ $downloadUrl }}" aria-label="Preview {{ $name }}">
+                <img class="document-card__image" src="{{ route('medical-documents.preview', $document) }}" alt="Preview of {{ $name }}"
+                    loading="lazy" decoding="async" data-preview-thumbnail>
+                <span class="document-card__placeholder" data-preview-fallback hidden>
+                    <i class="fa-regular fa-image" aria-hidden="true"></i>
+                    <span class="small">Preview unavailable</span>
+                </span>
+                <span class="document-card__zoom" aria-hidden="true"><i class="fa-solid fa-magnifying-glass-plus"></i></span>
+            </button>
+        @else
+            <div class="document-card__placeholder document-card__placeholder--pdf">
+                <i class="fa-regular fa-file-pdf" aria-hidden="true"></i>
+                <span class="small">PDF document</span>
+            </div>
+        @endif
+        <span class="document-card__type">{{ $document->fileTypeLabel() }}</span>
+    </div>
+
+    <div class="card-body d-flex flex-column">
+        <span class="badge document-card__category align-self-start mb-2">{{ $document->categoryLabel() }}</span>
+        <h3 class="h6 mb-1 text-truncate" title="{{ $name }}">{{ $name }}</h3>
+        @if ($document->title)
+            <p class="small text-secondary text-truncate mb-0" title="{{ $document->original_name }}">{{ $document->original_name }}</p>
+        @endif
+
+        <dl class="document-card__meta small my-3">
+            <div>
+                <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> Uploaded</dt>
+                <dd><time datetime="{{ $document->created_at->toIso8601String() }}">{{ $document->created_at->format('M j, Y') }}</time></dd>
+            </div>
+            <div>
+                <dt><i class="fa-regular fa-file" aria-hidden="true"></i> File</dt>
+                <dd>{{ $document->fileTypeLabel() }} · {{ $document->humanSize() }}</dd>
+            </div>
+            <div>
+                <dt><i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Appointment</dt>
+                <dd>
+                    @if ($document->appointment)
+                        {{ $document->appointment->slot->starts_at->format('M j, Y') }} · {{ $document->appointment->slot->doctorProfile->user->name }}
+                    @else
+                        <span class="text-secondary">Not linked</span>
+                    @endif
+                </dd>
+            </div>
+        </dl>
+
+        <div class="d-flex gap-2 mt-auto">
+            <a class="btn btn-sm btn-outline-primary flex-fill" href="{{ $downloadUrl }}">
+                <i class="fa-solid fa-download me-1" aria-hidden="true"></i>Download<span class="visually-hidden"> {{ $name }}</span>
+            </a>
+            <form class="flex-fill d-flex" method="POST" action="{{ route('medical-documents.destroy', $document) }}"
+                data-confirm="Delete this document permanently? Your doctors will no longer be able to see it.">
+                @csrf
+                @method('DELETE')
+                <button class="btn btn-sm btn-outline-danger flex-fill" type="submit">
+                    <i class="fa-regular fa-trash-can me-1" aria-hidden="true"></i>Delete<span class="visually-hidden"> {{ $name }}</span>
+                </button>
+            </form>
+        </div>
+    </div>
+</article>

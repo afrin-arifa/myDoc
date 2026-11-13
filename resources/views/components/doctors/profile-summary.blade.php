@@ -25,6 +25,7 @@
         <a class="{{ $active === 'profile' ? 'is-active' : '' }}" href="{{ route('doctor.profile') }}"><i class="fa-regular fa-user"></i><span>Profile</span></a>
         <a class="{{ $active === 'settings' ? 'is-active' : '' }}" href="{{ route('doctor.settings') }}"><i class="fa-solid fa-user-gear"></i><span>Profile Settings</span></a>
         <a class="{{ $active === 'patients' ? 'is-active' : '' }}" href="{{ route('doctor.patients.index') }}"><i class="fa-regular fa-user"></i><span>Patients</span></a>
+        <a class="{{ $active === 'medical-records' ? 'is-active' : '' }}" href="{{ route('doctor.medical-records.index') }}"><i class="fa-regular fa-folder-open"></i><span>Medical Records</span></a>
         @foreach (['Patients Review', 'Chat'] as $label)
             <span class="doctor-sidebar__disabled"><i class="fa-regular fa-user"></i><span>{{ $label }}</span></span>
         @endforeach

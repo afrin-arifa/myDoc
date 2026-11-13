@@ -92,6 +92,34 @@ Each doctor has a private workspace:
 - The public directory shows only public professional information of active, accepting doctors.
 - Administrators have platform-wide access.
 
+## Medical records
+
+- **Patients** upload documents for themselves (prescriptions, laboratory, diagnostic and imaging reports,
+  medical certificates, other) from **Medical records** or the dashboard, optionally linked to one of their own
+  appointments, and can download or delete them.
+- **Doctors** see and download (never upload or delete) documents of patients who have at least one **booked,
+  confirmed or completed** appointment with them. A cancelled or rejected booking alone does not grant access, and
+  a document's appointment link never grants access by itself. Links to another doctor's appointment are hidden.
+- **Administrators** can search, filter, inspect, download and delete every document; each document's detail page
+  shows its activity (uploads, downloads, deletions) from `medical_document_events`.
+
+Files are stored on the private `local` disk (`storage/app/private/medical-documents/{patient}/`) under random
+names and are only served by the authorized download route as attachments with `nosniff`, `no-store` and a
+restrictive Content-Security-Policy. Accepted: PDF, JPG, PNG and WebP up to 10 MB, verified by the file's actual
+content and a matching extension.
+
+**PHP upload limits:** the PHP CLI configuration here allows only 2 MB uploads (`upload_max_filesize=2M`,
+`post_max_size=8M`). To accept 10 MB documents, raise them in the PHP configuration used by the web server, e.g.
+`upload_max_filesize = 12M` and `post_max_size = 16M`, and allow at least that request size in the web server.
+Until then the upload form shows the lower effective limit and rejects larger files in the browser before upload.
+`php artisan serve` cannot pass these settings, so for local development either edit the CLI `php.ini` or start
+the server with them:
+
+```bash
+cd public && php -d upload_max_filesize=12M -d post_max_size=16M -S 127.0.0.1:8000 \
+    ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php
+```
+
 ## Appointment emails and queue
 
 myDoc sends appointment emails and Google Calendar updates through Laravel's queue. **Nothing is delivered
