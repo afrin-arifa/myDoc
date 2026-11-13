@@ -16,6 +16,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class DoctorAvailability extends Model
 {
+    /**
+     * The only supported appointment slot length. The slot_duration_minutes
+     * column is retained for backward compatibility but is not configurable.
+     */
+    public const SLOT_DURATION_MINUTES = 10;
+
     public function doctorProfile(): BelongsTo
     {
         return $this->belongsTo(DoctorProfile::class);

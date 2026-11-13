@@ -23,12 +23,12 @@ class AppointmentBookingService
         return DB::transaction(function () use ($patient, $slotId, $consultationType): Appointment {
             $slot = AppointmentSlot::query()->lockForUpdate()->find($slotId);
 
-            $slot?->loadMissing('doctorProfile');
+            $slot?->loadMissing('doctorProfile.user');
 
             if (! $slot
                 || $slot->status !== 'available'
                 || $slot->starts_at->lte(CarbonImmutable::now())
-                || ! $slot->doctorProfile?->is_accepting_patients) {
+                || ! $slot->doctorProfile?->isPubliclyListed()) {
                 throw ValidationException::withMessages([
                     'slot' => 'This appointment slot is no longer available.',
                 ]);
@@ -84,6 +84,12 @@ class AppointmentBookingService
         if (! in_array($consultationType, ['physical', 'voice', 'video'], true)) {
             throw ValidationException::withMessages([
                 'consultation_type' => 'Choose a supported consultation type.',
+            ]);
+        }
+
+        if ($patient->role !== 'patient' || $patient->deactivated_at !== null) {
+            throw ValidationException::withMessages([
+                'patient_id' => 'No eligible patient account was found.',
             ]);
         }
 

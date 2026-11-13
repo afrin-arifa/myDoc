@@ -6,6 +6,7 @@ namespace App\Models;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
@@ -27,6 +28,26 @@ class User extends Authenticatable
     public function appointments(): HasMany
     {
         return $this->hasMany(Appointment::class, 'patient_id');
+    }
+
+    /**
+     * Limit the query to active patient accounts.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeActivePatients(Builder $query): void
+    {
+        $query->where('role', 'patient')->whereNull('deactivated_at');
+    }
+
+    /**
+     * Limit the query to patients who have had at least one appointment with the doctor profile.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeWithAppointmentsForDoctor(Builder $query, int $doctorProfileId): void
+    {
+        $query->whereHas('appointments.slot', fn (Builder $slots) => $slots->where('doctor_profile_id', $doctorProfileId));
     }
 
     /**

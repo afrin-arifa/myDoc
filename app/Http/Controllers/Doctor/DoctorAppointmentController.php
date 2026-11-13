@@ -11,12 +11,18 @@ use App\Models\User;
 use App\Services\AppointmentBookingService;
 use App\Services\DoctorAppointmentService;
 use Carbon\CarbonImmutable;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DoctorAppointmentController extends Controller
 {
+    /**
+     * Maximum number of patients returned by a single lookup.
+     */
+    private const PATIENT_SEARCH_LIMIT = 10;
+
     public function index(Request $request): View
     {
         $profile = $request->user()->doctorProfile?->load(['user', 'specialties']);
@@ -92,7 +98,6 @@ class DoctorAppointmentController extends Controller
 
         return view('doctor.appointments.create', [
             'profile' => $profile,
-            'patients' => User::query()->where('role', 'patient')->orderBy('name')->get(['id', 'name', 'email']),
             'slots' => AppointmentSlot::query()
                 ->where('doctor_profile_id', $profile->id)
                 ->where('status', 'available')
@@ -104,12 +109,43 @@ class DoctorAppointmentController extends Controller
         ]);
     }
 
+    /**
+     * Search active patients who have previously had an appointment with the authenticated doctor.
+     */
+    public function searchPatients(Request $request): JsonResponse
+    {
+        $profileId = $request->user()->doctorProfile?->id;
+        abort_unless($profileId, 403);
+
+        $search = $request->validate([
+            'search' => ['required', 'string', 'min:2', 'max:100'],
+        ])['search'];
+
+        $patients = User::query()
+            ->activePatients()
+            ->withAppointmentsForDoctor($profileId)
+            ->where(fn ($query) => $query
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%"))
+            ->orderBy('name')
+            ->limit(self::PATIENT_SEARCH_LIMIT)
+            ->get(['id', 'name', 'email']);
+
+        return response()->json([
+            'data' => $patients->map(fn (User $patient): array => [
+                'id' => $patient->id,
+                'name' => $patient->name,
+                'email' => $patient->email,
+            ])->all(),
+        ]);
+    }
+
     public function store(StoreDoctorAppointmentRequest $request, AppointmentBookingService $booking): RedirectResponse
     {
-        $patient = User::query()->where('role', 'patient')->findOrFail($request->integer('patient_id'));
         $booking->bookForDoctor(
             $request->user(),
-            $patient,
+            $request->patient(),
             $request->integer('slot_id'),
             $request->string('consultation_type')->toString(),
             $request->input('provider_notes')

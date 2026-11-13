@@ -80,6 +80,9 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.appointments.create');
     Route::post('/doctor/appointments', [DoctorAppointmentController::class, 'store'])
         ->name('doctor.appointments.store');
+    Route::get('/doctor/patients/search', [DoctorAppointmentController::class, 'searchPatients'])
+        ->middleware('throttle:60,1')
+        ->name('doctor.patients.search');
     Route::get('/doctor/appointments/{appointment}', [DoctorAppointmentController::class, 'show'])
         ->name('doctor.appointments.show');
     Route::post('/doctor/appointments/{appointment}/confirm', [DoctorAppointmentController::class, 'confirm'])

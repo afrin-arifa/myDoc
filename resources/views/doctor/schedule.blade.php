@@ -287,7 +287,6 @@
                                 <div class="col-md-3"><label class="form-label" for="day_of_week">Day</label><select class="form-select" id="day_of_week" name="day_of_week">@foreach (['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $day => $name)<option value="{{ $day }}">{{ $name }}</option>@endforeach</select></div>
                                 <div class="col-md-3"><label class="form-label" for="start_time">Starts</label><input class="form-control" id="start_time" name="start_time" type="time" value="09:00" required></div>
                                 <div class="col-md-3"><label class="form-label" for="end_time">Ends</label><input class="form-control" id="end_time" name="end_time" type="time" value="17:00" required></div>
-                                <input name="slot_duration_minutes" type="hidden" value="10">
                                 <div class="col-md-3"><button class="btn btn-primary" type="submit">Add availability</button></div>
                             </form>
                             @forelse ($profile->availabilities->sortBy('day_of_week') as $availability)
@@ -306,7 +305,7 @@
                         <section class="doctor-panel">
                             <p class="doctor-eyebrow mb-1">Slot generation</p>
                             <h2 class="doctor-panel__title mb-3">Generate 10-minute appointment slots</h2>
-                            <form class="row g-3 align-items-end" method="POST" action="{{ route('doctor.slots.generate') }}" data-slot-generation-form>
+                            <form class="row g-3 align-items-end" method="POST" action="{{ route('doctor.slots.generate') }}" data-slot-generation-form data-preview-url="{{ route('doctor.slots.preview') }}">
                                 @csrf
                                 <div class="col-md-3"><label class="form-label" for="start_date">Start date</label><input class="form-control" id="start_date" name="start_date" type="date" value="{{ today()->toDateString() }}" required></div>
                                 <div class="col-md-3"><label class="form-label" for="end_date">End date</label><input class="form-control" id="end_date" name="end_date" type="date" value="{{ today()->addDays(30)->toDateString() }}" required></div>

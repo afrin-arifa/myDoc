@@ -55,6 +55,11 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
             return;
         }
 
+        if ($appointment->status === 'completed') {
+            // Completed appointments keep their existing event as calendar history; nothing is created or removed.
+            return;
+        }
+
         if ($appointment->status !== 'confirmed') {
             $this->deleteEvent($event, $service);
 

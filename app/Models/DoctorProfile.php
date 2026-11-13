@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -48,5 +49,23 @@ class DoctorProfile extends Model
     public function googleCalendarConnection(): HasOne
     {
         return $this->hasOne(GoogleCalendarConnection::class);
+    }
+
+    /**
+     * Limit the query to doctors who accept patients and whose account is active.
+     *
+     * @param  Builder<DoctorProfile>  $query
+     */
+    public function scopePubliclyListed(Builder $query): void
+    {
+        $query->where('doctor_profiles.is_accepting_patients', true)
+            ->whereHas('user', fn (Builder $users) => $users->whereNull('deactivated_at'));
+    }
+
+    public function isPubliclyListed(): bool
+    {
+        $this->loadMissing('user');
+
+        return $this->is_accepting_patients && $this->user?->deactivated_at === null;
     }
 }

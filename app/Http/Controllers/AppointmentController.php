@@ -37,9 +37,11 @@ class AppointmentController extends Controller
         if ($request->routeIs('patient.dashboard')) {
             $upcomingAppointments = Appointment::query()
                 ->whereBelongsTo($patient, 'patient')
-                ->whereHas('slot', fn ($slots) => $slots->where('starts_at', '>=', CarbonImmutable::now()))
+                ->upcoming()
                 ->with(['slot.doctorProfile.user', 'slot.doctorProfile.specialties'])
-                ->orderBy('created_at')
+                ->orderBy(AppointmentSlot::query()
+                    ->select('starts_at')
+                    ->whereColumn('appointment_slots.id', 'appointments.appointment_slot_id'))
                 ->limit(3)
                 ->get();
 
@@ -47,7 +49,7 @@ class AppointmentController extends Controller
                 'upcomingAppointments' => $upcomingAppointments,
                 'appointmentCounts' => [
                     'total' => $patient->appointments()->count(),
-                    'upcoming' => $patient->appointments()->whereHas('slot', fn ($slots) => $slots->where('starts_at', '>=', CarbonImmutable::now()))->count(),
+                    'upcoming' => $patient->appointments()->upcoming()->count(),
                     'booked' => $patient->appointments()->where('status', 'booked')->count(),
                     'confirmed' => $patient->appointments()->where('status', 'confirmed')->count(),
                 ],
@@ -64,7 +66,7 @@ class AppointmentController extends Controller
         abort_unless(
             $slot->status === 'available'
                 && $slot->starts_at->gt(CarbonImmutable::now())
-                && $slot->doctorProfile->is_accepting_patients,
+                && $slot->doctorProfile->isPubliclyListed(),
             404
         );
 

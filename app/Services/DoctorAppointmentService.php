@@ -22,8 +22,6 @@ class DoctorAppointmentService
             }
             $locked->update(['status' => 'completed']);
         });
-
-        SyncAppointmentToGoogleCalendar::dispatch($appointment->id, 'delete')->afterCommit();
     }
 
     public function reschedule(User $doctor, Appointment $appointment, int $newSlotId, ?string $reason = null): void

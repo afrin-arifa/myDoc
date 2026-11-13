@@ -15,7 +15,7 @@ class AdminDashboardController extends Controller
             'patients' => User::where('role', 'patient')->count(),
             'doctors' => User::where('role', 'doctor')->count(),
             'appointments' => Appointment::count(),
-            'upcoming' => Appointment::whereHas('slot', fn ($slots) => $slots->where('starts_at', '>=', now()))->count(),
+            'upcoming' => Appointment::query()->upcoming()->count(),
             'booked' => Appointment::where('status', 'booked')->count(),
             'confirmed' => Appointment::where('status', 'confirmed')->count(),
             'completed' => Appointment::where('status', 'completed')->count(),

@@ -132,7 +132,7 @@ class DoctorManagementTest extends TestCase
         ]);
 
         $this->actingAs($doctor)
-            ->post(route('doctor.slots.generate'), ['days' => 1])
+            ->post(route('doctor.slots.generate'), ['days' => 1, 'weekdays' => [1, 2, 3, 4, 5, 6, 7]])
             ->assertRedirect();
 
         $slots = AppointmentSlot::all();
@@ -141,7 +141,7 @@ class DoctorManagementTest extends TestCase
         $this->assertSame('09:10:00', $slots->first()->ends_at->format('H:i:s'));
 
         $this->actingAs($doctor)
-            ->post(route('doctor.slots.generate'), ['days' => 1])
+            ->post(route('doctor.slots.generate'), ['days' => 1, 'weekdays' => [1, 2, 3, 4, 5, 6, 7]])
             ->assertRedirect();
 
         $this->assertCount(9, AppointmentSlot::all());
@@ -165,12 +165,12 @@ class DoctorManagementTest extends TestCase
             'slot_duration_minutes' => 60,
         ]);
 
-        $this->actingAs($doctor)->post(route('doctor.slots.generate'), ['days' => 1]);
+        $this->actingAs($doctor)->post(route('doctor.slots.generate'), ['days' => 1, 'weekdays' => [1, 2, 3, 4, 5, 6, 7]]);
         $slots = AppointmentSlot::query()->orderBy('starts_at')->get();
         $slots[0]->update(['status' => 'booked']);
         $slots[1]->update(['status' => 'blocked']);
 
-        $this->actingAs($doctor)->post(route('doctor.slots.generate'), ['days' => 1]);
+        $this->actingAs($doctor)->post(route('doctor.slots.generate'), ['days' => 1, 'weekdays' => [1, 2, 3, 4, 5, 6, 7]]);
 
         $this->assertSame('booked', $slots[0]->fresh()->status);
         $this->assertSame('blocked', $slots[1]->fresh()->status);
@@ -218,7 +218,7 @@ class DoctorManagementTest extends TestCase
 
         $this->actingAs($doctor)
             ->post(route('doctor.appointments.store'), [
-                'patient_id' => $patient->id,
+                'patient_email' => $patient->email,
                 'slot_id' => $slot->id,
                 'consultation_type' => 'video',
                 'provider_notes' => 'Follow-up consultation',

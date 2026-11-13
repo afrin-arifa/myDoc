@@ -20,7 +20,7 @@ class DoctorDirectoryController extends Controller
         $filter = $validated['filter'] ?? $validated['sort'] ?? 'all';
 
         $doctors = DoctorProfile::query()
-            ->where('is_accepting_patients', true)
+            ->publiclyListed()
             ->with([
                 'user:id,name',
                 'specialties:id,name',
@@ -60,7 +60,7 @@ class DoctorDirectoryController extends Controller
 
     public function show(DoctorProfile $doctor): View
     {
-        abort_unless($doctor->is_accepting_patients, 404);
+        abort_unless($doctor->isPubliclyListed(), 404);
 
         $doctor->load([
             'user:id,name',
