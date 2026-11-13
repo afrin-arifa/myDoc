@@ -9,6 +9,7 @@ use App\Services\AppointmentBookingService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class AppointmentController extends Controller
@@ -26,6 +27,8 @@ class AppointmentController extends Controller
 
     public function index(Request $request): View
     {
+        Gate::authorize('viewAny', Appointment::class);
+
         $patient = $request->user();
         $appointments = Appointment::query()
             ->whereBelongsTo($patient, 'patient')
@@ -75,7 +78,7 @@ class AppointmentController extends Controller
 
     public function show(Request $request, Appointment $appointment): View
     {
-        abort_unless($appointment->patient_id === $request->user()->id, 403);
+        Gate::authorize('view', $appointment);
 
         $appointment->load(['slot.doctorProfile.user', 'slot.doctorProfile.specialties']);
 
@@ -87,7 +90,7 @@ class AppointmentController extends Controller
         Appointment $appointment,
         AppointmentBookingService $booking
     ): RedirectResponse {
-        abort_unless($appointment->patient_id === $request->user()->id, 403);
+        Gate::authorize('cancel', $appointment);
 
         $booking->cancel($request->user(), $appointment->id);
 

@@ -14,6 +14,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class DoctorAppointmentController extends Controller
@@ -25,6 +26,8 @@ class DoctorAppointmentController extends Controller
 
     public function index(Request $request): View
     {
+        Gate::authorize('viewAny', Appointment::class);
+
         $profile = $request->user()->doctorProfile?->load(['user', 'specialties']);
         $profileId = $profile?->id;
         abort_unless($profileId, 403);
@@ -91,8 +94,8 @@ class DoctorAppointmentController extends Controller
 
     public function create(Request $request): View
     {
+        Gate::authorize('create', Appointment::class);
         $profile = $request->user()->doctorProfile;
-        abort_unless($profile, 403);
 
         $date = $request->date('date') ?? today();
 
@@ -156,7 +159,7 @@ class DoctorAppointmentController extends Controller
 
     public function show(Request $request, Appointment $appointment): View
     {
-        $this->authorizeAppointment($request, $appointment);
+        Gate::authorize('view', $appointment);
         $appointment->load(['slot.doctorProfile.specialties', 'patient:id,name,email']);
         $now = CarbonImmutable::now();
         $startsAt = CarbonImmutable::instance($appointment->slot->starts_at);
@@ -170,7 +173,7 @@ class DoctorAppointmentController extends Controller
 
     public function confirm(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
-        $this->authorizeAppointment($request, $appointment);
+        Gate::authorize('confirm', $appointment);
         $service->transition($request->user(), $appointment, 'confirmed');
 
         return back()->with('status', 'Appointment confirmed.');
@@ -178,7 +181,7 @@ class DoctorAppointmentController extends Controller
 
     public function reject(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
-        $this->authorizeAppointment($request, $appointment);
+        Gate::authorize('reject', $appointment);
         $service->transition($request->user(), $appointment, 'rejected');
 
         return back()->with('status', 'Appointment rejected and the slot is available again.');
@@ -186,7 +189,7 @@ class DoctorAppointmentController extends Controller
 
     public function start(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
-        $this->authorizeAppointment($request, $appointment);
+        Gate::authorize('start', $appointment);
         $service->start($request->user(), $appointment);
 
         return back()->with('status', 'This consultation is ready to launch when a provider is configured.');
@@ -194,7 +197,7 @@ class DoctorAppointmentController extends Controller
 
     public function complete(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
-        $this->authorizeAppointment($request, $appointment);
+        Gate::authorize('complete', $appointment);
         $service->complete($request->user(), $appointment);
 
         return back()->with('status', 'Appointment marked as completed.');
@@ -202,7 +205,7 @@ class DoctorAppointmentController extends Controller
 
     public function rescheduleForm(Request $request, Appointment $appointment): View
     {
-        $this->authorizeAppointment($request, $appointment);
+        Gate::authorize('reschedule', $appointment);
         $appointment->load('slot');
 
         return view('doctor.appointments.reschedule', [
@@ -227,13 +230,5 @@ class DoctorAppointmentController extends Controller
         );
 
         return redirect()->route('doctor.appointments.show', $appointment)->with('status', 'Appointment rescheduled.');
-    }
-
-    private function authorizeAppointment(Request $request, Appointment $appointment): void
-    {
-        abort_unless(
-            $appointment->slot()->where('doctor_profile_id', $request->user()->doctorProfile?->id)->exists(),
-            403
-        );
     }
 }

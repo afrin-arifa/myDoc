@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Doctor;
 
+use App\Models\Appointment;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -12,7 +13,8 @@ class StoreDoctorAppointmentRequest extends FormRequest
 
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor';
+        return $this->user()?->role === 'doctor'
+            && $this->user()->can('create', Appointment::class);
     }
 
     public function rules(): array

@@ -5,12 +5,15 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class AdminAppointmentController extends Controller
 {
     public function index(Request $request): View
     {
+        Gate::authorize('viewAny', Appointment::class);
+
         $validated = $request->validate([
             'status' => ['nullable', 'in:booked,confirmed,completed,cancelled,rejected'],
             'date' => ['nullable', 'date'],
@@ -34,6 +37,8 @@ class AdminAppointmentController extends Controller
 
     public function show(Appointment $appointment): View
     {
+        Gate::authorize('view', $appointment);
+
         $appointment->load(['patient:id,name,email', 'slot.doctorProfile.user:id,name']);
 
         return view('admin.appointments.show', compact('appointment'));
