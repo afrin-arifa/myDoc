@@ -100,7 +100,10 @@ class DoctorDirectoryAccessTest extends TestCase
         }
 
         $this->actingAs(User::factory()->create(['role' => 'patient']))->get(route('patient.dashboard'))->assertSee(route('doctors.index'));
-        $this->actingAs(User::factory()->create(['role' => 'admin']))->get(route('admin.dashboard'))->assertSee(route('doctors.index'));
+        // Admins may still browse the public directory; their navigation now links to admin doctor management instead.
+        $admin = User::factory()->create(['role' => 'admin']);
+        $this->actingAs($admin)->get(route('doctors.index'))->assertOk();
+        $this->actingAs($admin)->get(route('admin.dashboard'))->assertSee(route('admin.doctors.index'));
     }
 
     public function test_doctor_can_still_view_and_edit_their_own_profile_and_photo(): void

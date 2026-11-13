@@ -1468,11 +1468,21 @@ main {
 }
 
 @media (min-width: 992px) {
-    .navbar-nav {
+    .navbar-expand-lg .navbar-nav {
         align-items: center;
     }
 
-    .navbar-collapse .navbar-nav {
+    .navbar-expand-lg .navbar-collapse .navbar-nav {
+        padding-block: 0;
+    }
+}
+
+@media (min-width: 1200px) {
+    .navbar-expand-xl .navbar-nav {
+        align-items: center;
+    }
+
+    .navbar-expand-xl .navbar-collapse .navbar-nav {
         padding-block: 0;
     }
 }
@@ -1760,4 +1770,64 @@ main {
     max-height: 75vh;
     max-width: 100%;
     object-fit: contain;
+}
+
+/* Global navigation: labels never wrap or break mid-word; the menu collapses into the toggle instead. */
+.site-navbar {
+    .nav-link,
+    .btn {
+        overflow-wrap: normal;
+        white-space: nowrap;
+    }
+
+    .nav-link {
+        border-radius: 0.5rem;
+        color: var(--mydoc-ink);
+        font-weight: 500;
+        padding-inline: 0.75rem;
+
+        &:hover,
+        &:focus-visible {
+            color: var(--mydoc-primary-dark);
+        }
+
+        &.active {
+            color: var(--mydoc-primary-dark);
+            font-weight: 600;
+            text-decoration: underline;
+            text-decoration-color: var(--mydoc-primary);
+            text-decoration-thickness: 2px;
+            text-underline-offset: 0.45rem;
+        }
+    }
+
+    .btn.active {
+        box-shadow: 0 0 0 0.2rem rgba(37, 99, 235, 0.25);
+    }
+
+    .navbar-collapse {
+        max-width: 100%;
+    }
+}
+
+@media (max-width: 1199.98px) {
+    .navbar-expand-xl.site-navbar .navbar-nav .nav-link,
+    .navbar-expand-xl.site-navbar .site-navbar__action {
+        width: 100%;
+    }
+
+    .navbar-expand-xl.site-navbar .site-navbar__action {
+        margin-block: 0.5rem;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .navbar-expand-lg.site-navbar .navbar-nav .nav-link,
+    .navbar-expand-lg.site-navbar .site-navbar__action {
+        width: 100%;
+    }
+
+    .navbar-expand-lg.site-navbar .site-navbar__action {
+        margin-block: 0.5rem;
+    }
 }

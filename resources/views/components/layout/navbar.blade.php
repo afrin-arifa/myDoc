@@ -1,4 +1,53 @@
-<nav class="navbar navbar-expand-lg bg-white py-3" aria-label="Main navigation">
+{{--
+    Global navigation. Links are defined per role in one place below and rendered by a single loop.
+    Guests see the public, informational links; signed-in users see only the pages their role can open.
+    Each link: label, url, and the route patterns that mark it active.
+--}}
+@php
+    $user = auth()->user();
+    $role = $user?->role;
+    $canBrowseDirectory = Illuminate\Support\Facades\Gate::allows('browseDirectory', App\Models\DoctorProfile::class);
+    $directoryLink = ['label' => 'Doctors', 'url' => route('doctors.index'), 'active' => ['doctors.*']];
+    $homeLink = ['label' => 'Home', 'url' => route('home'), 'active' => ['home']];
+
+    $links = match ($role) {
+        'patient' => array_values(array_filter([
+            $homeLink,
+            $canBrowseDirectory ? $directoryLink : null,
+            ['label' => 'My appointments', 'url' => route('patient.appointments.index'), 'active' => ['patient.appointments.*', 'appointment-slots.*']],
+            ['label' => 'Medical records', 'url' => route('patient.documents.index'), 'active' => ['patient.documents.*']],
+            ['label' => 'Profile', 'url' => route('patient.profile'), 'active' => ['patient.profile']],
+        ])),
+        'doctor' => [
+            $homeLink,
+            ['label' => 'Appointments', 'url' => route('doctor.appointments.index'), 'active' => ['doctor.appointments.*']],
+            ['label' => 'Schedule', 'url' => route('doctor.schedule'), 'active' => ['doctor.schedule']],
+            ['label' => 'Patients', 'url' => route('doctor.patients.index'), 'active' => ['doctor.patients.*']],
+            ['label' => 'Medical records', 'url' => route('doctor.medical-records.index'), 'active' => ['doctor.medical-records.*']],
+            ['label' => 'Profile', 'url' => route('doctor.profile'), 'active' => ['doctor.profile', 'doctor.settings']],
+        ],
+        'admin' => [
+            ['label' => 'Doctors', 'url' => route('admin.doctors.index'), 'active' => ['admin.doctors.*']],
+            ['label' => 'Patients', 'url' => route('admin.users.index', ['role' => 'patient']), 'active' => ['admin.users.*']],
+            ['label' => 'Appointments', 'url' => route('admin.appointments.index'), 'active' => ['admin.appointments.*']],
+            ['label' => 'Medical records', 'url' => route('admin.medical-documents.index'), 'active' => ['admin.medical-documents.*']],
+        ],
+        default => array_values(array_filter([
+            $homeLink,
+            $canBrowseDirectory ? $directoryLink : null,
+            ['label' => 'How it works', 'url' => url('/#how-it-works'), 'active' => []],
+            ['label' => 'Why myDoc', 'url' => url('/#features'), 'active' => []],
+        ])),
+    };
+
+    $dashboardRoute = in_array($role, ['patient', 'doctor', 'admin'], true) ? $role.'.dashboard' : null;
+    $onDashboard = $dashboardRoute !== null && request()->routeIs($dashboardRoute);
+
+    // Signed-in menus have more links, so they collapse into the mobile menu until there is room for one line.
+    $breakpoint = $user ? 'xl' : 'lg';
+@endphp
+
+<nav class="navbar navbar-expand-{{ $breakpoint }} site-navbar bg-white py-3" aria-label="Main navigation">
     <div class="container">
         <a class="navbar-brand fs-3" href="{{ route('home') }}">my<span class="text-primary">Doc</span></a>
 
@@ -8,34 +57,20 @@
         </button>
 
         <div class="collapse navbar-collapse" id="main-navigation">
-            <ul class="navbar-nav ms-auto align-items-lg-center gap-lg-3">
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('home') ? 'active' : '' }}" href="{{ route('home') }}"
-                        @if (request()->routeIs('home')) aria-current="page" @endif>Home</a>
-                </li>
-                @can('browseDirectory', App\Models\DoctorProfile::class)
+            <ul class="navbar-nav ms-auto align-items-{{ $breakpoint }}-center gap-{{ $breakpoint }}-2">
+                @foreach ($links as $link)
+                    @php($isActive = $link['active'] !== [] && request()->routeIs(...$link['active']))
                     <li class="nav-item">
-                        <a class="nav-link {{ request()->routeIs('doctors.*') ? 'active' : '' }}" href="{{ route('doctors.index') }}"
-                            @if (request()->routeIs('doctors.*')) aria-current="page" @endif>Doctors</a>
+                        <a @class(['nav-link', 'active' => $isActive]) href="{{ $link['url'] }}" @if ($isActive) aria-current="page" @endif>{{ $link['label'] }}</a>
                     </li>
-                @endcan
-                <li class="nav-item"><a class="nav-link" href="{{ url('/#how-it-works') }}">How it works</a></li>
-                <li class="nav-item"><a class="nav-link" href="{{ url('/#features') }}">Why myDoc</a></li>
+                @endforeach
+
                 @auth
-                    @if (auth()->user()->role === 'admin')
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">Users</a></li>
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.doctors.*') ? 'active' : '' }}" href="{{ route('admin.doctors.index') }}">Doctors</a></li>
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.medical-documents.*') ? 'active' : '' }}" href="{{ route('admin.medical-documents.index') }}">Documents</a></li>
-                    @elseif (auth()->user()->role === 'patient')
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.appointments.*') ? 'active' : '' }}" href="{{ route('patient.appointments.index') }}">My appointments</a></li>
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.documents.*') ? 'active' : '' }}" href="{{ route('patient.documents.index') }}">Medical records</a></li>
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.profile') ? 'active' : '' }}" href="{{ route('patient.profile') }}">Profile</a></li>
-                    @elseif (auth()->user()->role === 'doctor')
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('doctor.appointments.*') ? 'active' : '' }}" href="{{ route('doctor.appointments.index') }}">Appointments</a></li>
+                    @if ($dashboardRoute)
+                        <li class="nav-item site-navbar__action">
+                            <a @class(['btn btn-primary px-4', 'active' => $onDashboard]) href="{{ route($dashboardRoute) }}" @if ($onDashboard) aria-current="page" @endif>Dashboard</a>
+                        </li>
                     @endif
-                    <li class="nav-item">
-                        <a class="btn btn-primary px-4" href="{{ route(auth()->user()->role . '.dashboard') }}">Dashboard</a>
-                    </li>
                     <li class="nav-item">
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
@@ -43,8 +78,12 @@
                         </form>
                     </li>
                 @else
-                    <li class="nav-item"><a class="nav-link" href="{{ route('login') }}">Log in</a></li>
-                    <li class="nav-item"><a class="btn btn-primary px-4" href="{{ route('register') }}">Get started</a></li>
+                    <li class="nav-item">
+                        <a @class(['nav-link', 'active' => request()->routeIs('login')]) href="{{ route('login') }}" @if (request()->routeIs('login')) aria-current="page" @endif>Log in</a>
+                    </li>
+                    <li class="nav-item site-navbar__action">
+                        <a @class(['btn btn-primary px-4', 'active' => request()->routeIs('register')]) href="{{ route('register') }}" @if (request()->routeIs('register')) aria-current="page" @endif>Register</a>
+                    </li>
                 @endauth
             </ul>
         </div>
