@@ -23,7 +23,7 @@ class DoctorScheduleController extends Controller
             'end' => ['nullable', 'date', 'after_or_equal:start'],
             'view' => ['nullable', 'in:day,week,month'],
             'filters' => ['sometimes', 'array'],
-            'filters.*' => ['in:available,booked,confirmed,completed,cancelled,rejected'],
+            'filters.*' => ['in:available,blocked,booked,confirmed,completed,cancelled,rejected'],
         ]);
         $timezone = config('app.timezone', 'UTC');
         $date = CarbonImmutable::parse(
@@ -87,13 +87,15 @@ class DoctorScheduleController extends Controller
                 })->all();
             }
 
-            if ($slot->status !== 'available') {
+            if (! in_array($slot->status, ['available', 'blocked'], true)) {
                 return [];
             }
 
+            $isFuture = $slot->starts_at->isFuture();
+
             return [[
                 'id' => 'slot-'.$slot->id,
-                'type' => 'available',
+                'type' => $slot->status,
                 'appointment_id' => null,
                 'slot_id' => $slot->id,
                 'date' => $slot->starts_at->timezone($timezone)->toDateString(),
@@ -103,12 +105,14 @@ class DoctorScheduleController extends Controller
                 'consultation_type' => null,
                 'appointment_status' => null,
                 'slot_status' => $slot->status,
-                'filter_status' => 'available',
+                'filter_status' => $slot->status,
                 'can_confirm' => false,
                 'can_start' => false,
+                'can_block' => $isFuture && $slot->status === 'available',
+                'can_unblock' => $isFuture && $slot->status === 'blocked',
             ]];
         })->values();
-        $activeFilters = $validated['filters'] ?? ['available', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
+        $activeFilters = $validated['filters'] ?? ['available', 'blocked', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
         $visibleCalendarEvents = $calendarEvents->filter(
             fn (array $event): bool => in_array($event['filter_status'], $activeFilters, true)
         )->values();
@@ -119,6 +123,7 @@ class DoctorScheduleController extends Controller
             'pending' => $selectedAppointments->where('status', 'booked')->count(),
             'cancelled' => $selectedAppointments->whereIn('status', ['cancelled', 'rejected'])->count(),
             'available' => $selectedSlots->where('status', 'available')->count(),
+            'blocked' => $selectedSlots->where('status', 'blocked')->count(),
         ];
 
         return view('doctor.schedule', [

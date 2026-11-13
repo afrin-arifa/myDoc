@@ -108,7 +108,7 @@
 
                     <tr>
                         <td class="email-padding" style="padding:20px 32px; background-color:#f8fafb; border-top:1px solid #e1e7ec;">
-                            <p style="margin:0; font-size:12px; line-height:18px; color:#6b7c87;">This is an automated message from {{ $appName }} about your appointment. For your privacy, it contains scheduling details only. Sign in to {{ $appName }} to see everything else.</p>
+                            <p style="margin:0; font-size:12px; line-height:18px; color:#6b7c87;">{{ $footerNote ?? 'This is an automated message from '.$appName.' about your appointment. For your privacy, it contains scheduling details only. Sign in to '.$appName.' to see everything else.' }}</p>
                         </td>
                     </tr>
                 </table>

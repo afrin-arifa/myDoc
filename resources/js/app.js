@@ -144,3 +144,27 @@ if (patientSearchInput) {
         }, 300);
     });
 }
+
+document.querySelectorAll("form[data-confirm]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+        if (!window.confirm(form.dataset.confirm)) {
+            event.preventDefault();
+        }
+    });
+});
+
+document.querySelectorAll("form[data-disable-on-submit]").forEach((form) => {
+    form.addEventListener("submit", (event) => {
+        if (event.defaultPrevented) {
+            return;
+        }
+
+        form.querySelectorAll("button[type='submit']").forEach((button) => {
+            button.disabled = true;
+            button.setAttribute("aria-busy", "true");
+            if (button.dataset.loadingText) {
+                button.textContent = button.dataset.loadingText;
+            }
+        });
+    });
+});

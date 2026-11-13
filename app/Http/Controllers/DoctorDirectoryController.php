@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\DoctorProfile;
 use App\Models\Specialty;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
 class DoctorDirectoryController extends Controller
 {
     public function index(Request $request): View
     {
+        Gate::authorize('browseDirectory', DoctorProfile::class);
+
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'specialty' => ['nullable', 'integer', 'exists:specialties,id'],
@@ -60,6 +63,7 @@ class DoctorDirectoryController extends Controller
 
     public function show(DoctorProfile $doctor): View
     {
+        Gate::authorize('browseDirectory', DoctorProfile::class);
         abort_unless($doctor->isPubliclyListed(), 404);
 
         $doctor->load([

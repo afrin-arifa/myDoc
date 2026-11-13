@@ -30,9 +30,12 @@
                                     autocomplete="current-password">
                             </div>
 
-                            <div class="form-check mb-4">
-                                <input class="form-check-input" id="remember" name="remember" type="checkbox" value="1">
-                                <label class="form-check-label" for="remember">Remember me</label>
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div class="form-check mb-0">
+                                    <input class="form-check-input" id="remember" name="remember" type="checkbox" value="1">
+                                    <label class="form-check-label" for="remember">Remember me</label>
+                                </div>
+                                <a class="small" href="{{ route('password.request') }}">Forgot password?</a>
                             </div>
 
                             <button class="btn btn-primary w-100" type="submit">Log in</button>

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Doctor;
 
+use App\Services\DoctorPhotoStorage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +10,10 @@ class UpdateDoctorProfileRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor';
+        $profile = $this->user()?->doctorProfile;
+
+        return $this->user()?->role === 'doctor'
+            && ($profile === null || $this->user()->can('update', $profile));
     }
 
     public function rules(): array
@@ -19,6 +23,9 @@ class UpdateDoctorProfileRequest extends FormRequest
         return [
             'professional_title' => ['required', 'string', 'max:255'],
             'bio' => ['nullable', 'string', 'max:5000'],
+            'qualifications' => ['nullable', 'string', 'max:500'],
+            'photo' => DoctorPhotoStorage::rules(),
+            'remove_photo' => ['sometimes', 'boolean'],
             'license_number' => [
                 'required',
                 'string',

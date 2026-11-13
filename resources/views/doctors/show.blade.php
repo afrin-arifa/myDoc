@@ -6,9 +6,17 @@
     <div class="container py-5">
         <div class="row g-5">
             <div class="col-lg-7">
-                <p class="hero__eyebrow mb-2">{{ $doctor->professional_title }}</p>
-                <h1 class="h2 mb-3">{{ $doctor->user->name }}</h1>
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <img class="rounded-circle object-fit-cover flex-shrink-0" src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="{{ $doctor->user->name }} profile photo" width="96" height="96">
+                    <div>
+                        <p class="hero__eyebrow mb-2">{{ $doctor->professional_title }}</p>
+                        <h1 class="h2 mb-0">{{ $doctor->user->name }}</h1>
+                    </div>
+                </div>
                 <p class="feature-card__description">{{ $doctor->bio }}</p>
+                @if ($doctor->qualifications)
+                    <p><strong>Qualifications:</strong> {{ $doctor->qualifications }}</p>
+                @endif
                 <p><strong>Experience:</strong> {{ $doctor->years_of_experience ?? 'Not specified' }} years</p>
                 <p><strong>Consultation fee:</strong> {{ number_format((float) $doctor->consultation_fee, 2) }}</p>
                 <p><strong>Availability:</strong> <span class="status-badge status-badge--success">Accepting patients</span></p>

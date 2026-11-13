@@ -2,6 +2,8 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\DoctorProfile;
+use App\Services\DoctorPhotoStorage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -9,7 +11,10 @@ class UpdateAdminDoctorRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === 'admin';
+        $profile = $this->route('doctor');
+
+        return $profile instanceof DoctorProfile && $this->user()?->can('update', $profile) === true
+            && $this->user()->role === 'admin';
     }
 
     public function rules(): array
@@ -23,6 +28,9 @@ class UpdateAdminDoctorRequest extends FormRequest
             'address' => ['nullable', 'string', 'max:1000'],
             'professional_title' => ['required', 'string', 'max:255'],
             'bio' => ['nullable', 'string', 'max:5000'],
+            'qualifications' => ['nullable', 'string', 'max:500'],
+            'photo' => DoctorPhotoStorage::rules(),
+            'remove_photo' => ['sometimes', 'boolean'],
             'license_number' => ['required', 'string', 'max:255', Rule::unique('doctor_profiles', 'license_number')->ignore($profile)],
             'consultation_fee' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
             'years_of_experience' => ['nullable', 'integer', 'min:0', 'max:100'],

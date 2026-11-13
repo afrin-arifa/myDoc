@@ -1,4 +1,98 @@
-# myDoc – Queue worker and appointment emails
+# myDoc
+
+Multi-doctor appointment booking for patients, doctors and administrators (Laravel 13, PHP 8.5, MySQL).
+
+## Setup
+
+1. Apply the migrations **before or together with** deploying the code:
+
+   ```bash
+   php8.5 artisan migrate
+   ```
+
+   This adds the `appointment_notifications` delivery ledger, the `doctor_invitation_tokens` table and the
+   `qualifications` / `photo_path` columns on `doctor_profiles`. Every appointment change writes to the ledger,
+   so those actions fail until it exists.
+
+2. Configure `.env` (names only; never commit real values): `APP_URL` (links in emails are built from it),
+   `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`,
+   `MAIL_FROM_NAME`, optional `MAIL_TIMEOUT` (SMTP timeout, default 20 s), `QUEUE_CONNECTION=database`.
+   With `MAIL_MAILER=log`, emails, **including invitation and password-reset links**, are written to
+   `storage/logs/laravel.log`; use it only for local development.
+
+3. Run a queue worker and the scheduler (see below), and create the first administrator with
+   `php8.5 artisan mydoc:admin`.
+
+## Doctor onboarding (admin)
+
+1. **Admin → Doctors → Add doctor.** Enter the doctor's name, email, phone and professional details. There is
+   no password field: the account is created with a random, unknown password, the `doctor` role is assigned on
+   the server, and the account starts **deactivated** (it cannot sign in and is not listed publicly).
+2. An **invitation email** is sent immediately. Its link is valid for **72 hours** and works **once**. Only a
+   hash of the token is stored (`doctor_invitation_tokens`, managed by Laravel's password-broker token
+   repository); the raw token exists only in the email.
+3. The doctor opens the link, chooses a password (8+ characters with upper- and lower-case letters and a
+   number) and the account becomes **active**. The token is deleted, the email is marked verified, and a
+   queued confirmation email is sent.
+4. The doctor signs in and completes **Profile**: biography, qualifications, specialties, consultation fee and
+   photo (JPG, PNG or WebP, up to 2 MB). Photos are stored on the private disk and served through
+   `/doctors/{id}/photo`, which only shows photos of publicly listed doctors to other users.
+
+Account status on the admin doctor pages (searchable and filterable):
+
+| Status | Meaning | Admin actions |
+|---|---|---|
+| Invitation pending | Invited, link still valid | Resend invitation (replaces the old link; at most once a minute), cancel invitation |
+| Invitation expired | Invited, link expired | Resend invitation, cancel invitation |
+| Active | Doctor can sign in and is listed if accepting patients | Deactivate |
+| Deactivated | Cannot sign in, use any doctor page, or receive bookings; hidden from patients | Activate |
+
+There is a single status mechanism, `users.deactivated_at`; the invitation state is derived from the invitation
+token. Deactivating keeps all appointments, schedules and Google Calendar records. An account still waiting
+for its invitation cannot be activated by an admin, so no account is ever active with a password nobody knows.
+Only administrators can create doctors or change account status.
+
+The general **Admin → Users** page follows the same rules: it cannot assign or remove the `doctor` role
+(doctors are created only through **Add doctor**), cannot activate a doctor who has not accepted their
+invitation, and routes doctor activation/deactivation through the onboarding service. Changing the email of a
+doctor with a pending invitation (on either page) destroys the old invitation and sends a new one to the new
+address.
+
+If an invitation email cannot be sent, the account is still created; use **Resend invitation**. Invitation and
+password-reset emails are sent immediately instead of being queued so that raw tokens are never stored in the
+`jobs` table.
+
+## Password reset
+
+Every active patient, doctor and administrator can use **Forgot password?** on the login page. It uses
+Laravel's password broker: hashed tokens in `password_reset_tokens`, valid for **60 minutes**, single use, and at
+most one email per account per minute. Requests are rate limited (5 per minute per email and IP, 20 per minute
+per IP). Sessions are bound to the password (Laravel's `AuthenticateSession` middleware): after a reset or a
+password change, every other signed-in session and remember-me cookie of that user is signed out on its next
+request; the session that changed the password stays signed in. The response is always the same, whether or not the email belongs to an account; deactivated accounts
+(including doctors still awaiting their invitation) never receive reset emails.
+
+## Doctor data isolation
+
+Each doctor has a private workspace:
+
+- Dashboard statistics, appointment lists, schedule, availability, slot generation, patient search and Google
+  Calendar settings are always scoped to the signed-in doctor's own profile.
+- Every appointment action is authorized by `AppointmentPolicy` against the stored slot owner, and the services
+  re-check ownership inside their transactions. Availability is authorized by `DoctorAvailabilityPolicy`, and
+  profiles and accounts by `DoctorProfilePolicy`.
+- IDs submitted in URLs or forms never grant access: requests for another doctor's records return 403, and forged
+  `doctor_profile_id` / `user_id` fields are ignored.
+- Patient search and the **Patients** page (`/doctor/patients`) only include patients who have at least one
+  appointment with that doctor. Each patient is listed once, with appointment counts and the last appointment
+  date counted for that doctor only; a first-time patient can be booked only by exact email.
+- Doctors can **block** a free future slot and **unblock** it from the schedule calendar. Slots with a booked or
+  confirmed appointment, past slots and other doctors' slots cannot be changed. Blocked slots cannot be booked,
+  are kept by slot generation, and are shown on the calendar with their own filter.
+- The public directory shows only public professional information of active, accepting doctors.
+- Administrators have platform-wide access.
+
+## Appointment emails and queue
 
 myDoc sends appointment emails and Google Calendar updates through Laravel's queue. **Nothing is delivered
 unless a queue worker is running.**
@@ -13,22 +107,6 @@ unless a queue worker is running.**
 
 Appointments that a doctor creates manually do not send a booking email; the patient is emailed when the doctor
 confirms the appointment.
-
-### Setup
-
-1. Apply the migrations (this adds the `appointment_notifications` delivery ledger). Run this **before or
-   together with** deploying the code: every booking, confirmation, rejection, cancellation and reschedule
-   writes to this table, so those actions fail until it exists.
-
-   ```bash
-   php8.5 artisan migrate
-   ```
-
-2. Configure mail in `.env` (`MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
-   `MAIL_FROM_ADDRESS`). With the default `MAIL_MAILER=log`, emails are written to `storage/logs/laravel.log`
-   instead of being sent.
-
-3. Set `APP_URL` to the public address of the site; links in emails are built from it.
 
 ### Running the worker
 
@@ -87,6 +165,22 @@ If you change any of these, keep the order: SMTP timeout < job timeout < `retry_
   `skipped`.
 - Jobs that exhaust their retries appear in `php8.5 artisan queue:failed` and can be retried with
   `php8.5 artisan queue:retry all`.
+
+## Testing
+
+Tests run against an in-memory SQLite database (see `phpunit.xml`) and never touch the MySQL database. Use
+PHP 8.5, which has the SQLite driver:
+
+```bash
+php8.5 artisan test
+php8.5 artisan test --filter=DoctorDataIsolationTest
+php8.5 vendor/bin/pint --test
+```
+
+## Known limitations
+
+- PHP 8.5 here has no GD extension, so uploaded photos are validated (type, size, dimensions) but not re-encoded.
+- Pages have been checked through automated HTTP rendering tests, not in a real browser.
 
 ---
 

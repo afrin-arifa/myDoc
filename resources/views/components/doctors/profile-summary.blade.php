@@ -6,7 +6,7 @@
         <span>myDoc</span>
     </a>
     <div class="doctor-sidebar__profile">
-        <img src="{{ asset('images/doctor.png') }}" alt="{{ $profile?->user?->name ?? auth()->user()->name }} profile image">
+        <img src="{{ $profile?->photoUrl() ?? asset('images/doctor.png') }}" alt="{{ $profile?->user?->name ?? auth()->user()->name }} profile image">
         <h2 class="h5 mb-1">{{ $profile?->user?->name ?? auth()->user()->name }}</h2>
         <p class="small text-secondary mb-2">{{ $profile?->professional_title ?? 'Doctor' }}</p>
     </div>
@@ -24,7 +24,8 @@
         @endforeach
         <a class="{{ $active === 'profile' ? 'is-active' : '' }}" href="{{ route('doctor.profile') }}"><i class="fa-regular fa-user"></i><span>Profile</span></a>
         <a class="{{ $active === 'settings' ? 'is-active' : '' }}" href="{{ route('doctor.settings') }}"><i class="fa-solid fa-user-gear"></i><span>Profile Settings</span></a>
-        @foreach (['Patients', 'Patients Review', 'Chat'] as $label)
+        <a class="{{ $active === 'patients' ? 'is-active' : '' }}" href="{{ route('doctor.patients.index') }}"><i class="fa-regular fa-user"></i><span>Patients</span></a>
+        @foreach (['Patients Review', 'Chat'] as $label)
             <span class="doctor-sidebar__disabled"><i class="fa-regular fa-user"></i><span>{{ $label }}</span></span>
         @endforeach
         <span class="doctor-sidebar__disabled"><i class="fa-solid fa-right-to-bracket"></i><span>Login</span></span>

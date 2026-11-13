@@ -36,9 +36,12 @@ class DemoUsersSeederTest extends TestCase
         $admin = User::where('email', 'admin@gmail.com')->firstOrFail();
         $this->assertTrue(Hash::check('123456789', $admin->password));
 
+        // Each account uses its own browser session (sessions are bound to the user's password hash).
         $this->actingAs($admin)->get(route('admin.dashboard'))->assertOk();
+        $this->flushSession();
         $this->actingAs(User::where('email', 'doctor1@gmail.com')->firstOrFail())
             ->get(route('doctor.dashboard'))->assertOk();
+        $this->flushSession();
         $this->actingAs(User::where('email', 'patient1@gmail.com')->firstOrFail())
             ->get(route('patient.dashboard'))->assertOk();
 
@@ -50,6 +53,7 @@ class DemoUsersSeederTest extends TestCase
             'user',
             fn ($users) => $users->where('email', 'doctor1@gmail.com')
         )->firstOrFail()))->assertOk()->assertSee('Family Medicine Physician');
+        $this->flushSession();
         $this->actingAs(User::where('email', 'doctor1@gmail.com')->firstOrFail())
             ->get(route('doctor.appointments.index'))->assertOk();
     }

@@ -22,4 +22,4 @@ New time:      {!! $scheduleChange['current']['date'] !!}, {!! $scheduleChange['
 
 @endif
 --
-This is an automated message from {!! $appName !!}. For your privacy, it contains scheduling details only.
+{!! $footerTextNote ?? 'This is an automated message from '.$appName.'. For your privacy, it contains scheduling details only.' !!}

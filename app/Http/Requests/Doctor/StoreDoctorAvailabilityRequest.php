@@ -10,7 +10,8 @@ class StoreDoctorAvailabilityRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor';
+        return $this->user()?->role === 'doctor'
+            && ($this->user()->doctorProfile === null || $this->user()->can('create', DoctorAvailability::class));
     }
 
     public function rules(): array

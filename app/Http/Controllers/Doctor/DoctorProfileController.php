@@ -7,6 +7,7 @@ use App\Http\Requests\Doctor\UpdateDoctorAccountRequest;
 use App\Http\Requests\Doctor\UpdateDoctorProfileRequest;
 use App\Models\Appointment;
 use App\Models\Specialty;
+use App\Services\DoctorPhotoStorage;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -96,20 +97,25 @@ class DoctorProfileController extends Controller
             ->count();
     }
 
-    public function update(UpdateDoctorProfileRequest $request): RedirectResponse
+    public function update(UpdateDoctorProfileRequest $request, DoctorPhotoStorage $photos): RedirectResponse
     {
         $user = $request->user();
-        $validated = $request->validated();
-        $specialtyIds = $validated['specialty_ids'] ?? [];
-        unset($validated['specialty_ids']);
+        $validated = $request->safe()->except(['specialty_ids', 'photo', 'remove_photo']);
+        $specialtyIds = $request->validated('specialty_ids') ?? [];
         $validated['is_accepting_patients'] = $request->boolean('is_accepting_patients');
 
-        DB::transaction(function () use ($user, $validated, $specialtyIds): void {
+        DB::transaction(function () use ($user, $validated, $specialtyIds, $request, $photos): void {
             $profile = $user->doctorProfile()->updateOrCreate(
                 ['user_id' => $user->id],
                 $validated
             );
             $profile->specialties()->sync($specialtyIds);
+
+            if ($request->hasFile('photo')) {
+                $photos->replace($profile, $request->file('photo'));
+            } elseif ($request->boolean('remove_photo')) {
+                $photos->remove($profile);
+            }
         });
 
         return back()->with('status', 'Your doctor profile has been saved.');

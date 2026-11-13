@@ -99,6 +99,15 @@ return [
             'expire' => 60,
             'throttle' => 60,
         ],
+
+        // Doctor onboarding invitations reuse Laravel's hashed, expiring token repository. Expiry is in
+        // minutes (72 hours); throttle is the minimum seconds between invitations to the same doctor.
+        'doctor_invitations' => [
+            'provider' => 'users',
+            'table' => 'doctor_invitation_tokens',
+            'expire' => 4320,
+            'throttle' => 60,
+        ],
     ],
 
     /*

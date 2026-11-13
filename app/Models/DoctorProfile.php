@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'user_id',
     'professional_title',
     'bio',
+    'qualifications',
     'license_number',
     'consultation_fee',
     'years_of_experience',
@@ -60,6 +61,31 @@ class DoctorProfile extends Model
     {
         $query->where('doctor_profiles.is_accepting_patients', true)
             ->whereHas('user', fn (Builder $users) => $users->whereNull('deactivated_at'));
+    }
+
+    /**
+     * URL of the profile photo, served through an authorizing controller (never a direct storage path).
+     */
+    public function photoUrl(): ?string
+    {
+        return $this->photo_path ? route('doctors.photo', ['doctor' => $this, 'v' => substr(md5($this->photo_path), 0, 8)]) : null;
+    }
+
+    /**
+     * Profile sections a doctor still needs to fill in after activation.
+     *
+     * @return list<string>
+     */
+    public function missingProfileSections(): array
+    {
+        $this->loadMissing('specialties');
+
+        return array_keys(array_filter([
+            'Biography' => blank($this->bio),
+            'Qualifications' => blank($this->qualifications),
+            'Specialties' => $this->specialties->isEmpty(),
+            'Profile photo' => blank($this->photo_path),
+        ]));
     }
 
     public function isPubliclyListed(): bool

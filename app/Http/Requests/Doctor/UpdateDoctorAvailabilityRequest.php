@@ -10,8 +10,10 @@ class UpdateDoctorAvailabilityRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor'
-            && $this->route('availability')?->doctor_profile_id === $this->user()?->doctorProfile?->id;
+        $availability = $this->route('availability');
+
+        return $availability instanceof DoctorAvailability
+            && $this->user()?->can('update', $availability) === true;
     }
 
     public function rules(): array

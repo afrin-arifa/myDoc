@@ -14,6 +14,7 @@
                     <p class="hero__description lead mb-4">
                         Search real doctor profiles, compare care options, and book a time that works for you.
                     </p>
+                    @if ($canBrowseDoctors)
                     <form class="row g-2 mb-3" method="GET" action="{{ route('doctors.index') }}">
                         <div class="col-sm-8">
                             <label class="visually-hidden" for="homepage-search">Search doctors</label>
@@ -24,7 +25,10 @@
                             <button class="btn btn-primary btn-lg" type="submit">Find a doctor</button>
                         </div>
                     </form>
-                    <a class="btn btn-link px-0" href="#how-it-works">Learn how booking works &darr;</a>
+                    @else
+                        <a class="btn btn-primary btn-lg mb-3" href="{{ route(auth()->user()->role.'.dashboard') }}">Go to your dashboard</a>
+                    @endif
+                    <a class="btn btn-link px-0 d-block" href="#how-it-works">Learn how booking works &darr;</a>
                 </div>
                 <div class="col-lg-5" aria-hidden="true">
                     <div class="bg-white rounded-4 shadow-sm p-4 p-lg-5">
@@ -44,6 +48,7 @@
             </div>
         </section>
 
+        @if ($canBrowseDoctors)
         <section class="py-5" aria-labelledby="specialties-title">
             <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
                 <div>
@@ -90,6 +95,7 @@
                 @endforelse
             </div>
         </section>
+        @endif
 
         <section class="py-5" id="how-it-works" aria-labelledby="how-it-works-title">
             <div class="row justify-content-center text-center">

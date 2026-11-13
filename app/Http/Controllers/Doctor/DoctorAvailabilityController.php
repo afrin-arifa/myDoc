@@ -7,6 +7,7 @@ use App\Http\Requests\Doctor\StoreDoctorAvailabilityRequest;
 use App\Http\Requests\Doctor\UpdateDoctorAvailabilityRequest;
 use App\Models\DoctorAvailability;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Gate;
 
 class DoctorAvailabilityController extends Controller
 {
@@ -36,7 +37,7 @@ class DoctorAvailabilityController extends Controller
 
     public function destroy(DoctorAvailability $availability): RedirectResponse
     {
-        abort_unless($availability->doctor_profile_id === request()->user()->doctorProfile?->id, 403);
+        Gate::authorize('delete', $availability);
 
         $availability->delete();
 

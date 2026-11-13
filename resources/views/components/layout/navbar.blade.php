@@ -13,15 +13,18 @@
                     <a class="nav-link {{ request()->routeIs('home') ? 'active' : '' }}" href="{{ route('home') }}"
                         @if (request()->routeIs('home')) aria-current="page" @endif>Home</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link {{ request()->routeIs('doctors.*') ? 'active' : '' }}" href="{{ route('doctors.index') }}"
-                        @if (request()->routeIs('doctors.*')) aria-current="page" @endif>Doctors</a>
-                </li>
+                @can('browseDirectory', App\Models\DoctorProfile::class)
+                    <li class="nav-item">
+                        <a class="nav-link {{ request()->routeIs('doctors.*') ? 'active' : '' }}" href="{{ route('doctors.index') }}"
+                            @if (request()->routeIs('doctors.*')) aria-current="page" @endif>Doctors</a>
+                    </li>
+                @endcan
                 <li class="nav-item"><a class="nav-link" href="{{ url('/#how-it-works') }}">How it works</a></li>
                 <li class="nav-item"><a class="nav-link" href="{{ url('/#features') }}">Why myDoc</a></li>
                 @auth
                     @if (auth()->user()->role === 'admin')
-                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">Users</a></li>
+                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.users.*') ? 'active' : '' }}" href="{{ route('admin.users.index') }}">Users</a></li>
+                        <li class="nav-item"><a class="nav-link {{ request()->routeIs('admin.doctors.*') ? 'active' : '' }}" href="{{ route('admin.doctors.index') }}">Doctors</a></li>
                     @elseif (auth()->user()->role === 'patient')
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.appointments.*') ? 'active' : '' }}" href="{{ route('patient.appointments.index') }}">My appointments</a></li>
                         <li class="nav-item"><a class="nav-link {{ request()->routeIs('patient.profile') ? 'active' : '' }}" href="{{ route('patient.profile') }}">Profile</a></li>

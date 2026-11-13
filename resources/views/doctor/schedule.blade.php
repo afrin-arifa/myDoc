@@ -16,10 +16,11 @@
         $timelineEndHour = 18;
         $timelineMinutes = ($timelineEndHour - $timelineStartHour) * 60;
         $timelinePixelsPerMinute = 1;
-        $activeFilters = $activeFilters ?? ['available', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
+        $activeFilters = $activeFilters ?? ['available', 'blocked', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
         $scheduleQuery = ['view' => $view, 'filters' => $activeFilters];
         $statusFilters = [
             'available' => ['Available slot', 'green'],
+            'blocked' => ['Blocked slot', 'gray'],
             'booked' => ['Booked / Pending', 'orange'],
             'confirmed' => ['Confirmed', 'blue'],
             'cancelled' => ['Cancelled / Rejected', 'red'],
@@ -185,7 +186,7 @@
                                                             @endphp
                                                             @continue($minutesFromStart >= $timelineMinutes || $eventEnd->lessThanOrEqualTo($timelineStart))
                                                             @php
-                                                                $eventLabel = $event['patient_name'] ?? ($status === 'available' ? 'Available' : ucfirst($event['appointment_status']));
+                                                                $eventLabel = $event['patient_name'] ?? match ($status) { 'available' => 'Available', 'blocked' => 'Blocked', default => ucfirst($event['appointment_status']) };
                                                                 $eventTime = $eventStart->format('g:i A').' - '.$eventEnd->format('g:i A');
                                                         @endphp
                                                         <article
@@ -219,7 +220,20 @@
                                                                             </form>
                                                                         @endif
                                                                     @else
-                                                                        <a class="doctor-calendar-event__link" href="{{ route('doctor.appointments.create', ['date' => $event['date'], 'slot_id' => $event['slot_id']]) }}" aria-label="Book this available slot">Book</a>
+                                                                        @if ($event['type'] === 'available')
+                                                                            <a class="doctor-calendar-event__link" href="{{ route('doctor.appointments.create', ['date' => $event['date'], 'slot_id' => $event['slot_id']]) }}" aria-label="Book this available slot">Book</a>
+                                                                        @endif
+                                                                        @if ($event['can_block'] ?? false)
+                                                                            <form method="POST" action="{{ route('doctor.slots.block', $event['slot_id']) }}" data-confirm="Block this slot? Patients will not be able to book it.">
+                                                                                @csrf
+                                                                                <button class="doctor-calendar-event__action" type="submit" aria-label="Block this slot">Block</button>
+                                                                            </form>
+                                                                        @elseif ($event['can_unblock'] ?? false)
+                                                                            <form method="POST" action="{{ route('doctor.slots.unblock', $event['slot_id']) }}">
+                                                                                @csrf @method('DELETE')
+                                                                                <button class="doctor-calendar-event__action" type="submit" aria-label="Unblock this slot">Unblock</button>
+                                                                            </form>
+                                                                        @endif
                                                                     @endif
                                                             </article>
                                                     @endforeach

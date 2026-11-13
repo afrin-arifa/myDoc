@@ -7,14 +7,19 @@ use App\Http\Controllers\Admin\AdminSpecialtyController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\NewPasswordController;
+use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Doctor\DoctorAppointmentController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
+use App\Http\Controllers\Doctor\DoctorInvitationController;
+use App\Http\Controllers\Doctor\DoctorPatientController;
 use App\Http\Controllers\Doctor\DoctorProfileController;
 use App\Http\Controllers\Doctor\DoctorScheduleController;
 use App\Http\Controllers\Doctor\DoctorSlotController;
 use App\Http\Controllers\Doctor\GoogleCalendarController;
 use App\Http\Controllers\DoctorDirectoryController;
+use App\Http\Controllers\DoctorPhotoController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
@@ -23,12 +28,31 @@ Route::get('/', [HomeController::class, 'index'])->name('home');
 
 Route::get('/doctors', [DoctorDirectoryController::class, 'index'])->name('doctors.index');
 Route::get('/doctors/{doctor}', [DoctorDirectoryController::class, 'show'])->name('doctors.show');
+Route::get('/doctors/{doctor}/photo', [DoctorPhotoController::class, 'show'])->name('doctors.photo');
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store']);
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store']);
+
+    Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
+    Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->middleware('throttle:password-reset')
+        ->name('password.email');
+    Route::get('/reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
+    Route::post('/reset-password', [NewPasswordController::class, 'store'])
+        ->middleware('throttle:password-reset')
+        ->name('password.update');
+
+    Route::get('/doctor/invitation/{token}', [DoctorInvitationController::class, 'show'])
+        ->middleware('throttle:doctor-invitations')
+        ->name('doctor.invitation.show');
+    Route::post('/doctor/invitation', [DoctorInvitationController::class, 'store'])
+        ->middleware('throttle:doctor-invitations')
+        ->name('doctor.invitation.accept');
+    Route::get('/doctor/invitation-accepted', [DoctorInvitationController::class, 'activated'])
+        ->name('doctor.invitation.activated');
 });
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
@@ -74,12 +98,15 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.availability.destroy');
     Route::post('/doctor/slots/preview', [DoctorSlotController::class, 'preview'])->name('doctor.slots.preview');
     Route::post('/doctor/slots/generate', [DoctorSlotController::class, 'store'])->name('doctor.slots.generate');
+    Route::post('/doctor/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('doctor.slots.block');
+    Route::delete('/doctor/slots/{slot}/block', [DoctorSlotController::class, 'unblock'])->name('doctor.slots.unblock');
     Route::get('/doctor/appointments', [DoctorAppointmentController::class, 'index'])
         ->name('doctor.appointments.index');
     Route::get('/doctor/appointments/create', [DoctorAppointmentController::class, 'create'])
         ->name('doctor.appointments.create');
     Route::post('/doctor/appointments', [DoctorAppointmentController::class, 'store'])
         ->name('doctor.appointments.store');
+    Route::get('/doctor/patients', [DoctorPatientController::class, 'index'])->name('doctor.patients.index');
     Route::get('/doctor/patients/search', [DoctorAppointmentController::class, 'searchPatients'])
         ->middleware('throttle:60,1')
         ->name('doctor.patients.search');
@@ -105,6 +132,12 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/users/{user}', [AdminUserController::class, 'show'])->name('admin.users.show');
     Route::patch('/admin/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
     Route::get('/admin/doctors', [AdminDoctorController::class, 'index'])->name('admin.doctors.index');
+    Route::get('/admin/doctors/create', [AdminDoctorController::class, 'create'])->name('admin.doctors.create');
+    Route::post('/admin/doctors', [AdminDoctorController::class, 'store'])->name('admin.doctors.store');
+    Route::patch('/admin/doctors/{doctor}/status', [AdminDoctorController::class, 'updateStatus'])->name('admin.doctors.status');
+    Route::post('/admin/doctors/{doctor}/invitation', [AdminDoctorController::class, 'resendInvitation'])
+        ->middleware('throttle:10,1')
+        ->name('admin.doctors.invitation');
     Route::get('/admin/doctors/{doctor}', [AdminDoctorController::class, 'show'])->name('admin.doctors.show');
     Route::patch('/admin/doctors/{doctor}', [AdminDoctorController::class, 'update'])->name('admin.doctors.update');
     Route::get('/admin/specialties', [AdminSpecialtyController::class, 'index'])->name('admin.specialties.index');

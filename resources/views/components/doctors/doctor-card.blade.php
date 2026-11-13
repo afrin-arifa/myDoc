@@ -4,7 +4,7 @@
 
 <div class="doctor-card">
     <div class="doctor-card__media">
-        <img src="{{ asset('images/doctor.png') }}" alt="{{ $doctor->user->name }} profile image">
+        <img src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="{{ $doctor->user->name }} profile image">
         <span class="doctor-card__availability"><span aria-hidden="true"></span> Accepting patients</span>
     </div>
     <div class="doctor-card__body">
