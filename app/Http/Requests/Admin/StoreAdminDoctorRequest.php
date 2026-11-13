@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\DoctorProfile;
+use App\Rules\BangladeshiMobileNumber;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -26,7 +27,7 @@ class StoreAdminDoctorRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', Rule::unique('users', 'email')],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30', new BangladeshiMobileNumber],
             'professional_title' => ['required', 'string', 'max:255'],
             'license_number' => ['required', 'string', 'max:255', Rule::unique('doctor_profiles', 'license_number')],
             'consultation_fee' => ['required', 'numeric', 'min:0', 'max:99999999.99'],
@@ -41,6 +42,9 @@ class StoreAdminDoctorRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        if (is_string($this->input('phone')) && ($phone = BangladeshiMobileNumber::normalize($this->input('phone'))) !== null) {
+            $this->merge(['phone' => $phone]);
+        }
         if (is_string($this->input('email'))) {
             $this->merge(['email' => mb_strtolower(trim($this->input('email')))]);
         }

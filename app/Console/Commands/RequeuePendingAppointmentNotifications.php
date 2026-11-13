@@ -7,7 +7,7 @@ use App\Models\AppointmentNotification;
 use Illuminate\Console\Command;
 
 /**
- * Recovers appointment emails whose queue job was never created, e.g. when the appointment transaction committed
+ * Recovers appointment emails and SMS whose queue job was never created, e.g. when the appointment transaction committed
  * but pushing the job to the queue failed afterwards. Such rows stay "pending" with no job to deliver them.
  *
  * Safe to run repeatedly: it never marks anything as sent, and a duplicate job cannot send twice because delivery
@@ -23,7 +23,7 @@ class RequeuePendingAppointmentNotifications extends Command
 
     protected $signature = 'mydoc:requeue-pending-notifications';
 
-    protected $description = 'Re-queue appointment emails that have been pending without a delivery job';
+    protected $description = 'Re-queue appointment emails and SMS that have been pending without a delivery job';
 
     public function handle(): int
     {
@@ -49,7 +49,7 @@ class RequeuePendingAppointmentNotifications extends Command
                 }
             });
 
-        $this->info("{$requeued} pending appointment email(s) re-queued.");
+        $this->info("{$requeued} pending appointment notification(s) re-queued.");
 
         return self::SUCCESS;
     }

@@ -121,6 +121,14 @@ class AppointmentBookingService
 
             $slot->update(['status' => 'booked']);
 
+            // No email is sent for doctor-created bookings (unchanged P1.2 behaviour); an opted-in patient gets an
+            // SMS confirmation. The doctor made the booking, so they are not notified.
+            $this->notifications->recordSms(
+                $appointment,
+                AppointmentNotification::TYPE_BOOKED,
+                audiences: [AppointmentNotification::AUDIENCE_PATIENT],
+            );
+
             return $appointment;
         });
     }

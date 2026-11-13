@@ -13,10 +13,12 @@
                 <form class="card border-0 shadow-sm p-4" method="POST" action="{{ route('patient.profile.update') }}">
                     @csrf @method('PUT')
                     <h2 class="h4 mb-4">Personal information</h2>
-                    @foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Phone'] as $field => $label)
+                    @foreach (['name' => 'Name', 'email' => 'Email', 'phone' => 'Mobile number'] as $field => $label)
                         <div class="mb-3"><label class="form-label" for="{{ $field }}">{{ $label }}</label>
                             <input class="form-control @error($field) is-invalid @enderror" id="{{ $field }}" name="{{ $field }}"
-                                type="{{ $field === 'email' ? 'email' : 'text' }}" value="{{ old($field, $user->{$field}) }}" required>
+                                type="{{ ['email' => 'email', 'phone' => 'tel'][$field] ?? 'text' }}" value="{{ old($field, $user->{$field}) }}" required
+                                @if ($field === 'phone') autocomplete="tel" placeholder="01712345678" aria-describedby="phone_help" @endif>
+                            @if ($field === 'phone')<div class="form-text" id="phone_help">Bangladeshi mobile number, e.g. 01712345678 or +8801712345678.</div>@endif
                             @error($field)<div class="invalid-feedback">{{ $message }}</div>@enderror
                         </div>
                     @endforeach
@@ -24,6 +26,7 @@
                         <textarea class="form-control @error('address') is-invalid @enderror" id="address" name="address" rows="3">{{ old('address', $user->address) }}</textarea>
                         @error('address')<div class="invalid-feedback">{{ $message }}</div>@enderror
                     </div>
+                    <x-forms.sms-preference class="mb-4" :user="$user" />
                     <button class="btn btn-primary">Save profile</button>
                 </form>
             </div>

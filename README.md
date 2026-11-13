@@ -194,6 +194,52 @@ If you change any of these, keep the order: SMTP timeout < job timeout < `retry_
 - Jobs that exhaust their retries appear in `php8.5 artisan queue:failed` and can be retried with
   `php8.5 artisan queue:retry all`.
 
+## Appointment SMS
+
+Opted-in patients and doctors receive short appointment SMS in addition to (never instead of) the emails above.
+SMS reuses the same ledger (`appointment_notifications`, now with a `channel` column), the same
+`SendAppointmentNotification` job, its atomic claim, retries and the `mydoc:requeue-pending-notifications` recovery.
+
+| Event | SMS to |
+|---|---|
+| Patient books | patient (booking received) and doctor (new request) |
+| Doctor books for a patient | patient |
+| Doctor confirms / rejects / reschedules | patient |
+| Patient cancels | doctor |
+| Reminder 24 h and 2 h before (booked or confirmed only) | patient |
+
+* **Opt-in:** every user starts opted out (`users.sms_notifications_enabled = false`). Patients enable SMS on
+  *My profile*, doctors on *Account settings*; enabling requires a Bangladeshi mobile number. Email is unaffected.
+* **Phone numbers:** forms accept `01XXXXXXXXX`, `+8801XXXXXXXXX`, `8801XXXXXXXXX`, `008801XXXXXXXXX` (spaces/dashes
+  ignored) and store `8801XXXXXXXXX`. Older free-text numbers are kept as they are; an SMS is skipped when the
+  current number is not a valid mobile number.
+* **Content:** reference, doctor name, date and time only. No notes, reasons, symptoms, documents or links.
+* **Reminders:** `mydoc:queue-appointment-reminders` runs every five minutes from the scheduler. A reminder is
+  queued once per slot and start time, only if the appointment was booked before the reminder was due, and is
+  re-checked before sending, so cancelled, rejected, completed or rescheduled appointments never get outdated ones.
+* **No duplicates:** BulkSMSBD has no idempotency key, so an SMS whose provider request may have gone out (timeout,
+  unreadable response, provider internal error 1005, any undocumented code, crashed worker) is marked `unconfirmed`
+  and never re-sent. Only failures that confirm the provider did not accept the SMS (connection refused, HTTP 429 or
+  503, balance and IP-whitelist codes 1006, 1007, 1032) are retried; configuration errors (wrong sender id, disabled
+  account, codes 1002, 1003, 1011–1031) are `undelivered`. Admins review all three under *SMS issues*.
+
+### Provider setup (BulkSMSBD)
+
+1. Create a BulkSMSBD account, buy an SMS package, and note the **API key** and the **approved sender id** from the
+   panel (the non-masking number, or a registered masking name such as `myDoc`). BulkSMSBD requires masking SMS to
+   be written in Bengali (error 1012); these messages are English, so use a non-masking sender id for now.
+2. If the panel enforces IP whitelisting (error 1032), whitelist the server's public IP address.
+3. Set in `.env` (never commit real values):
+   ```dotenv
+   SMS_DRIVER=bulksmsbd
+   SMS_SENDER_ID=your-approved-sender-id
+   BULKSMSBD_API_KEY=your-api-key
+   ```
+4. Clear the config cache (`php8.5 artisan config:clear`), keep `queue:work` and the scheduler running.
+
+Without these settings (`SMS_DRIVER=none`, the default) nothing is sent and SMS ledger rows are marked `skipped`.
+`SMS_DRIVER=log` writes a redacted line to the log instead of sending, for development. Tests always use a fake.
+
 ## Testing
 
 Tests run against an in-memory SQLite database (see `phpunit.xml`) and never touch the MySQL database. Use

@@ -20,7 +20,7 @@ class ProfileManagementTest extends TestCase
         $this->actingAs($patient)->put(route('patient.profile.update'), [
             'name' => 'Updated Patient',
             'email' => 'updated@example.com',
-            'phone' => '+8801000000000',
+            'phone' => '+8801712345678',
             'address' => 'Fictional address',
         ])->assertRedirect();
 
@@ -65,7 +65,7 @@ class ProfileManagementTest extends TestCase
         $this->actingAs($doctor)->put(route('doctor.account.update'), [
             'name' => 'Doctor Updated',
             'email' => 'doctor-updated@example.com',
-            'phone' => '123',
+            'phone' => '01812345678',
             'address' => 'Clinic',
         ])->assertRedirect();
         $this->actingAs($doctor)->put(route('doctor.profile.update'), [

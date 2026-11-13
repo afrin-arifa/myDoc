@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Notifications\Account\ResetPasswordNotification;
+use App\Rules\BangladeshiMobileNumber;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -14,7 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
-#[Fillable(['name', 'email', 'password', 'phone', 'address'])]
+#[Fillable(['name', 'email', 'password', 'phone', 'address', 'sms_notifications_enabled'])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable
 {
@@ -69,12 +70,31 @@ class User extends Authenticatable
      *
      * @return array<string, string>
      */
+    /**
+     * The user's current phone number in SMS form (8801XXXXXXXXX), or null when it is missing or not a valid
+     * Bangladeshi mobile number. Older free-text numbers are interpreted here rather than rewritten.
+     */
+    public function smsPhoneNumber(): ?string
+    {
+        return BangladeshiMobileNumber::normalize($this->phone);
+    }
+
+    /**
+     * True when the user opted in to appointment SMS and their account is active. The phone number is checked
+     * separately at delivery time so an invalid number can be reported.
+     */
+    public function wantsAppointmentSms(): bool
+    {
+        return $this->sms_notifications_enabled === true && $this->deactivated_at === null;
+    }
+
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'deactivated_at' => 'datetime',
+            'sms_notifications_enabled' => 'boolean',
         ];
     }
 }

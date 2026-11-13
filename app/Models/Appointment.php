@@ -63,7 +63,15 @@ class Appointment extends Model
      */
     public function reference(): string
     {
-        return 'APT-'.str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+        return self::referenceFor((int) $this->id);
+    }
+
+    /**
+     * The reference for an appointment id, without loading the appointment.
+     */
+    public static function referenceFor(int $appointmentId): string
+    {
+        return 'APT-'.str_pad((string) $appointmentId, 6, '0', STR_PAD_LEFT);
     }
 
     /**

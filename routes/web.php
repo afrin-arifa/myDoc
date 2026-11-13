@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAppointmentController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDoctorController;
 use App\Http\Controllers\Admin\AdminMedicalDocumentController;
+use App\Http\Controllers\Admin\AdminSmsIssueController;
 use App\Http\Controllers\Admin\AdminSpecialtyController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\AppointmentController;
@@ -169,4 +170,5 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/medical-documents', [AdminMedicalDocumentController::class, 'index'])->name('admin.medical-documents.index');
     Route::get('/admin/medical-documents/{document}', [AdminMedicalDocumentController::class, 'show'])->name('admin.medical-documents.show');
     Route::get('/admin/appointments/{appointment}', [AdminAppointmentController::class, 'show'])->name('admin.appointments.show');
+    Route::get('/admin/sms-issues', [AdminSmsIssueController::class, 'index'])->name('admin.sms-issues.index');
 });

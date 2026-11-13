@@ -2,7 +2,12 @@
 
 namespace App\Providers;
 
+use App\Services\Sms\BulkSmsBdGateway;
+use App\Services\Sms\LogSmsGateway;
+use App\Services\Sms\NullSmsGateway;
+use App\Services\Sms\SmsGateway;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
@@ -16,7 +21,27 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(SmsGateway::class, function ($app): SmsGateway {
+            $driver = (string) config('sms.default', 'none');
+
+            // Automated tests must never reach a real provider.
+            if ($app->runningUnitTests() && ! in_array($driver, ['none', 'log'], true)) {
+                $driver = 'none';
+            }
+
+            return match ($driver) {
+                'log' => new LogSmsGateway,
+                'bulksmsbd' => new BulkSmsBdGateway(
+                    $app->make(HttpFactory::class),
+                    config('sms.drivers.bulksmsbd.api_key'),
+                    config('sms.sender_id'),
+                    (string) config('sms.drivers.bulksmsbd.base_url', 'https://bulksmsbd.net/api'),
+                    (int) config('sms.timeout', 10),
+                    (int) config('sms.connect_timeout', 5),
+                ),
+                default => new NullSmsGateway,
+            };
+        });
     }
 
     /**

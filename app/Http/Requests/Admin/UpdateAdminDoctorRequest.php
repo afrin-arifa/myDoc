@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Admin;
 
 use App\Models\DoctorProfile;
+use App\Rules\BangladeshiMobileNumber;
 use App\Services\DoctorPhotoStorage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -24,7 +25,7 @@ class UpdateAdminDoctorRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($profile->user_id)],
-            'phone' => ['nullable', 'string', 'max:30'],
+            'phone' => ['nullable', 'string', 'max:30', new BangladeshiMobileNumber],
             'address' => ['nullable', 'string', 'max:1000'],
             'professional_title' => ['required', 'string', 'max:255'],
             'bio' => ['nullable', 'string', 'max:5000'],
@@ -38,5 +39,15 @@ class UpdateAdminDoctorRequest extends FormRequest
             'specialty_ids' => ['nullable', 'array'],
             'specialty_ids.*' => ['integer', 'exists:specialties,id'],
         ];
+    }
+
+    /**
+     * Store recognisable Bangladeshi mobile numbers in the normalized 8801XXXXXXXXX form.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('phone')) && ($phone = BangladeshiMobileNumber::normalize($this->input('phone'))) !== null) {
+            $this->merge(['phone' => $phone]);
+        }
     }
 }
