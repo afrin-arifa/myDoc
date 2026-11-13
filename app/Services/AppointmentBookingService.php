@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
+use App\Models\AppointmentNotification;
 use App\Models\AppointmentSlot;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -12,6 +13,8 @@ use Illuminate\Validation\ValidationException;
 
 class AppointmentBookingService
 {
+    public function __construct(private readonly AppointmentNotificationService $notifications) {}
+
     public function book(User $patient, int $slotId, string $consultationType): Appointment
     {
         if (! in_array($consultationType, ['physical', 'voice', 'video'], true)) {
@@ -43,6 +46,7 @@ class AppointmentBookingService
             ]);
 
             $slot->update(['status' => 'booked']);
+            $this->notifications->record($appointment, AppointmentNotification::TYPE_BOOKED);
 
             return $appointment;
         });
@@ -74,6 +78,7 @@ class AppointmentBookingService
                 'cancelled_at' => now(),
             ]);
             $slot->update(['status' => 'available']);
+            $this->notifications->record($appointment, AppointmentNotification::TYPE_CANCELLED);
         });
 
         SyncAppointmentToGoogleCalendar::dispatch($appointmentId, 'delete')->afterCommit();

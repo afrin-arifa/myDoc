@@ -1,3 +1,95 @@
+# myDoc – Queue worker and appointment emails
+
+myDoc sends appointment emails and Google Calendar updates through Laravel's queue. **Nothing is delivered
+unless a queue worker is running.**
+
+| Event | Recipient |
+|---|---|
+| Patient books an appointment | Doctor |
+| Doctor confirms an appointment | Patient |
+| Doctor rejects an appointment | Patient |
+| Patient cancels an appointment | Doctor |
+| Doctor reschedules an appointment | Patient |
+
+Appointments that a doctor creates manually do not send a booking email; the patient is emailed when the doctor
+confirms the appointment.
+
+### Setup
+
+1. Apply the migrations (this adds the `appointment_notifications` delivery ledger). Run this **before or
+   together with** deploying the code: every booking, confirmation, rejection, cancellation and reschedule
+   writes to this table, so those actions fail until it exists.
+
+   ```bash
+   php8.5 artisan migrate
+   ```
+
+2. Configure mail in `.env` (`MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+   `MAIL_FROM_ADDRESS`). With the default `MAIL_MAILER=log`, emails are written to `storage/logs/laravel.log`
+   instead of being sent.
+
+3. Set `APP_URL` to the public address of the site; links in emails are built from it.
+
+### Running the worker
+
+The project uses the `database` queue (`QUEUE_CONNECTION=database`; the `jobs` and `failed_jobs` tables are
+created by the default migrations).
+
+```bash
+php8.5 artisan queue:work
+```
+
+During local development, run it in a separate terminal alongside the web server.
+
+**Production must run a persistent worker** under a process monitor such as Supervisor or systemd, so it is
+restarted if it stops. After every deployment, restart workers so they load the new code:
+
+```bash
+php8.5 artisan queue:restart
+```
+
+Use `QUEUE_CONNECTION=database` (or another real queue) in production, never `sync`: with `sync` an email failure
+would surface to the user after the appointment was already saved, and could not be retried.
+
+### Running the scheduler
+
+A scheduled command, `mydoc:requeue-pending-notifications`, runs every 15 minutes. It re-queues emails that have
+been `pending` for over 30 minutes without a delivery job (for example if the queue was unreachable right after an
+appointment was saved). Production needs the standard Laravel scheduler cron entry:
+
+```cron
+* * * * * cd /path-to-myDoc && php8.5 artisan schedule:run >> /dev/null 2>&1
+```
+
+Check the schedule with `php8.5 artisan schedule:list`.
+
+### Timeouts
+
+| Setting | Value | Why |
+|---|---|---|
+| SMTP socket timeout (`MAIL_TIMEOUT`) | 20 s | A hung mail server fails the attempt instead of blocking the worker |
+| Email job timeout | 45 s | Enough for the SMTP exchange and the ledger update |
+| Database queue `retry_after` (`DB_QUEUE_RETRY_AFTER`) | 90 s | Must stay above the job timeout |
+| Stale `sending` claim | 10 min | After this, an interrupted delivery can be taken over |
+
+If you change any of these, keep the order: SMTP timeout < job timeout < `retry_after` < stale-claim window.
+
+### Retries and failures
+
+- A delivery failure (for example an SMTP error) is retried with increasing back-off (1, 5, 15 and 30 minutes).
+  After **5 delivery failures** the job is failed.
+- Every email is recorded once in `appointment_notifications` with its status (`pending`, `sending`, `sent`,
+  `failed`, `skipped`). A row marked `sent` is never sent again, so retries cannot produce duplicate emails.
+- If a worker crashes or times out mid-send, the queue redelivers the job; it waits until the interrupted
+  attempt's claim is 10 minutes old and then completes the delivery. This waiting does not use up the five
+  delivery attempts (an overall ceiling of 15 runs still bounds a job that keeps crashing).
+- Emails to deactivated accounts, invalid addresses, or about appointments that changed while queued are
+  `skipped`.
+- Jobs that exhaust their retries appear in `php8.5 artisan queue:failed` and can be retried with
+  `php8.5 artisan queue:retry all`.
+
+---
+
 <p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
 
 <p align="center">

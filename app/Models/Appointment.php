@@ -48,6 +48,19 @@ class Appointment extends Model
         return $this->hasMany(AppointmentRescheduleHistory::class);
     }
 
+    public function emailNotifications(): HasMany
+    {
+        return $this->hasMany(AppointmentNotification::class);
+    }
+
+    /**
+     * Human-readable reference used in emails, e.g. APT-000042.
+     */
+    public function reference(): string
+    {
+        return 'APT-'.str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+    }
+
     /**
      * Limit the query to active (booked or confirmed) appointments whose slot has not started yet.
      *

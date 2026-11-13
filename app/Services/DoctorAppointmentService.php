@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
+use App\Models\AppointmentNotification;
 use App\Models\AppointmentRescheduleHistory;
 use App\Models\AppointmentSlot;
 use App\Models\User;
@@ -13,6 +14,8 @@ use Illuminate\Validation\ValidationException;
 
 class DoctorAppointmentService
 {
+    public function __construct(private readonly AppointmentNotificationService $notifications) {}
+
     public function complete(User $doctor, Appointment $appointment): void
     {
         DB::transaction(function () use ($doctor, $appointment): void {
@@ -44,7 +47,7 @@ class DoctorAppointmentService
             }
             $oldSlot->update(['status' => 'available']);
             $newSlot->update(['status' => 'booked']);
-            AppointmentRescheduleHistory::create([
+            $history = AppointmentRescheduleHistory::create([
                 'appointment_id' => $locked->id,
                 'previous_slot_id' => $oldSlot->id,
                 'new_slot_id' => $newSlot->id,
@@ -54,6 +57,12 @@ class DoctorAppointmentService
                 'reason' => $reason,
             ]);
             $locked->update(['appointment_slot_id' => $newSlot->id]);
+            $this->notifications->record(
+                $locked,
+                AppointmentNotification::TYPE_RESCHEDULED,
+                'reschedule:'.$history->id,
+                ['reschedule_history_id' => $history->id]
+            );
         });
 
         if ($appointment->status === 'confirmed') {
@@ -82,6 +91,11 @@ class DoctorAppointmentService
             if ($status === 'rejected') {
                 $appointment->slot()->lockForUpdate()->first()->update(['status' => 'available']);
             }
+
+            $this->notifications->record(
+                $appointment,
+                $status === 'confirmed' ? AppointmentNotification::TYPE_CONFIRMED : AppointmentNotification::TYPE_REJECTED
+            );
         });
 
         SyncAppointmentToGoogleCalendar::dispatch(
