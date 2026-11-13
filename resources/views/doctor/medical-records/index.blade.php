@@ -37,38 +37,26 @@
                 </form>
 
                 @if ($documents->isEmpty())
-                    <x-ui.empty-state title="No medical records found"
-                        :message="array_filter($filters) ? 'No documents match these filters.' : 'Documents your patients upload will appear here.'" />
+                    <x-ui.empty-state class="text-center py-5" :icon="array_filter($filters) ? 'fa-solid fa-filter-circle-xmark' : 'fa-regular fa-folder-open'"
+                        title="No medical records found"
+                        :message="array_filter($filters) ? 'No documents match these filters.' : 'Documents your patients upload will appear here.'"
+                        :action-label="array_filter($filters) ? 'Show all records' : null" :action-url="route('doctor.medical-records.index')" />
                 @else
-                    <div class="table-responsive">
-                        <table class="table align-middle">
-                            <caption class="visually-hidden">Patient medical documents</caption>
-                            <thead>
-                                <tr><th scope="col">Patient</th><th scope="col">Document</th><th scope="col">Type</th><th scope="col">Uploaded</th><th scope="col">Your appointment</th><th scope="col"><span class="visually-hidden">Download</span></th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($documents as $document)
-                                    <tr>
-                                        <td><strong>{{ $document->patient->name }}</strong><br><span class="small text-secondary">{{ $document->patient->email }}</span></td>
-                                        <td>{{ $document->displayTitle() }}<br><span class="small text-secondary">{{ $document->fileTypeLabel() }} · {{ $document->humanSize() }}</span></td>
-                                        <td><span class="badge text-bg-light">{{ $document->categoryLabel() }}</span></td>
-                                        <td>{{ $document->created_at->format('M j, Y') }}</td>
-                                        <td>
-                                            @if ($document->appointment)
-                                                <a href="{{ route('doctor.appointments.show', $document->appointment) }}">{{ $document->appointment->slot->starts_at->format('M j, Y g:i A') }}</a>
-                                            @else
-                                                <span class="text-secondary">—</span>
-                                            @endif
-                                        </td>
-                                        <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ route('medical-documents.download', $document) }}">Download</a></td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    <p class="small text-secondary mb-3">{{ $documents->total() }} {{ Str::plural('document', $documents->total()) }}</p>
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-xxl-3 g-4">
+                        @foreach ($documents as $document)
+                            <div class="col">
+                                <x-medical-documents.card :document="$document" viewer="doctor" />
+                            </div>
+                        @endforeach
                     </div>
-                    {{ $documents->links() }}
+                    <div class="mt-4">
+                        {{ $documents->links() }}
+                    </div>
                 @endif
             </div>
         </div>
     </div>
+
+    <x-medical-documents.preview-modal />
 @endsection

@@ -1,8 +1,16 @@
-@props(['document'])
+{{--
+    A medical document card, shared by the patient and doctor Medical records pages.
+    viewer="patient" (default): the owner's view, with the linked doctor and a Delete action.
+    viewer="doctor": a treating doctor's view, showing whose document it is, linking the appointment to the doctor's
+    own appointment page, and offering Download only (doctors can never delete patient documents).
+    Images load through the authorized preview route; nothing links to storage.
+--}}
+@props(['document', 'viewer' => 'patient'])
 
 @php
     $name = $document->title ?: $document->original_name;
     $downloadUrl = route('medical-documents.download', $document);
+    $isDoctorView = $viewer === 'doctor';
 @endphp
 
 <article class="card document-card h-100">
@@ -36,6 +44,12 @@
         @endif
 
         <dl class="document-card__meta small my-3">
+            @if ($isDoctorView)
+                <div>
+                    <dt><i class="fa-regular fa-user" aria-hidden="true"></i> Patient</dt>
+                    <dd class="text-truncate" title="{{ $document->patient->name }}">{{ $document->patient->name }}</dd>
+                </div>
+            @endif
             <div>
                 <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> Uploaded</dt>
                 <dd><time datetime="{{ $document->created_at->toIso8601String() }}">{{ $document->created_at->format('M j, Y') }}</time></dd>
@@ -47,7 +61,9 @@
             <div>
                 <dt><i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Appointment</dt>
                 <dd>
-                    @if ($document->appointment)
+                    @if ($document->appointment && $isDoctorView)
+                        <a href="{{ route('doctor.appointments.show', $document->appointment) }}">{{ $document->appointment->slot->starts_at->format('M j, Y g:i A') }}</a>
+                    @elseif ($document->appointment)
                         {{ $document->appointment->slot->starts_at->format('M j, Y') }} · {{ $document->appointment->slot->doctorProfile->user->name }}
                     @else
                         <span class="text-secondary">Not linked</span>
@@ -60,14 +76,16 @@
             <a class="btn btn-sm btn-outline-primary flex-fill" href="{{ $downloadUrl }}">
                 <i class="fa-solid fa-download me-1" aria-hidden="true"></i>Download<span class="visually-hidden"> {{ $name }}</span>
             </a>
-            <form class="flex-fill d-flex" method="POST" action="{{ route('medical-documents.destroy', $document) }}"
-                data-confirm="Delete this document permanently? Your doctors will no longer be able to see it.">
-                @csrf
-                @method('DELETE')
-                <button class="btn btn-sm btn-outline-danger flex-fill" type="submit">
-                    <i class="fa-regular fa-trash-can me-1" aria-hidden="true"></i>Delete<span class="visually-hidden"> {{ $name }}</span>
-                </button>
-            </form>
+            @unless ($isDoctorView)
+                <form class="flex-fill d-flex" method="POST" action="{{ route('medical-documents.destroy', $document) }}"
+                    data-confirm="Delete this document permanently? Your doctors will no longer be able to see it.">
+                    @csrf
+                    @method('DELETE')
+                    <button class="btn btn-sm btn-outline-danger flex-fill" type="submit">
+                        <i class="fa-regular fa-trash-can me-1" aria-hidden="true"></i>Delete<span class="visually-hidden"> {{ $name }}</span>
+                    </button>
+                </form>
+            @endunless
         </div>
     </div>
 </article>
