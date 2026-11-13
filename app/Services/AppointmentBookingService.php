@@ -6,6 +6,8 @@ use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentNotification;
 use App\Models\AppointmentSlot;
+use App\Models\DoctorProfile;
+use App\Models\DoctorWorkspaceEvent;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -13,7 +15,11 @@ use Illuminate\Validation\ValidationException;
 
 class AppointmentBookingService
 {
-    public function __construct(private readonly AppointmentNotificationService $notifications) {}
+    public function __construct(
+        private readonly AppointmentNotificationService $notifications,
+        private readonly DoctorWorkspace $workspace,
+        private readonly DoctorWorkspaceEventService $events,
+    ) {}
 
     public function book(User $patient, int $slotId, string $consultationType): Appointment
     {
@@ -47,6 +53,14 @@ class AppointmentBookingService
 
             $slot->update(['status' => 'booked']);
             $this->notifications->record($appointment, AppointmentNotification::TYPE_BOOKED);
+            $this->events->record(
+                $patient,
+                $slot->doctor_profile_id,
+                DoctorWorkspaceEvent::ACTION_BOOKED,
+                appointment: $appointment,
+                toStatus: 'booked',
+                context: ['source' => 'patient', 'slot_id' => $slot->id, 'starts_at' => $slot->starts_at->toIso8601String(), 'consultation_type' => $consultationType],
+            );
 
             return $appointment;
         });
@@ -73,19 +87,36 @@ class AppointmentBookingService
                 ]);
             }
 
+            $previousStatus = $appointment->status;
             $appointment->update([
                 'status' => 'cancelled',
                 'cancelled_at' => now(),
             ]);
             $slot->update(['status' => 'available']);
             $this->notifications->record($appointment, AppointmentNotification::TYPE_CANCELLED);
+            $this->events->record(
+                $patient,
+                $slot->doctor_profile_id,
+                DoctorWorkspaceEvent::ACTION_CANCELLED,
+                appointment: $appointment,
+                fromStatus: $previousStatus,
+                toStatus: 'cancelled',
+                context: ['source' => 'patient', 'slot_id' => $slot->id, 'starts_at' => $slot->starts_at->toIso8601String()],
+            );
         });
 
         SyncAppointmentToGoogleCalendar::dispatch($appointmentId, 'delete')->afterCommit();
     }
 
-    public function bookForDoctor(User $doctor, User $patient, int $slotId, string $consultationType, ?string $notes = null): Appointment
+    /**
+     * Book a slot on a doctor's behalf. The actor (the doctor, or an assistant assigned to them) must be allowed to
+     * book for the doctor context, and the slot must belong to that doctor. The context may be omitted only by a
+     * doctor booking in their own workspace.
+     */
+    public function bookForDoctor(User $actor, User $patient, int $slotId, string $consultationType, ?string $notes = null, ?DoctorProfile $doctorProfile = null): Appointment
     {
+        $doctorProfile = $this->workspace->authorize($actor, $doctorProfile, DoctorAccess::BOOK_APPOINTMENTS);
+
         if (! in_array($consultationType, ['physical', 'voice', 'video'], true)) {
             throw ValidationException::withMessages([
                 'consultation_type' => 'Choose a supported consultation type.',
@@ -98,11 +129,11 @@ class AppointmentBookingService
             ]);
         }
 
-        return DB::transaction(function () use ($doctor, $patient, $slotId, $consultationType, $notes): Appointment {
+        return DB::transaction(function () use ($actor, $doctorProfile, $patient, $slotId, $consultationType, $notes): Appointment {
             $slot = AppointmentSlot::query()->lockForUpdate()->find($slotId);
 
             if (! $slot
-                || $slot->doctor_profile_id !== $doctor->doctorProfile?->id
+                || $slot->doctor_profile_id !== $doctorProfile->id
                 || $slot->status !== 'available'
                 || $slot->starts_at->lte(CarbonImmutable::now())) {
                 throw ValidationException::withMessages([
@@ -127,6 +158,14 @@ class AppointmentBookingService
                 $appointment,
                 AppointmentNotification::TYPE_BOOKED,
                 audiences: [AppointmentNotification::AUDIENCE_PATIENT],
+            );
+            $this->events->record(
+                $actor,
+                $doctorProfile,
+                DoctorWorkspaceEvent::ACTION_BOOKED,
+                appointment: $appointment,
+                toStatus: 'booked',
+                context: ['source' => 'staff', 'slot_id' => $slot->id, 'starts_at' => $slot->starts_at->toIso8601String(), 'consultation_type' => $consultationType],
             );
 
             return $appointment;

@@ -108,6 +108,15 @@ return [
             'expire' => 4320,
             'throttle' => 60,
         ],
+
+        // Doctor Assistant invitations: the same hashed, expiring token mechanism in a separate table, so they can
+        // never be used as doctor invitations (or the reverse). Expiry 72 hours; throttle 60 seconds.
+        'assistant_invitations' => [
+            'provider' => 'users',
+            'table' => 'assistant_invitation_tokens',
+            'expire' => 4320,
+            'throttle' => 60,
+        ],
     ],
 
     /*

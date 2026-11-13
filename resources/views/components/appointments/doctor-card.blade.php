@@ -45,7 +45,7 @@
         <div class="d-flex flex-wrap align-items-center gap-2">
             <a
                 class="appointment-management-card__icon"
-                href="{{ route('doctor.appointments.show', $appointment) }}"
+                href="{{ $workspace->url('doctor.appointments.show', $appointment) }}"
                 aria-label="View appointment details"
                 title="View details"
             >
@@ -59,7 +59,7 @@
             <div class="d-flex flex-wrap gap-2 mt-3">
                 <form
                     method="POST"
-                    action="{{ route('doctor.appointments.confirm', $appointment) }}"
+                    action="{{ $workspace->url('doctor.appointments.confirm', $appointment) }}"
                 >
                     @csrf
                     <button class="btn btn-sm btn-success" type="submit">
@@ -70,7 +70,7 @@
 
                 <form
                     method="POST"
-                    action="{{ route('doctor.appointments.reject', $appointment) }}"
+                    action="{{ $workspace->url('doctor.appointments.reject', $appointment) }}"
                     onsubmit="return confirm('Are you sure you want to reject this appointment?')"
                 >
                     @csrf
@@ -82,7 +82,7 @@
             </div>
         @endif
 
-        @if ($canStart && $appointment->status === 'confirmed')
+        @if ($canStart && $appointment->status === 'confirmed' && $workspace->routeAvailable('doctor.appointments.start'))
             @if (in_array($appointment->consultation_type, ['voice', 'video'], true))
                 <details class="appointment-management-card__launch">
                     <summary class="appointment-management-card__start">

@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\DoctorProfile;
+use App\Models\User;
+use App\Services\DoctorWorkspace;
 use App\Services\Sms\BulkSmsBdGateway;
 use App\Services\Sms\LogSmsGateway;
 use App\Services\Sms\NullSmsGateway;
@@ -11,6 +14,8 @@ use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 
@@ -51,11 +56,23 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
+        // Shared doctor workspace views build their links through DoctorWorkspace::url(), which points to the
+        // doctor's own routes or to the assistant workspace of the selected doctor.
+        View::share('workspace', $this->app->make(DoctorWorkspace::class));
+
         RateLimiter::for('password-reset', fn (Request $request): array => [
             Limit::perMinute(5)->by('password-reset:'.Str::lower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(20)->by('password-reset-ip:'.$request->ip()),
         ]);
 
         RateLimiter::for('doctor-invitations', fn (Request $request): Limit => Limit::perMinute(10)->by('doctor-invitations:'.$request->ip()));
+        RateLimiter::for('assistant-invitations', fn (Request $request): Limit => Limit::perMinute(10)->by('assistant-invitations:'.$request->ip()));
+
+        // {doctorProfile} is always bound to a real doctor profile (unknown ids are not found), even on reused doctor
+        // controllers that do not type-hint it. Access to it is then checked by the works-for-doctor middleware.
+        Route::model(DoctorWorkspace::ROUTE_PARAMETER, DoctorProfile::class);
+
+        // {assistant} route parameters only ever resolve to Doctor Assistant accounts; any other id is not found.
+        Route::bind('assistant', fn (string $value): User => User::query()->where('role', User::ROLE_ASSISTANT)->findOrFail($value));
     }
 }

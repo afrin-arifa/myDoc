@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Doctor;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -12,9 +14,9 @@ use Illuminate\View\View;
 
 class DoctorScheduleController extends Controller
 {
-    public function index(Request $request): View
+    public function index(Request $request, DoctorWorkspace $workspace): View
     {
-        $profile = $request->user()->doctorProfile?->load(['user', 'specialties', 'availabilities']);
+        $profile = $workspace->forRequest($request, DoctorAccess::MANAGE_SCHEDULE)?->load(['user', 'specialties', 'availabilities']);
         abort_unless($profile, 403);
 
         $validated = $request->validate([

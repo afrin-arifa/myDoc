@@ -2,8 +2,10 @@
 
 namespace App\Http\Requests\Doctor;
 
-use App\Models\Appointment;
+use App\Models\DoctorProfile;
 use App\Models\User;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -11,10 +13,14 @@ class StoreDoctorAppointmentRequest extends FormRequest
 {
     private ?User $resolvedPatient = null;
 
+    private ?DoctorProfile $resolvedDoctorProfile = null;
+
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor'
-            && $this->user()->can('create', Appointment::class);
+        $this->resolvedDoctorProfile = app(DoctorWorkspace::class)->forRequest($this, DoctorAccess::BOOK_APPOINTMENTS);
+
+        return $this->resolvedDoctorProfile !== null
+            && $this->user()->can('bookAppointments', $this->resolvedDoctorProfile);
     }
 
     public function rules(): array
@@ -56,7 +62,7 @@ class StoreDoctorAppointmentRequest extends FormRequest
                     return;
                 }
 
-                $profileId = $this->user()?->doctorProfile?->id;
+                $profileId = $this->resolvedDoctorProfile?->id;
                 $patients = User::query()->activePatients();
 
                 $this->resolvedPatient = match (true) {
@@ -83,5 +89,13 @@ class StoreDoctorAppointmentRequest extends FormRequest
     public function patient(): User
     {
         return $this->resolvedPatient;
+    }
+
+    /**
+     * The doctor the appointment is booked for (authorized in authorize()).
+     */
+    public function doctorProfile(): DoctorProfile
+    {
+        return $this->resolvedDoctorProfile;
     }
 }

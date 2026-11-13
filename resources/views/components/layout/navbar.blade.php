@@ -26,6 +26,10 @@
             ['label' => 'Medical records', 'url' => route('doctor.medical-records.index'), 'active' => ['doctor.medical-records.*']],
             ['label' => 'Profile', 'url' => route('doctor.profile'), 'active' => ['doctor.profile', 'doctor.settings']],
         ],
+        App\Models\User::ROLE_ASSISTANT => [
+            $homeLink,
+            ['label' => 'My doctors', 'url' => route('assistant.doctors.index'), 'active' => ['assistant.doctors.*', 'assistant.workspace.*']],
+        ],
         'admin' => [
             ['label' => 'Doctors', 'url' => route('admin.doctors.index'), 'active' => ['admin.doctors.*']],
             ['label' => 'Patients', 'url' => route('admin.users.index', ['role' => 'patient']), 'active' => ['admin.users.*']],
@@ -40,7 +44,7 @@
         ])),
     };
 
-    $dashboardRoute = in_array($role, ['patient', 'doctor', 'admin'], true) ? $role.'.dashboard' : null;
+    $dashboardRoute = App\Http\Controllers\Auth\AuthenticatedSessionController::dashboardRoute($role);
     $onDashboard = $dashboardRoute !== null && request()->routeIs($dashboardRoute);
 
     // Signed-in menus have more links, so they collapse into the mobile menu until there is room for one line.

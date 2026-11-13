@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AdminAppointmentController;
+use App\Http\Controllers\Admin\AdminAssistantController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminDoctorController;
 use App\Http\Controllers\Admin\AdminMedicalDocumentController;
@@ -8,6 +9,8 @@ use App\Http\Controllers\Admin\AdminSmsIssueController;
 use App\Http\Controllers\Admin\AdminSpecialtyController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\Assistant\AssistantDashboardController;
+use App\Http\Controllers\Assistant\AssistantInvitationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
@@ -57,6 +60,16 @@ Route::middleware('guest')->group(function () {
         ->name('doctor.invitation.accept');
     Route::get('/doctor/invitation-accepted', [DoctorInvitationController::class, 'activated'])
         ->name('doctor.invitation.activated');
+
+    // Doctor Assistant invitations (password setup only; assistant sign-in is not available yet).
+    Route::get('/assistant/invitation/{token}', [AssistantInvitationController::class, 'show'])
+        ->middleware('throttle:assistant-invitations')
+        ->name('assistant.invitation.show');
+    Route::post('/assistant/invitation', [AssistantInvitationController::class, 'store'])
+        ->middleware('throttle:assistant-invitations')
+        ->name('assistant.invitation.accept');
+    Route::get('/assistant/invitation-accepted', [AssistantInvitationController::class, 'activated'])
+        ->name('assistant.invitation.activated');
 });
 
 Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
@@ -138,6 +151,8 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.appointments.confirm');
     Route::post('/doctor/appointments/{appointment}/reject', [DoctorAppointmentController::class, 'reject'])
         ->name('doctor.appointments.reject');
+    Route::post('/doctor/appointments/{appointment}/cancel', [DoctorAppointmentController::class, 'cancel'])
+        ->name('doctor.appointments.cancel');
     Route::post('/doctor/appointments/{appointment}/start', [DoctorAppointmentController::class, 'start'])
         ->name('doctor.appointments.start');
     Route::post('/doctor/appointments/{appointment}/complete', [DoctorAppointmentController::class, 'complete'])
@@ -146,6 +161,41 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.appointments.reschedule');
     Route::post('/doctor/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'reschedule'])
         ->name('doctor.appointments.reschedule.store');
+});
+
+// Doctor Assistant workspace. Every {doctorProfile} route is guarded by works-for-doctor (current assignment and
+// both accounts active, checked on every request) and then by the specific ability in each controller. The doctor
+// controllers are reused: DoctorWorkspace resolves the doctor from {doctorProfile}; the actor stays the assistant.
+// There are deliberately no start or complete routes for assistants.
+Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assistant.')->group(function () {
+    Route::get('/dashboard', [AssistantDashboardController::class, 'dashboard'])->name('dashboard');
+    Route::get('/doctors', [AssistantDashboardController::class, 'doctors'])->name('doctors.index');
+
+    Route::prefix('/doctors/{doctorProfile}')->name('workspace.')->middleware('works-for-doctor')->group(function () {
+        Route::get('/', [AssistantDashboardController::class, 'workspace'])->name('show');
+        Route::get('/appointments', [DoctorAppointmentController::class, 'index'])->name('appointments.index');
+        Route::get('/appointments/create', [DoctorAppointmentController::class, 'create'])->name('appointments.create');
+        Route::post('/appointments', [DoctorAppointmentController::class, 'store'])->name('appointments.store');
+        Route::get('/appointments/{appointment}', [DoctorAppointmentController::class, 'show'])->name('appointments.show');
+        Route::post('/appointments/{appointment}/confirm', [DoctorAppointmentController::class, 'confirm'])->name('appointments.confirm');
+        Route::post('/appointments/{appointment}/reject', [DoctorAppointmentController::class, 'reject'])->name('appointments.reject');
+        Route::post('/appointments/{appointment}/cancel', [DoctorAppointmentController::class, 'cancel'])->name('appointments.cancel');
+        Route::get('/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'rescheduleForm'])->name('appointments.reschedule');
+        Route::post('/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'reschedule'])->name('appointments.reschedule.store');
+        Route::get('/patients', [DoctorPatientController::class, 'index'])->name('patients.index');
+        Route::get('/patients/search', [DoctorAppointmentController::class, 'searchPatients'])
+            ->middleware('throttle:60,1')
+            ->name('patients.search');
+        Route::get('/schedule', [DoctorScheduleController::class, 'index'])->name('schedule');
+        Route::post('/availability', [DoctorAvailabilityController::class, 'store'])->name('availability.store');
+        Route::patch('/availability/{availability}', [DoctorAvailabilityController::class, 'update'])->name('availability.update');
+        Route::delete('/availability/{availability}', [DoctorAvailabilityController::class, 'destroy'])->name('availability.destroy');
+        Route::post('/slots/preview', [DoctorSlotController::class, 'preview'])->name('slots.preview');
+        Route::post('/slots/generate', [DoctorSlotController::class, 'store'])->name('slots.generate');
+        Route::post('/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('slots.block');
+        Route::delete('/slots/{slot}/block', [DoctorSlotController::class, 'unblock'])->name('slots.unblock');
+        Route::get('/medical-records', [DoctorMedicalRecordController::class, 'index'])->name('medical-records.index');
+    });
 });
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
@@ -171,4 +221,18 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/medical-documents/{document}', [AdminMedicalDocumentController::class, 'show'])->name('admin.medical-documents.show');
     Route::get('/admin/appointments/{appointment}', [AdminAppointmentController::class, 'show'])->name('admin.appointments.show');
     Route::get('/admin/sms-issues', [AdminSmsIssueController::class, 'index'])->name('admin.sms-issues.index');
+    Route::get('/admin/assistants', [AdminAssistantController::class, 'index'])->name('admin.assistants.index');
+    Route::get('/admin/assistants/create', [AdminAssistantController::class, 'create'])->name('admin.assistants.create');
+    Route::post('/admin/assistants', [AdminAssistantController::class, 'store'])->name('admin.assistants.store');
+    Route::get('/admin/assistants/{assistant}', [AdminAssistantController::class, 'show'])->name('admin.assistants.show');
+    Route::get('/admin/assistants/{assistant}/edit', [AdminAssistantController::class, 'edit'])->name('admin.assistants.edit');
+    Route::patch('/admin/assistants/{assistant}', [AdminAssistantController::class, 'update'])->name('admin.assistants.update');
+    Route::patch('/admin/assistants/{assistant}/status', [AdminAssistantController::class, 'updateStatus'])->name('admin.assistants.status');
+    Route::post('/admin/assistants/{assistant}/invitation', [AdminAssistantController::class, 'resendInvitation'])
+        ->middleware('throttle:10,1')
+        ->name('admin.assistants.invitation');
+    Route::post('/admin/assistants/{assistant}/assignments', [AdminAssistantController::class, 'storeAssignments'])
+        ->name('admin.assistants.assignments.store');
+    Route::delete('/admin/assistants/{assistant}/assignments/{doctor}', [AdminAssistantController::class, 'destroyAssignment'])
+        ->name('admin.assistants.assignments.destroy');
 });

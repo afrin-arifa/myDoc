@@ -4,13 +4,50 @@ namespace App\Policies;
 
 use App\Models\DoctorProfile;
 use App\Models\User;
+use App\Services\DoctorAccess;
 
 /**
  * Who may manage a doctor's profile and account. Ownership is checked against the stored user_id, never against
  * request input. Public directory visibility is handled by DoctorProfile::isPubliclyListed().
+ *
+ * Profile editing, account management, the directory and photos are unchanged and do not include Doctor
+ * Assistants. The workspace abilities below authorize acting for a specific doctor (by the doctor or an assistant
+ * currently assigned to them) and are decided by DoctorAccess.
  */
 class DoctorProfilePolicy
 {
+    public function __construct(private readonly DoctorAccess $access) {}
+
+    public function viewAppointments(User $user, DoctorProfile $doctorProfile): bool
+    {
+        return $this->access->canActFor($user, $doctorProfile, DoctorAccess::VIEW_APPOINTMENTS);
+    }
+
+    public function bookAppointments(User $user, DoctorProfile $doctorProfile): bool
+    {
+        return $this->access->canActFor($user, $doctorProfile, DoctorAccess::BOOK_APPOINTMENTS);
+    }
+
+    public function manageSchedule(User $user, DoctorProfile $doctorProfile): bool
+    {
+        return $this->access->canActFor($user, $doctorProfile, DoctorAccess::MANAGE_SCHEDULE);
+    }
+
+    public function manageSlots(User $user, DoctorProfile $doctorProfile): bool
+    {
+        return $this->access->canActFor($user, $doctorProfile, DoctorAccess::MANAGE_SLOTS);
+    }
+
+    public function viewPatients(User $user, DoctorProfile $doctorProfile): bool
+    {
+        return $this->access->canActFor($user, $doctorProfile, DoctorAccess::VIEW_PATIENTS);
+    }
+
+    public function viewMedicalDocuments(User $user, DoctorProfile $doctorProfile): bool
+    {
+        return $this->access->canActFor($user, $doctorProfile, DoctorAccess::VIEW_MEDICAL_DOCUMENTS);
+    }
+
     public function viewAny(User $user): bool
     {
         return $this->isActiveAdmin($user);
@@ -53,11 +90,16 @@ class DoctorProfilePolicy
 
     /**
      * Doctors may load only their own photo; everyone allowed to browse the directory may load photos of listed
-     * doctors; the owner and administrators may always load it.
+     * doctors; the owner and administrators may always load it. A Doctor Assistant may load (read only) the photo
+     * of an active doctor they are currently assigned to; unassignment revokes this on the next request.
      */
     public function viewPhoto(?User $user, DoctorProfile $doctorProfile): bool
     {
         if ($user !== null && $this->view($user, $doctorProfile)) {
+            return true;
+        }
+
+        if ($user?->role === User::ROLE_ASSISTANT && $this->access->worksFor($user, $doctorProfile)) {
             return true;
         }
 

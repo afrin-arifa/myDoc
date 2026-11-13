@@ -3,13 +3,17 @@
 namespace App\Http\Controllers\Doctor;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Doctor\CancelAppointmentRequest;
 use App\Http\Requests\Doctor\RescheduleAppointmentRequest;
 use App\Http\Requests\Doctor\StoreDoctorAppointmentRequest;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
+use App\Models\DoctorProfile;
 use App\Models\User;
 use App\Services\AppointmentBookingService;
+use App\Services\DoctorAccess;
 use App\Services\DoctorAppointmentService;
+use App\Services\DoctorWorkspace;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +21,10 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
 
+/**
+ * Appointments in a doctor's workspace. The doctor context comes from DoctorWorkspace (the signed-in doctor's own
+ * profile on these routes), the actor is always the signed-in user, and records must belong to the doctor context.
+ */
 class DoctorAppointmentController extends Controller
 {
     /**
@@ -24,11 +32,13 @@ class DoctorAppointmentController extends Controller
      */
     private const PATIENT_SEARCH_LIMIT = 10;
 
+    public function __construct(private readonly DoctorWorkspace $workspace) {}
+
     public function index(Request $request): View
     {
-        Gate::authorize('viewAny', Appointment::class);
+        $this->authorizeForContext('viewAny', 'viewAppointments');
 
-        $profile = $request->user()->doctorProfile?->load(['user', 'specialties']);
+        $profile = $this->workspace->forRequest($request, DoctorAccess::VIEW_APPOINTMENTS)?->load(['user', 'specialties']);
         $profileId = $profile?->id;
         abort_unless($profileId, 403);
 
@@ -94,8 +104,8 @@ class DoctorAppointmentController extends Controller
 
     public function create(Request $request): View
     {
-        Gate::authorize('create', Appointment::class);
-        $profile = $request->user()->doctorProfile;
+        $this->authorizeForContext('create', 'bookAppointments');
+        $profile = $this->workspace->forRequest($request, DoctorAccess::BOOK_APPOINTMENTS);
 
         $date = $request->date('date') ?? today();
 
@@ -117,7 +127,7 @@ class DoctorAppointmentController extends Controller
      */
     public function searchPatients(Request $request): JsonResponse
     {
-        $profileId = $request->user()->doctorProfile?->id;
+        $profileId = $this->workspace->forRequest($request, DoctorAccess::BOOK_APPOINTMENTS)?->id;
         abort_unless($profileId, 403);
 
         $search = $request->validate([
@@ -151,15 +161,17 @@ class DoctorAppointmentController extends Controller
             $request->patient(),
             $request->integer('slot_id'),
             $request->string('consultation_type')->toString(),
-            $request->input('provider_notes')
+            $request->input('provider_notes'),
+            $request->doctorProfile()
         );
 
-        return redirect()->route('doctor.schedule')->with('status', 'Appointment request created.');
+        return redirect()->to($this->workspace->url('doctor.schedule'))->with('status', 'Appointment request created.');
     }
 
     public function show(Request $request, Appointment $appointment): View
     {
         Gate::authorize('view', $appointment);
+        $this->contextFor($request, DoctorAccess::VIEW_APPOINTMENTS, $appointment);
         $appointment->load(['slot.doctorProfile.specialties', 'patient:id,name,email']);
         $now = CarbonImmutable::now();
         $startsAt = CarbonImmutable::instance($appointment->slot->starts_at);
@@ -174,7 +186,7 @@ class DoctorAppointmentController extends Controller
     public function confirm(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
         Gate::authorize('confirm', $appointment);
-        $service->transition($request->user(), $appointment, 'confirmed');
+        $service->transition($request->user(), $appointment, 'confirmed', $this->contextFor($request, DoctorAccess::CONFIRM_APPOINTMENTS, $appointment));
 
         return back()->with('status', 'Appointment confirmed.');
     }
@@ -182,15 +194,28 @@ class DoctorAppointmentController extends Controller
     public function reject(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
         Gate::authorize('reject', $appointment);
-        $service->transition($request->user(), $appointment, 'rejected');
+        $service->transition($request->user(), $appointment, 'rejected', $this->contextFor($request, DoctorAccess::REJECT_APPOINTMENTS, $appointment));
 
         return back()->with('status', 'Appointment rejected and the slot is available again.');
+    }
+
+    public function cancel(CancelAppointmentRequest $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
+    {
+        $service->cancel(
+            $request->user(),
+            $appointment,
+            $request->string('reason')->toString(),
+            $this->contextFor($request, DoctorAccess::CANCEL_APPOINTMENTS, $appointment)
+        );
+
+        return redirect()->to($this->workspace->url('doctor.appointments.show', $appointment))
+            ->with('status', 'Appointment cancelled. The patient has been notified.');
     }
 
     public function start(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
         Gate::authorize('start', $appointment);
-        $service->start($request->user(), $appointment);
+        $service->start($request->user(), $appointment, $this->contextFor($request, DoctorAccess::START_APPOINTMENTS, $appointment));
 
         return back()->with('status', 'This consultation is ready to launch when a provider is configured.');
     }
@@ -198,7 +223,7 @@ class DoctorAppointmentController extends Controller
     public function complete(Request $request, Appointment $appointment, DoctorAppointmentService $service): RedirectResponse
     {
         Gate::authorize('complete', $appointment);
-        $service->complete($request->user(), $appointment);
+        $service->complete($request->user(), $appointment, $this->contextFor($request, DoctorAccess::COMPLETE_APPOINTMENTS, $appointment));
 
         return back()->with('status', 'Appointment marked as completed.');
     }
@@ -206,12 +231,13 @@ class DoctorAppointmentController extends Controller
     public function rescheduleForm(Request $request, Appointment $appointment): View
     {
         Gate::authorize('reschedule', $appointment);
+        $profile = $this->contextFor($request, DoctorAccess::RESCHEDULE_APPOINTMENTS, $appointment);
         $appointment->load('slot');
 
         return view('doctor.appointments.reschedule', [
             'appointment' => $appointment,
             'slots' => AppointmentSlot::query()
-                ->where('doctor_profile_id', $request->user()->doctorProfile?->id)
+                ->where('doctor_profile_id', $profile->id)
                 ->where('status', 'available')
                 ->where('starts_at', '>', now())
                 ->where('id', '!=', $appointment->appointment_slot_id)
@@ -226,9 +252,36 @@ class DoctorAppointmentController extends Controller
             $request->user(),
             $appointment,
             $request->integer('slot_id'),
-            $request->input('reason')
+            $request->input('reason'),
+            $this->contextFor($request, DoctorAccess::RESCHEDULE_APPOINTMENTS, $appointment)
         );
 
-        return redirect()->route('doctor.appointments.show', $appointment)->with('status', 'Appointment rescheduled.');
+        return redirect()->to($this->workspace->url('doctor.appointments.show', $appointment))->with('status', 'Appointment rescheduled.');
+    }
+
+    /**
+     * Doctors keep their existing appointment permission; in an assistant workspace the per-doctor permission for the
+     * selected doctor applies instead (assistants have no doctor-independent appointment permissions).
+     */
+    private function authorizeForContext(string $doctorAbility, string $workspaceAbility): void
+    {
+        $selected = $this->workspace->currentDoctorProfile();
+
+        $selected === null
+            ? Gate::authorize($doctorAbility, Appointment::class)
+            : Gate::authorize($workspaceAbility, $selected);
+    }
+
+    /**
+     * The doctor context for an action on an appointment: authorized for the ability, and the appointment must
+     * belong to that doctor.
+     */
+    private function contextFor(Request $request, string $ability, Appointment $appointment): DoctorProfile
+    {
+        $profile = $this->workspace->forRequest($request, $ability);
+        abort_unless($profile, 403);
+        $this->workspace->ensureBelongs($profile, $appointment->slot()->value('doctor_profile_id'));
+
+        return $profile;
     }
 }

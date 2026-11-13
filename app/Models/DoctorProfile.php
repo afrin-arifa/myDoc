@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
@@ -37,9 +38,36 @@ class DoctorProfile extends Model
         );
     }
 
+    /**
+     * Active Doctor Assistant assignments for this doctor.
+     */
+    public function assistantAssignments(): HasMany
+    {
+        return $this->hasMany(AssistantAssignment::class);
+    }
+
+    /**
+     * Users currently assigned to this doctor as Doctor Assistants.
+     */
+    public function assistants(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'doctor_assistant', 'doctor_profile_id', 'assistant_id')
+            ->using(AssistantAssignment::class)
+            ->withPivot(['id', 'assigned_by'])
+            ->withTimestamps();
+    }
+
     public function availabilities(): HasMany
     {
         return $this->hasMany(DoctorAvailability::class);
+    }
+
+    /**
+     * Appointments on this doctor's slots.
+     */
+    public function appointments(): HasManyThrough
+    {
+        return $this->hasManyThrough(Appointment::class, AppointmentSlot::class, 'doctor_profile_id', 'appointment_slot_id');
     }
 
     public function appointmentSlots(): HasMany

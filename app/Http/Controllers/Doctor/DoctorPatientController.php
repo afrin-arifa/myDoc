@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
 use App\Models\User;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -16,9 +18,9 @@ class DoctorPatientController extends Controller
      * The signed-in doctor's own patients: every patient with at least one appointment with this doctor, listed
      * once. Counts and dates are scoped to this doctor, so nothing about other doctors' care is revealed.
      */
-    public function index(Request $request): View
+    public function index(Request $request, DoctorWorkspace $workspace): View
     {
-        $profile = $request->user()->doctorProfile?->load(['user', 'specialties']);
+        $profile = $workspace->forRequest($request, DoctorAccess::VIEW_PATIENTS)?->load(['user', 'specialties']);
         abort_unless($profile, 403);
 
         $search = $request->validate([

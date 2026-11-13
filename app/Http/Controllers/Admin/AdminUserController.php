@@ -19,7 +19,7 @@ class AdminUserController extends Controller
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'role' => ['nullable', 'in:patient,doctor,admin'],
+            'role' => ['nullable', 'in:patient,doctor,admin,assistant'],
         ]);
         $users = User::query()
             ->when($validated['search'] ?? null, fn ($query, $search) => $query->where(fn ($q) => $q->where('name', 'like', "%{$search}%")->orWhere('email', 'like', "%{$search}%")))
@@ -45,6 +45,12 @@ class AdminUserController extends Controller
 
     public function update(UpdateAdminUserRequest $request, User $user): RedirectResponse
     {
+        // Doctor Assistant accounts are provisioned and managed only from Assistants: this form can never change
+        // their role, details or status. (It also cannot make anyone an assistant: "assistant" is not an accepted role.)
+        if ($user->role === User::ROLE_ASSISTANT) {
+            return back()->withErrors(['role' => 'Doctor Assistant accounts are managed from Assistants.']);
+        }
+
         $data = $request->validated();
         $targetRole = $data['role'];
         $deactivate = $request->boolean('deactivated');

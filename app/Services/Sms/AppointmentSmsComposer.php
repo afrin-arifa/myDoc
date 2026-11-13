@@ -32,6 +32,9 @@ class AppointmentSmsComposer
             AppointmentNotification::TYPE_CONFIRMED => "myDoc: Your appointment {$reference} with {$doctor} on {$when} is confirmed.",
             AppointmentNotification::TYPE_REJECTED => "myDoc: Your appointment request {$reference} with {$doctor} on {$when} was declined. You can book another time on myDoc.",
             AppointmentNotification::TYPE_CANCELLED => "myDoc: Appointment {$reference} on {$when} was cancelled by the patient.",
+            AppointmentNotification::TYPE_STAFF_CANCELLED => $audience === AppointmentNotification::AUDIENCE_DOCTOR
+                ? "myDoc: Appointment {$reference} on {$when} was cancelled by ".(($notification->context['cancelled_by_role'] ?? null) === 'assistant' ? 'your assistant' : 'you').'.'
+                : "myDoc: Your appointment {$reference} with {$doctor} on {$when} has been cancelled by the clinic. You can book a new time on myDoc.",
             AppointmentNotification::TYPE_RESCHEDULED => "myDoc: Your appointment {$reference} with {$doctor} has moved to {$when}.",
             AppointmentNotification::TYPE_REMINDER => "myDoc reminder: Your appointment {$reference} with {$doctor} is on {$when}.",
         };

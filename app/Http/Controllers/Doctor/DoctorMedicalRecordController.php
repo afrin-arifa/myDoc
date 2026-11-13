@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Doctor;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\MedicalDocument;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -16,11 +18,12 @@ class DoctorMedicalRecordController extends Controller
      * Documents of patients in this doctor's care. Searching, filtering or passing a patient id can only narrow
      * this scope, never widen it.
      */
-    public function index(Request $request): View
+    public function index(Request $request, DoctorWorkspace $workspace): View
     {
         Gate::authorize('viewAny', MedicalDocument::class);
-        $profile = $request->user()->doctorProfile?->load(['user', 'specialties']);
+        $profile = $workspace->forRequest($request, DoctorAccess::VIEW_MEDICAL_DOCUMENTS)?->load(['user', 'specialties']);
         abort_unless($profile, 403);
+        $profileIds = [$profile->id];
 
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
@@ -30,7 +33,7 @@ class DoctorMedicalRecordController extends Controller
         $search = $filters['search'] ?? null;
 
         $documents = MedicalDocument::query()
-            ->visibleToDoctor($profile->id)
+            ->visibleToDoctorProfiles($profileIds)
             ->with(['patient:id,name,email', 'appointment.slot'])
             ->when($filters['category'] ?? null, fn (Builder $query, string $category) => $query->where('category', $category))
             ->when($filters['patient'] ?? null, fn (Builder $query, int $patientId) => $query->where('patient_id', $patientId))
@@ -45,7 +48,7 @@ class DoctorMedicalRecordController extends Controller
         // A document may be linked to another doctor's appointment; that link is the other doctor's data.
         $documents->getCollection()->each(fn (MedicalDocument $document) => $document->setRelation(
             'appointment',
-            $document->appointment?->slot?->doctor_profile_id === $profile->id ? $document->appointment : null
+            in_array((int) $document->appointment?->slot?->doctor_profile_id, $profileIds, true) ? $document->appointment : null
         ));
 
         return view('doctor.medical-records.index', [

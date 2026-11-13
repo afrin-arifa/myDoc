@@ -2,6 +2,9 @@
 
 namespace App\Http\Requests\Doctor;
 
+use App\Models\DoctorProfile;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
@@ -14,9 +17,25 @@ class GenerateDoctorSlotsRequest extends FormRequest
      */
     public const MAX_RANGE_DAYS = 92;
 
+    private ?DoctorProfile $resolvedDoctorProfile = null;
+
+    /**
+     * The doctor context must allow managing slots. A doctor who has not created a profile yet passes and gets the
+     * existing "create your profile" response from the controller.
+     */
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor';
+        $this->resolvedDoctorProfile = app(DoctorWorkspace::class)->forRequest($this, DoctorAccess::MANAGE_SLOTS);
+
+        return true;
+    }
+
+    /**
+     * The doctor the slots are previewed or generated for, or null for a doctor without a profile yet.
+     */
+    public function doctorProfile(): ?DoctorProfile
+    {
+        return $this->resolvedDoctorProfile;
     }
 
     /**

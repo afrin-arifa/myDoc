@@ -23,6 +23,7 @@
             <a class="btn btn-outline-primary" href="{{ route('admin.specialties.index') }}">Manage specialties</a>
             <a class="btn btn-outline-primary" href="{{ route('admin.appointments.index') }}">Appointment oversight</a>
             <a class="btn btn-outline-primary" href="{{ route('admin.sms-issues.index') }}">SMS delivery issues</a>
+            <a class="btn btn-outline-primary" href="{{ route('admin.assistants.index') }}">Doctor assistants</a>
         </div>
     </div>
 @endsection

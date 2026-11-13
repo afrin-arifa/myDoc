@@ -199,7 +199,7 @@ class AppointmentAuthorizationTest extends TestCase
             $this->assertTrue($doctor->can($ability, $appointment));
         }
         $this->assertTrue($doctor->can('view', $appointment));
-        $this->assertFalse($doctor->can('cancel', $appointment));
+        $this->assertTrue($doctor->can('cancel', $appointment), 'Phase 6: doctors may cancel their own appointments (with a reason).');
 
         $patient->forceFill(['deactivated_at' => now()])->save();
         $doctor->forceFill(['deactivated_at' => now()])->save();

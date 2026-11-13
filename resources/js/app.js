@@ -1,4 +1,5 @@
 import "bootstrap";
+import { Modal } from "bootstrap";
 
 document.querySelectorAll(".schedule-filter").forEach((filter) => {
     filter.addEventListener("change", () => {
@@ -228,3 +229,6 @@ document.querySelectorAll("form[data-disable-on-submit]").forEach((form) => {
         });
     });
 });
+
+// Re-open a dialog after a failed submission (e.g. a missing cancellation reason) so the error is visible.
+document.querySelectorAll(".modal[data-show-on-load]").forEach((dialog) => Modal.getOrCreateInstance(dialog).show());

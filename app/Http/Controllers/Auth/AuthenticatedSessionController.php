@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Auth\Events\Lockout;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -56,9 +57,22 @@ class AuthenticatedSessionController extends Controller
         }
 
         RateLimiter::clear($this->accountThrottleKey($request));
+        $dashboard = self::dashboardRoute(Auth::user()->role);
+
+        // Unknown roles are signed straight back out: they must never fall through to another role's dashboard.
+        if ($dashboard === null) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')
+                ->withErrors(['email' => 'Your account cannot sign in yet. Please contact the myDoc administrator.'])
+                ->onlyInput('email');
+        }
+
         $request->session()->regenerate();
 
-        return redirect()->intended(route($this->dashboardRoute(Auth::user()->role)));
+        return redirect()->intended(route($dashboard));
     }
 
     public function destroy(Request $request): RedirectResponse
@@ -107,12 +121,18 @@ class AuthenticatedSessionController extends Controller
         return 'login-ip:'.$request->ip();
     }
 
-    private function dashboardRoute(string $role): string
+    /**
+     * The dashboard route for a role, or null for an unknown role. There is deliberately no default, so an unknown
+     * role is signed straight back out instead of reaching another role's dashboard.
+     */
+    public static function dashboardRoute(?string $role): ?string
     {
         return match ($role) {
+            'patient' => 'patient.dashboard',
             'doctor' => 'doctor.dashboard',
             'admin' => 'admin.dashboard',
-            default => 'patient.dashboard',
+            User::ROLE_ASSISTANT => 'assistant.dashboard',
+            default => null,
         };
     }
 }

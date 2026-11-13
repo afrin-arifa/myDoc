@@ -7,6 +7,7 @@ use App\Models\AppointmentNotification;
 use App\Models\AppointmentRescheduleHistory;
 use App\Models\User;
 use App\Notifications\AppointmentBookedNotification;
+use App\Notifications\AppointmentCancelledByStaffNotification;
 use App\Notifications\AppointmentCancelledNotification;
 use App\Notifications\AppointmentConfirmedNotification;
 use App\Notifications\AppointmentMailNotification;
@@ -232,7 +233,7 @@ class SendAppointmentNotification implements ShouldQueue
      */
     private function recipientFor(AppointmentNotification $notification, Appointment $appointment): ?User
     {
-        if ($this->isSms($notification)) {
+        if ($this->isSms($notification) || isset($notification->context['audience'])) {
             return AppointmentNotificationService::smsRecipient($appointment, $notification->context['audience'] ?? null);
         }
 
@@ -373,6 +374,11 @@ class SendAppointmentNotification implements ShouldQueue
             AppointmentNotification::TYPE_RESCHEDULED => new AppointmentRescheduledNotification(
                 $appointment,
                 $this->rescheduleHistory($notification)
+            ),
+            AppointmentNotification::TYPE_STAFF_CANCELLED => new AppointmentCancelledByStaffNotification(
+                $appointment,
+                ($notification->context['audience'] ?? null) === AppointmentNotification::AUDIENCE_DOCTOR,
+                (string) ($notification->context['cancelled_by_role'] ?? 'doctor'),
             ),
         };
     }

@@ -3,6 +3,8 @@
 namespace App\Http\Requests\Doctor;
 
 use App\Models\DoctorAvailability;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
@@ -11,9 +13,12 @@ class UpdateDoctorAvailabilityRequest extends FormRequest
     public function authorize(): bool
     {
         $availability = $this->route('availability');
+        $doctorProfile = app(DoctorWorkspace::class)->forRequest($this, DoctorAccess::MANAGE_SCHEDULE);
 
         return $availability instanceof DoctorAvailability
-            && $this->user()?->can('update', $availability) === true;
+            && $doctorProfile !== null
+            && (int) $availability->doctor_profile_id === $doctorProfile->id
+            && $this->user()->can('update', $availability);
     }
 
     public function rules(): array
@@ -35,7 +40,7 @@ class UpdateDoctorAvailabilityRequest extends FormRequest
                 }
 
                 $availability = $this->route('availability');
-                $profileId = $this->user()?->doctorProfile?->id;
+                $profileId = $availability->doctor_profile_id;
 
                 $overlaps = DoctorAvailability::query()
                     ->where('doctor_profile_id', $profileId)

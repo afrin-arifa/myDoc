@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\DoctorAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -109,9 +110,40 @@ class MedicalDocument extends Model
      */
     public function scopeVisibleToDoctor(Builder $query, int $doctorProfileId): void
     {
+        $query->visibleToDoctorProfiles([$doctorProfileId]);
+    }
+
+    /**
+     * Documents of patients in the care of any of these doctors: at least one booked, confirmed or completed
+     * appointment with one of them. Cancelled or rejected appointments alone never qualify. An empty list matches
+     * nothing. Callers must pass doctor profiles the user is authorized for (see scopeVisibleToActor).
+     *
+     * @param  Builder<MedicalDocument>  $query
+     * @param  list<int>  $doctorProfileIds
+     */
+    public function scopeVisibleToDoctorProfiles(Builder $query, array $doctorProfileIds): void
+    {
+        if ($doctorProfileIds === []) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
         $query->whereHas('patient.appointments', fn (Builder $appointments) => $appointments
             ->whereIn('appointments.status', self::CARE_STATUSES)
-            ->whereHas('slot', fn (Builder $slots) => $slots->where('doctor_profile_id', $doctorProfileId)));
+            ->whereHas('slot', fn (Builder $slots) => $slots->whereIn('doctor_profile_id', $doctorProfileIds)));
+    }
+
+    /**
+     * Documents a doctor or Doctor Assistant may see across every doctor they currently work for, as decided by
+     * DoctorAccess (active accounts, current assignments, the view ability). Patients and admins match nothing here;
+     * they have their own listings.
+     *
+     * @param  Builder<MedicalDocument>  $query
+     */
+    public function scopeVisibleToActor(Builder $query, User $actor): void
+    {
+        $query->visibleToDoctorProfiles(app(DoctorAccess::class)->profileIdsFor($actor, DoctorAccess::VIEW_MEDICAL_DOCUMENTS));
     }
 
     /**

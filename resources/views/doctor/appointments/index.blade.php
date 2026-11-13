@@ -12,7 +12,7 @@
             </div>
             <div class="col-lg-9">
                 <nav class="small mb-3" aria-label="Breadcrumb">
-                    <a href="{{ route('doctor.dashboard') }}">Dashboard</a>
+                    <a href="{{ $workspace->inAssistantWorkspace() ? route('assistant.dashboard') : route('doctor.dashboard') }}">Dashboard</a>
                     <span class="text-secondary"> / Appointments</span>
                 </nav>
                 <div class="d-flex flex-wrap justify-content-between align-items-end gap-3 mb-4">
@@ -25,10 +25,10 @@
                 </div>
 
                 <nav class="appointment-tabs mb-4" aria-label="Appointment status">
-                    <a class="{{ request('tab', 'upcoming') === 'upcoming' ? 'is-active' : '' }}" href="{{ route('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'upcoming'])) }}">Upcoming</a>
-                    <a class="{{ request('tab') === 'cancelled' ? 'is-active' : '' }}" href="{{ route('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'cancelled'])) }}">Cancelled</a>
-                    <a class="{{ request('tab') === 'completed' ? 'is-active' : '' }}" href="{{ route('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'completed'])) }}">Completed</a>
-                    <a class="{{ request('tab') === 'all' ? 'is-active' : '' }}" href="{{ route('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'all'])) }}">All</a>
+                    <a class="{{ request('tab', 'upcoming') === 'upcoming' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'upcoming'])) }}">Upcoming</a>
+                    <a class="{{ request('tab') === 'cancelled' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'cancelled'])) }}">Cancelled</a>
+                    <a class="{{ request('tab') === 'completed' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'completed'])) }}">Completed</a>
+                    <a class="{{ request('tab') === 'all' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.appointments.index', array_merge($baseQuery, ['tab' => 'all'])) }}">All</a>
                 </nav>
 
                 <form class="appointment-filters card border-0 shadow-sm mb-4" method="GET">
@@ -84,7 +84,7 @@
                             title="No appointments found"
                             message="Try a different filter or check back when a patient books one of your slots."
                             action-label="Clear filters"
-                            :action-url="route('doctor.appointments.index')"
+                            :action-url="$workspace->url('doctor.appointments.index')"
                         />
                     @endforelse
                 </div>

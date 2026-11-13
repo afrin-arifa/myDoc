@@ -24,6 +24,17 @@ class AppointmentNotificationService
         AppointmentNotification::TYPE_CANCELLED => [AppointmentNotification::AUDIENCE_DOCTOR],
         AppointmentNotification::TYPE_RESCHEDULED => [AppointmentNotification::AUDIENCE_PATIENT],
         AppointmentNotification::TYPE_REMINDER => [AppointmentNotification::AUDIENCE_PATIENT],
+        AppointmentNotification::TYPE_STAFF_CANCELLED => [AppointmentNotification::AUDIENCE_PATIENT, AppointmentNotification::AUDIENCE_DOCTOR],
+    ];
+
+    /**
+     * Events whose email goes to several audiences, one ledger row each (keyed "{type}:{audience}"). Every other
+     * event keeps its single P1.2 email recipient, decided by type in SendAppointmentNotification.
+     *
+     * @var array<string, list<string>>
+     */
+    public const EMAIL_AUDIENCES = [
+        AppointmentNotification::TYPE_STAFF_CANCELLED => [AppointmentNotification::AUDIENCE_PATIENT, AppointmentNotification::AUDIENCE_DOCTOR],
     ];
 
     /**
@@ -41,7 +52,14 @@ class AppointmentNotificationService
     {
         $this->ensureInsideTransaction();
 
-        $this->recordOne($appointment, AppointmentNotification::CHANNEL_EMAIL, $type, $transitionKey ?? $type, $context);
+        if (isset(self::EMAIL_AUDIENCES[$type])) {
+            foreach (self::EMAIL_AUDIENCES[$type] as $audience) {
+                $this->recordOne($appointment, AppointmentNotification::CHANNEL_EMAIL, $type, ($transitionKey ?? $type).':'.$audience, [...$context, 'audience' => $audience]);
+            }
+        } else {
+            $this->recordOne($appointment, AppointmentNotification::CHANNEL_EMAIL, $type, $transitionKey ?? $type, $context);
+        }
+
         $this->recordSms($appointment, $type, $transitionKey, $context);
     }
 

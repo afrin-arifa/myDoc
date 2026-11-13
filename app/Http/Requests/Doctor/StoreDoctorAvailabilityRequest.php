@@ -3,15 +3,34 @@
 namespace App\Http\Requests\Doctor;
 
 use App\Models\DoctorAvailability;
+use App\Models\DoctorProfile;
+use App\Services\DoctorAccess;
+use App\Services\DoctorWorkspace;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
 
 class StoreDoctorAvailabilityRequest extends FormRequest
 {
+    private ?DoctorProfile $resolvedDoctorProfile = null;
+
+    /**
+     * The doctor context must allow managing the schedule. A doctor who has not created a profile yet passes, and
+     * gets the existing "create your profile" validation message instead.
+     */
     public function authorize(): bool
     {
-        return $this->user()?->role === 'doctor'
-            && ($this->user()->doctorProfile === null || $this->user()->can('create', DoctorAvailability::class));
+        $this->resolvedDoctorProfile = app(DoctorWorkspace::class)->forRequest($this, DoctorAccess::MANAGE_SCHEDULE);
+
+        return $this->resolvedDoctorProfile === null
+            || $this->user()->can('manageSchedule', $this->resolvedDoctorProfile);
+    }
+
+    /**
+     * The doctor the availability is created for.
+     */
+    public function doctorProfile(): DoctorProfile
+    {
+        return $this->resolvedDoctorProfile;
     }
 
     public function rules(): array
@@ -32,7 +51,7 @@ class StoreDoctorAvailabilityRequest extends FormRequest
                     return;
                 }
 
-                $profileId = $this->user()?->doctorProfile?->id;
+                $profileId = $this->resolvedDoctorProfile?->id;
 
                 if (! $profileId) {
                     $validator->errors()->add('availability', 'Create your doctor profile before adding availability.');

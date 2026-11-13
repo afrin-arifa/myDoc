@@ -39,6 +39,12 @@ class AppointmentNotification extends Model
     public const TYPE_RESCHEDULED = 'rescheduled';
 
     /**
+     * A doctor or Doctor Assistant cancelled the appointment (patient cancellations use TYPE_CANCELLED). Sent to
+     * both the patient and the doctor; each row names its audience in context.audience.
+     */
+    public const TYPE_STAFF_CANCELLED = 'staff_cancelled';
+
+    /**
      * SMS only: an appointment reminder before the scheduled time.
      */
     public const TYPE_REMINDER = 'reminder';

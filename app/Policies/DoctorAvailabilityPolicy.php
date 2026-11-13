@@ -4,41 +4,34 @@ namespace App\Policies;
 
 use App\Models\DoctorAvailability;
 use App\Models\User;
+use App\Services\DoctorAccess;
 
 /**
- * Doctors manage only their own weekly availability. Ownership is compared with a fresh lookup of the
- * authenticated doctor's profile, so a modified availability ID or form field cannot reach another doctor.
+ * Weekly availability is managed by its doctor, or by a Doctor Assistant currently assigned to that (active)
+ * doctor. Ownership comes from the availability record itself, so a modified ID or form field cannot reach
+ * another doctor.
  */
 class DoctorAvailabilityPolicy
 {
+    public function __construct(private readonly DoctorAccess $access) {}
+
+    /**
+     * Creating from the doctor's own workspace. This check has no doctor to act for, so it covers doctors only;
+     * creating on a doctor's behalf is authorized with DoctorProfilePolicy::manageSchedule.
+     */
     public function create(User $user): bool
     {
-        return $this->activeDoctorProfileId($user) !== null;
+        return $user->role === 'doctor'
+            && $this->access->canActFor($user, (int) $user->doctorProfile()->value('id'), DoctorAccess::MANAGE_SCHEDULE);
     }
 
     public function update(User $user, DoctorAvailability $doctorAvailability): bool
     {
-        return $this->owns($user, $doctorAvailability);
+        return $this->access->canActFor($user, $doctorAvailability->doctor_profile_id, DoctorAccess::MANAGE_SCHEDULE);
     }
 
     public function delete(User $user, DoctorAvailability $doctorAvailability): bool
     {
-        return $this->owns($user, $doctorAvailability);
-    }
-
-    private function owns(User $user, DoctorAvailability $doctorAvailability): bool
-    {
-        $profileId = $this->activeDoctorProfileId($user);
-
-        return $profileId !== null && $doctorAvailability->doctor_profile_id === $profileId;
-    }
-
-    private function activeDoctorProfileId(User $user): ?int
-    {
-        if ($user->role !== 'doctor' || $user->deactivated_at !== null) {
-            return null;
-        }
-
-        return $user->doctorProfile()->value('id');
+        return $this->access->canActFor($user, $doctorAvailability->doctor_profile_id, DoctorAccess::MANAGE_SCHEDULE);
     }
 }

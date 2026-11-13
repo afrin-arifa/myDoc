@@ -4,6 +4,8 @@ namespace App\Services;
 
 use App\Models\DoctorAvailability;
 use App\Models\DoctorProfile;
+use App\Models\DoctorWorkspaceEvent;
+use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -15,9 +17,14 @@ class DoctorSlotGenerator
      */
     private const INSERT_CHUNK_SIZE = 500;
 
+    public function __construct(private readonly DoctorWorkspaceEventService $events) {}
+
     /**
      * Create missing future slots. Existing slots (including booked and blocked ones) are never modified,
      * because rows that collide with the unique (doctor_profile_id, starts_at) index are ignored.
+     *
+     * When any slots were created, one "slots_generated" audit event is recorded in the same transaction, with the
+     * actor (null for system-initiated generation) and the number of slots created.
      *
      * @param  list<int>  $weekdays  Explicitly selected ISO weekdays, where Monday is 1 and Sunday is 7.
      *
@@ -27,14 +34,19 @@ class DoctorSlotGenerator
         DoctorProfile $profile,
         CarbonImmutable $startDate,
         CarbonImmutable $endDate,
-        array $weekdays
+        array $weekdays,
+        ?User $actor = null,
     ): int {
+        if ($actor === null && auth()->check()) {
+            throw new \LogicException('Slot generation by a signed-in user must pass that user as the actor.');
+        }
+
         $weekdays = $this->validatedWeekdays($weekdays);
         $created = 0;
         $rows = [];
         $timestamp = now();
 
-        DB::transaction(function () use ($profile, $startDate, $endDate, $weekdays, $timestamp, &$rows, &$created): void {
+        DB::transaction(function () use ($profile, $startDate, $endDate, $weekdays, $timestamp, $actor, &$rows, &$created): void {
             $this->forEachSlot($profile, $startDate, $endDate, $weekdays, function (CarbonImmutable $slotStart, CarbonImmutable $slotEnd) use ($profile, $timestamp, &$rows, &$created): void {
                 $rows[] = [
                     'doctor_profile_id' => $profile->id,
@@ -53,6 +65,18 @@ class DoctorSlotGenerator
 
             if ($rows !== []) {
                 $created += DB::table('appointment_slots')->insertOrIgnore($rows);
+            }
+
+            if ($created > 0) {
+                $context = [
+                    'slot_count' => $created,
+                    'range_start' => $startDate->toDateString(),
+                    'range_end' => $endDate->toDateString(),
+                    'weekdays' => array_values($weekdays),
+                ];
+                $actor === null
+                    ? $this->events->recordSystem($profile, DoctorWorkspaceEvent::ACTION_SLOTS_GENERATED, context: $context)
+                    : $this->events->record($actor, $profile, DoctorWorkspaceEvent::ACTION_SLOTS_GENERATED, context: $context);
             }
         });
 

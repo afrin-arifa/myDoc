@@ -42,15 +42,17 @@
                             <p class="text-secondary mb-0">Manage your availability, appointments, and consultation slots.</p>
                         </div>
                         <div class="doctor-schedule-header__actions">
-                            <a class="btn btn-primary" href="{{ route('doctor.appointments.create', ['date' => $selectedDate->toDateString()]) }}">
+                            <a class="btn btn-primary" href="{{ $workspace->url('doctor.appointments.create', ['date' => $selectedDate->toDateString()]) }}">
                                 <i class="fa-solid fa-plus me-1"></i> New Appointment
                             </a>
                             <button class="doctor-icon-button" type="button" aria-label="Notifications">
                                 <i class="fa-regular fa-bell"></i>
                             </button>
-                            <a class="doctor-icon-button" href="{{ route('doctor.settings') }}" aria-label="Account settings">
-                                <i class="fa-regular fa-user"></i>
-                            </a>
+                            @if ($workspace->routeAvailable('doctor.settings'))
+                                <a class="doctor-icon-button" href="{{ route('doctor.settings') }}" aria-label="Account settings">
+                                    <i class="fa-regular fa-user"></i>
+                                </a>
+                            @endif
                         </div>
                     </header>
 
@@ -87,9 +89,9 @@
 
                                 <div class="doctor-mini-calendar">
                                     <div class="doctor-mini-calendar__header">
-                                        <a href="{{ route('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->subMonth()->toDateString()]) }}" aria-label="Previous month">&lsaquo;</a>
+                                        <a href="{{ $workspace->url('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->subMonth()->toDateString()]) }}" aria-label="Previous month">&lsaquo;</a>
                                         <strong>{{ $selectedDate->format('F Y') }}</strong>
-                                        <a href="{{ route('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->addMonth()->toDateString()]) }}" aria-label="Next month">&rsaquo;</a>
+                                        <a href="{{ $workspace->url('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->addMonth()->toDateString()]) }}" aria-label="Next month">&rsaquo;</a>
                                     </div>
                                     <div class="doctor-mini-calendar__grid">
                                         @foreach (['M', 'T', 'W', 'T', 'F', 'S', 'S'] as $day)
@@ -102,7 +104,7 @@
                                             @php
                                                 $miniDate = $monthStart->day($day);
                                             @endphp
-                                            <a class="{{ $miniDate->isSameDay($selectedDate) ? 'is-selected' : '' }} {{ $miniDate->isToday() ? 'is-today' : '' }}" href="{{ route('doctor.schedule', [...$scheduleQuery, 'date' => $miniDate->toDateString()]) }}">{{ $day }}</a>
+                                            <a class="{{ $miniDate->isSameDay($selectedDate) ? 'is-selected' : '' }} {{ $miniDate->isToday() ? 'is-today' : '' }}" href="{{ $workspace->url('doctor.schedule', [...$scheduleQuery, 'date' => $miniDate->toDateString()]) }}">{{ $day }}</a>
                                         @endfor
                                     </div>
                                 </div>
@@ -111,9 +113,9 @@
                             <section class="doctor-panel doctor-calendar-panel">
                                 <div class="doctor-calendar-toolbar">
                                     <div class="doctor-calendar-toolbar__controls">
-                                        <a class="doctor-square-button" href="{{ route('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->subWeek()->toDateString()]) }}" aria-label="Previous week">&lsaquo;</a>
-                                        <a class="doctor-square-button" href="{{ route('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->addWeek()->toDateString()]) }}" aria-label="Next week">&rsaquo;</a>
-                                        <a class="btn btn-sm btn-outline-primary" href="{{ route('doctor.schedule') }}">Today</a>
+                                        <a class="doctor-square-button" href="{{ $workspace->url('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->subWeek()->toDateString()]) }}" aria-label="Previous week">&lsaquo;</a>
+                                        <a class="doctor-square-button" href="{{ $workspace->url('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->addWeek()->toDateString()]) }}" aria-label="Next week">&rsaquo;</a>
+                                        <a class="btn btn-sm btn-outline-primary" href="{{ $workspace->url('doctor.schedule') }}">Today</a>
                                     </div>
                                     <strong>
                                         @if ($view === 'day')
@@ -124,7 +126,7 @@
                                     </strong>
                                     <div class="btn-group btn-group-sm doctor-view-switcher" role="group" aria-label="Calendar view">
                                         @foreach (['day' => 'Day', 'week' => 'Week', 'month' => 'Month'] as $mode => $label)
-                                            <a class="btn {{ $view === $mode ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ route('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->toDateString(), 'view' => $mode]) }}">{{ $label }}</a>
+                                            <a class="btn {{ $view === $mode ? 'btn-primary' : 'btn-outline-primary' }}" href="{{ $workspace->url('doctor.schedule', [...$scheduleQuery, 'date' => $selectedDate->toDateString(), 'view' => $mode]) }}">{{ $label }}</a>
                                         @endforeach
                                     </div>
                                 </div>
@@ -139,7 +141,7 @@
                                                 $monthDay = $monthStart->startOfWeek(Carbon\Carbon::MONDAY)->addDays($monthDayOffset);
                                                 $monthDaySlots = $slotsByDate[$monthDay->toDateString()] ?? collect();
                                             @endphp
-                                            <a class="{{ $monthDay->isSameDay($selectedDate) ? 'is-selected' : '' }} {{ $monthDay->month !== $selectedDate->month ? 'is-muted' : '' }}" data-calendar-date="{{ $monthDay->toDateString() }}" href="{{ route('doctor.schedule', ['date' => $monthDay->toDateString(), 'view' => 'day']) }}">
+                                            <a class="{{ $monthDay->isSameDay($selectedDate) ? 'is-selected' : '' }} {{ $monthDay->month !== $selectedDate->month ? 'is-muted' : '' }}" data-calendar-date="{{ $monthDay->toDateString() }}" href="{{ $workspace->url('doctor.schedule', ['date' => $monthDay->toDateString(), 'view' => 'day']) }}">
                                                 <strong>{{ $monthDay->day }}</strong>
                                                 @foreach ($monthDaySlots->take(3) as $monthSlot)
                                                     <span class="doctor-month-calendar__dot doctor-month-calendar__dot--{{ $monthSlot->appointments->first()?->status ?? 'available' }}"></span>
@@ -203,17 +205,17 @@
                                                                     <strong>{{ $eventLabel }}</strong>
                                                                     <small>{{ $eventTime }}</small>
                                                                     @if ($event['appointment_id'])
-                                                                        <a class="doctor-calendar-event__link" href="{{ route('doctor.appointments.show', $event['appointment_id']) }}" aria-label="View appointment details">View</a>
+                                                                        <a class="doctor-calendar-event__link" href="{{ $workspace->url('doctor.appointments.show', $event['appointment_id']) }}" aria-label="View appointment details">View</a>
                                                                         @if ($event['can_confirm'])
-                                                                            <form method="POST" action="{{ route('doctor.appointments.confirm', $event['appointment_id']) }}">
+                                                                            <form method="POST" action="{{ $workspace->url('doctor.appointments.confirm', $event['appointment_id']) }}">
                                                                                 @csrf
                                                                                 <button class="doctor-calendar-event__action" type="submit" aria-label="Confirm appointment">Confirm</button>
                                                                             </form>
-                                                                            <form method="POST" action="{{ route('doctor.appointments.reject', $event['appointment_id']) }}">
+                                                                            <form method="POST" action="{{ $workspace->url('doctor.appointments.reject', $event['appointment_id']) }}">
                                                                                 @csrf
                                                                                 <button class="doctor-calendar-event__action doctor-calendar-event__action--danger" type="submit" aria-label="Reject appointment">Reject</button>
                                                                             </form>
-                                                                        @elseif ($event['can_start'])
+                                                                        @elseif ($event['can_start'] && $workspace->routeAvailable('doctor.appointments.start'))
                                                                             <form method="POST" action="{{ route('doctor.appointments.start', $event['appointment_id']) }}">
                                                                                 @csrf
                                                                                 <button class="doctor-calendar-event__action" type="submit" aria-label="Start consultation">Start</button>
@@ -221,15 +223,15 @@
                                                                         @endif
                                                                     @else
                                                                         @if ($event['type'] === 'available')
-                                                                            <a class="doctor-calendar-event__link" href="{{ route('doctor.appointments.create', ['date' => $event['date'], 'slot_id' => $event['slot_id']]) }}" aria-label="Book this available slot">Book</a>
+                                                                            <a class="doctor-calendar-event__link" href="{{ $workspace->url('doctor.appointments.create', ['date' => $event['date'], 'slot_id' => $event['slot_id']]) }}" aria-label="Book this available slot">Book</a>
                                                                         @endif
                                                                         @if ($event['can_block'] ?? false)
-                                                                            <form method="POST" action="{{ route('doctor.slots.block', $event['slot_id']) }}" data-confirm="Block this slot? Patients will not be able to book it.">
+                                                                            <form method="POST" action="{{ $workspace->url('doctor.slots.block', $event['slot_id']) }}" data-confirm="Block this slot? Patients will not be able to book it.">
                                                                                 @csrf
                                                                                 <button class="doctor-calendar-event__action" type="submit" aria-label="Block this slot">Block</button>
                                                                             </form>
                                                                         @elseif ($event['can_unblock'] ?? false)
-                                                                            <form method="POST" action="{{ route('doctor.slots.unblock', $event['slot_id']) }}">
+                                                                            <form method="POST" action="{{ $workspace->url('doctor.slots.unblock', $event['slot_id']) }}">
                                                                                 @csrf @method('DELETE')
                                                                                 <button class="doctor-calendar-event__action" type="submit" aria-label="Unblock this slot">Unblock</button>
                                                                             </form>
@@ -266,7 +268,7 @@
 
                                 <section class="doctor-panel">
                                     <h2 class="doctor-panel__title mb-3">Quick Actions</h2>
-                                    <a class="doctor-quick-action" href="{{ route('doctor.appointments.create', ['date' => $selectedDate->toDateString()]) }}"><i class="fa-solid fa-plus"></i><span>New Appointment</span><b>&rsaquo;</b></a>
+                                    <a class="doctor-quick-action" href="{{ $workspace->url('doctor.appointments.create', ['date' => $selectedDate->toDateString()]) }}"><i class="fa-solid fa-plus"></i><span>New Appointment</span><b>&rsaquo;</b></a>
                                     <a class="doctor-quick-action" href="#generate-panel" data-open-schedule-tab="generate"><i class="fa-solid fa-layer-group"></i><span>Generate Slots</span><b>&rsaquo;</b></a>
                                     <a class="doctor-quick-action" href="#availability-panel" data-open-schedule-tab="availability"><i class="fa-regular fa-calendar"></i><span>Manage Availability</span><b>&rsaquo;</b></a>
                                 </section>
@@ -274,7 +276,7 @@
                                 <section class="doctor-panel">
                                     <div class="doctor-panel__heading">
                                         <h2 class="doctor-panel__title">Today’s Appointments</h2>
-                                        <a href="{{ route('doctor.appointments.index') }}">View All &rsaquo;</a>
+                                        <a href="{{ $workspace->url('doctor.appointments.index') }}">View All &rsaquo;</a>
                                     </div>
                                     @forelse ($selectedAppointments as $appointment)
                                         <div class="doctor-day-appointment">
@@ -296,7 +298,7 @@
                                 <div><p class="doctor-eyebrow mb-1">Weekly availability</p><h2 class="doctor-panel__title">Manage Availability</h2></div>
                                 <span class="badge text-bg-light">10-minute slots</span>
                             </div>
-                            <form class="row g-3 align-items-end mb-4" method="POST" action="{{ route('doctor.availability.store') }}">
+                            <form class="row g-3 align-items-end mb-4" method="POST" action="{{ $workspace->url('doctor.availability.store') }}">
                                 @csrf
                                 <div class="col-md-3"><label class="form-label" for="day_of_week">Day</label><select class="form-select" id="day_of_week" name="day_of_week">@foreach (['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'] as $day => $name)<option value="{{ $day }}">{{ $name }}</option>@endforeach</select></div>
                                 <div class="col-md-3"><label class="form-label" for="start_time">Starts</label><input class="form-control" id="start_time" name="start_time" type="time" value="09:00" required></div>
@@ -307,7 +309,7 @@
                                 <div class="doctor-availability-row">
                                     <strong>{{ ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][$availability->day_of_week] }}</strong>
                                     <span>{{ $availability->start_time }} – {{ $availability->end_time }}</span>
-                                    <form method="POST" action="{{ route('doctor.availability.destroy', $availability) }}">@csrf @method('DELETE')<button class="btn btn-sm btn-link text-danger" type="submit">Remove</button></form>
+                                    <form method="POST" action="{{ $workspace->url('doctor.availability.destroy', $availability) }}">@csrf @method('DELETE')<button class="btn btn-sm btn-link text-danger" type="submit">Remove</button></form>
                                 </div>
                             @empty
                                 <p class="text-secondary mb-0">No weekly availability has been configured.</p>
@@ -319,7 +321,7 @@
                         <section class="doctor-panel">
                             <p class="doctor-eyebrow mb-1">Slot generation</p>
                             <h2 class="doctor-panel__title mb-3">Generate 10-minute appointment slots</h2>
-                            <form class="row g-3 align-items-end" method="POST" action="{{ route('doctor.slots.generate') }}" data-slot-generation-form data-preview-url="{{ route('doctor.slots.preview') }}">
+                            <form class="row g-3 align-items-end" method="POST" action="{{ $workspace->url('doctor.slots.generate') }}" data-slot-generation-form data-preview-url="{{ $workspace->url('doctor.slots.preview') }}">
                                 @csrf
                                 <div class="col-md-3"><label class="form-label" for="start_date">Start date</label><input class="form-control" id="start_date" name="start_date" type="date" value="{{ today()->toDateString() }}" required></div>
                                 <div class="col-md-3"><label class="form-label" for="end_date">End date</label><input class="form-control" id="end_date" name="end_date" type="date" value="{{ today()->addDays(30)->toDateString() }}" required></div>

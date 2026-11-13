@@ -17,7 +17,7 @@
                     </div>
                 </div>
 
-                <form class="row g-2 align-items-end mb-4" method="GET" action="{{ route('doctor.patients.index') }}" role="search">
+                <form class="row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.patients.index') }}" role="search">
                     <div class="col-sm-9">
                         <label class="form-label" for="search">Search your patients</label>
                         <input class="form-control" id="search" name="search" type="search" value="{{ $search }}" maxlength="100" placeholder="Name, email or phone">
@@ -32,7 +32,7 @@
                         :title="$search ? 'No matching patients' : 'No patients yet'"
                         :message="$search ? 'None of your patients match that search.' : 'Patients appear here after they book an appointment with you.'"
                         :action-label="$search ? 'Clear search' : null"
-                        :action-url="$search ? route('doctor.patients.index') : null" />
+                        :action-url="$search ? $workspace->url('doctor.patients.index') : null" />
                 @else
                     <div class="table-responsive">
                         <table class="table align-middle">
@@ -62,7 +62,7 @@
                                         <td class="text-center">{{ $patient->upcoming_count }}</td>
                                         <td>{{ $patient->last_appointment_at?->format('M j, Y') ?? '—' }}</td>
                                         <td class="text-end">
-                                            <a class="btn btn-sm btn-outline-primary" href="{{ route('doctor.appointments.index', ['tab' => 'all', 'search' => $patient->email]) }}">Appointment history</a>
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ $workspace->url('doctor.appointments.index', ['tab' => 'all', 'search' => $patient->email]) }}">Appointment history</a>
                                         </td>
                                     </tr>
                                 @endforeach

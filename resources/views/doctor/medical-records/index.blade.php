@@ -17,7 +17,7 @@
                     </div>
                 </div>
 
-                <form class="row g-2 align-items-end mb-4" method="GET" action="{{ route('doctor.medical-records.index') }}" role="search">
+                <form class="row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.medical-records.index') }}" role="search">
                     <div class="col-md-6">
                         <label class="form-label" for="search">Search</label>
                         <input class="form-control" id="search" name="search" type="search" value="{{ $filters['search'] ?? '' }}" maxlength="100" placeholder="Patient name or document title">
@@ -40,7 +40,7 @@
                     <x-ui.empty-state class="text-center py-5" :icon="array_filter($filters) ? 'fa-solid fa-filter-circle-xmark' : 'fa-regular fa-folder-open'"
                         title="No medical records found"
                         :message="array_filter($filters) ? 'No documents match these filters.' : 'Documents your patients upload will appear here.'"
-                        :action-label="array_filter($filters) ? 'Show all records' : null" :action-url="route('doctor.medical-records.index')" />
+                        :action-label="array_filter($filters) ? 'Show all records' : null" :action-url="$workspace->url('doctor.medical-records.index')" />
                 @else
                     <p class="small text-secondary mb-3">{{ $documents->total() }} {{ Str::plural('document', $documents->total()) }}</p>
                     <div class="row row-cols-1 row-cols-md-2 row-cols-xxl-3 g-4">

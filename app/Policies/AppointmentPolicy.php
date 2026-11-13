@@ -4,15 +4,22 @@ namespace App\Policies;
 
 use App\Models\Appointment;
 use App\Models\User;
+use App\Services\DoctorAccess;
 
 /**
  * Decides who may act on an appointment. Business rules (status transitions, cancellation deadlines,
  * slot availability, consultation windows) stay in the services and Form Requests.
+ *
+ * Doctor-side abilities are decided by DoctorAccess for the doctor who owns the appointment's slot: the doctor
+ * themselves, or a Doctor Assistant currently assigned to that (active) doctor, each limited to their own abilities.
  */
 class AppointmentPolicy
 {
+    public function __construct(private readonly DoctorAccess $access) {}
+
     /**
      * Any active patient, doctor or admin may open an appointment list; each list is scoped to what they may view.
+     * Assistant lists are scoped per doctor and are authorized against that doctor (see DoctorProfilePolicy).
      */
     public function viewAny(User $user): bool
     {
@@ -20,17 +27,19 @@ class AppointmentPolicy
     }
 
     /**
-     * Admins see every appointment; patients and doctors see only their own.
+     * Admins see every appointment; patients see their own; the doctor and their assigned assistants see the
+     * doctor's appointments.
      */
     public function view(User $user, Appointment $appointment): bool
     {
         return $this->isActiveRole($user, 'admin')
             || $this->isOwningPatient($user, $appointment)
-            || $this->isOwningDoctor($user, $appointment);
+            || $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::VIEW_APPOINTMENTS);
     }
 
     /**
-     * Patients book their own appointments and doctors with a profile book manually. Admins do not create appointments.
+     * Patients book for themselves; doctors book from their own workspace. Booking on a doctor's behalf (assistants)
+     * needs the doctor, so it is authorized with DoctorProfilePolicy::bookAppointments instead.
      */
     public function create(User $user): bool
     {
@@ -39,36 +48,38 @@ class AppointmentPolicy
     }
 
     /**
-     * Only the patient who owns the appointment may cancel it.
+     * Patients cancel their own appointments. Assistants hold the cancellation capability for their doctors'
+     * appointments; the staff cancellation rules are implemented in a later phase.
      */
     public function cancel(User $user, Appointment $appointment): bool
     {
-        return $this->isOwningPatient($user, $appointment);
+        return $this->isOwningPatient($user, $appointment)
+            || $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::CANCEL_APPOINTMENTS);
     }
 
     public function confirm(User $user, Appointment $appointment): bool
     {
-        return $this->isOwningDoctor($user, $appointment);
+        return $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::CONFIRM_APPOINTMENTS);
     }
 
     public function reject(User $user, Appointment $appointment): bool
     {
-        return $this->isOwningDoctor($user, $appointment);
+        return $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::REJECT_APPOINTMENTS);
     }
 
     public function reschedule(User $user, Appointment $appointment): bool
     {
-        return $this->isOwningDoctor($user, $appointment);
+        return $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::RESCHEDULE_APPOINTMENTS);
     }
 
     public function complete(User $user, Appointment $appointment): bool
     {
-        return $this->isOwningDoctor($user, $appointment);
+        return $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::COMPLETE_APPOINTMENTS);
     }
 
     public function start(User $user, Appointment $appointment): bool
     {
-        return $this->isOwningDoctor($user, $appointment);
+        return $this->actsForAppointmentDoctor($user, $appointment, DoctorAccess::START_APPOINTMENTS);
     }
 
     private function isOwningPatient(User $user, Appointment $appointment): bool
@@ -77,18 +88,13 @@ class AppointmentPolicy
     }
 
     /**
-     * Ownership is derived from the stored slot, never from request input.
+     * The doctor is read from the appointment's slot in the database, never from request input.
      */
-    private function isOwningDoctor(User $user, Appointment $appointment): bool
+    private function actsForAppointmentDoctor(User $user, Appointment $appointment, string $ability): bool
     {
-        if (! $this->isActiveRole($user, 'doctor')) {
-            return false;
-        }
-
-        $profileId = $user->doctorProfile?->id;
         $slotDoctorProfileId = $appointment->slot()->value('doctor_profile_id');
 
-        return $profileId !== null && $slotDoctorProfileId !== null && (int) $slotDoctorProfileId === $profileId;
+        return $slotDoctorProfileId !== null && $this->access->canActFor($user, (int) $slotDoctorProfileId, $ability);
     }
 
     private function isActiveRole(User $user, string $role): bool

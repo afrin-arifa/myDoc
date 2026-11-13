@@ -25,8 +25,8 @@
                             <button class="btn btn-primary btn-lg" type="submit">Find a doctor</button>
                         </div>
                     </form>
-                    @else
-                        <a class="btn btn-primary btn-lg mb-3" href="{{ route(auth()->user()->role.'.dashboard') }}">Go to your dashboard</a>
+                    @elseif ($dashboardRoute = App\Http\Controllers\Auth\AuthenticatedSessionController::dashboardRoute(auth()->user()->role))
+                        <a class="btn btn-primary btn-lg mb-3" href="{{ route($dashboardRoute) }}">Go to your dashboard</a>
                     @endif
                     <a class="btn btn-link px-0 d-block" href="#how-it-works">Learn how booking works &darr;</a>
                 </div>

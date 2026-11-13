@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -22,9 +23,51 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    /**
+     * Stored value of the Doctor Assistant role. The role column is never mass assignable.
+     */
+    public const ROLE_ASSISTANT = 'assistant';
+
+    /**
+     * Display labels for every stored role value.
+     *
+     * @var array<string, string>
+     */
+    public const ROLE_LABELS = [
+        'patient' => 'Patient',
+        'doctor' => 'Doctor',
+        'admin' => 'Admin',
+        self::ROLE_ASSISTANT => 'Doctor Assistant',
+    ];
+
     public function doctorProfile(): HasOne
     {
         return $this->hasOne(DoctorProfile::class);
+    }
+
+    /**
+     * Active assignments of this user, as a Doctor Assistant, to doctors.
+     */
+    public function assistantAssignments(): HasMany
+    {
+        return $this->hasMany(AssistantAssignment::class, 'assistant_id');
+    }
+
+    /**
+     * Doctor profiles this user is currently assigned to as a Doctor Assistant. Assignment alone grants nothing;
+     * access rules are applied separately.
+     */
+    public function assignedDoctors(): BelongsToMany
+    {
+        return $this->belongsToMany(DoctorProfile::class, 'doctor_assistant', 'assistant_id', 'doctor_profile_id')
+            ->using(AssistantAssignment::class)
+            ->withPivot(['id', 'assigned_by'])
+            ->withTimestamps();
+    }
+
+    public function roleLabel(): string
+    {
+        return self::ROLE_LABELS[$this->role] ?? ucfirst((string) $this->role);
     }
 
     public function appointments(): HasMany

@@ -18,6 +18,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'provider_notes',
     'booked_at',
     'cancelled_at',
+    'cancellation_reason',
 ])]
 class Appointment extends Model
 {

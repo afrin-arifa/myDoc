@@ -4,13 +4,13 @@
 
 @section('content')
     <div class="doctor-workspace"><div class="container doctor-workspace__container"><div class="row justify-content-center"><div class="col-xl-8">
-        <a class="small text-secondary" href="{{ route('doctor.schedule') }}">&larr; Back to schedule</a>
+        <a class="small text-secondary" href="{{ $workspace->url('doctor.schedule') }}">&larr; Back to schedule</a>
         <div class="doctor-page-header mt-3"><div><p class="doctor-eyebrow">Manual booking</p><h1 class="doctor-page-title">New appointment</h1><p class="text-secondary mb-0">Book an available slot for a registered patient.</p></div></div>
-        <section class="doctor-panel"><form class="mb-4" method="GET" action="{{ route('doctor.appointments.create') }}"><label class="form-label" for="date">Appointment date</label><div class="input-group"><input class="form-control" id="date" name="date" type="date" value="{{ $selectedDate->toDateString() }}"><button class="btn btn-outline-primary" type="submit">Load slots</button></div></form><form method="POST" action="{{ route('doctor.appointments.store') }}">@csrf
+        <section class="doctor-panel"><form class="mb-4" method="GET" action="{{ $workspace->url('doctor.appointments.create') }}"><label class="form-label" for="date">Appointment date</label><div class="input-group"><input class="form-control" id="date" name="date" type="date" value="{{ $selectedDate->toDateString() }}"><button class="btn btn-outline-primary" type="submit">Load slots</button></div></form><form method="POST" action="{{ $workspace->url('doctor.appointments.store') }}">@csrf
             <div class="row g-3"><input name="date" type="hidden" value="{{ $selectedDate->toDateString() }}">
                 <div class="col-md-6">
                     <label class="form-label" for="patient_search">Returning patient</label>
-                    <input class="form-control" id="patient_search" type="search" autocomplete="off" placeholder="Search by name, email or phone" aria-describedby="patient_search_help" data-patient-search data-search-url="{{ route('doctor.patients.search') }}">
+                    <input class="form-control" id="patient_search" type="search" autocomplete="off" placeholder="Search by name, email or phone" aria-describedby="patient_search_help" data-patient-search data-search-url="{{ $workspace->url('doctor.patients.search') }}">
                     <input name="patient_id" type="hidden" value="{{ old('patient_id') }}" data-patient-id>
                     <input name="patient_label" type="hidden" value="{{ old('patient_label') }}" data-patient-label>
                     <div class="form-text" id="patient_search_help">Only patients who have booked with you before are listed.</div>

@@ -6,7 +6,7 @@
     <div class="container py-5">
         <h1 class="h3 mb-2">Reschedule appointment</h1>
         <p class="text-secondary">Current time: {{ $appointment->slot->starts_at->format('M j, Y g:i A') }}</p>
-        <form method="POST" action="{{ route('doctor.appointments.reschedule.store', $appointment) }}" class="card card-body">
+        <form method="POST" action="{{ $workspace->url('doctor.appointments.reschedule.store', $appointment) }}" class="card card-body">
             @csrf
             <label class="form-label" for="slot_id">New appointment slot</label>
             <select class="form-select mb-3" id="slot_id" name="slot_id" required>
