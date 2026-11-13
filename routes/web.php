@@ -9,6 +9,7 @@ use App\Http\Controllers\Admin\AdminSmsIssueController;
 use App\Http\Controllers\Admin\AdminSpecialtyController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\AppointmentController;
+use App\Http\Controllers\Assistant\AssistantAccountController;
 use App\Http\Controllers\Assistant\AssistantDashboardController;
 use App\Http\Controllers\Assistant\AssistantInvitationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
@@ -170,6 +171,7 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
 Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assistant.')->group(function () {
     Route::get('/dashboard', [AssistantDashboardController::class, 'dashboard'])->name('dashboard');
     Route::get('/doctors', [AssistantDashboardController::class, 'doctors'])->name('doctors.index');
+    Route::get('/account', [AssistantAccountController::class, 'show'])->name('account');
 
     Route::prefix('/doctors/{doctorProfile}')->name('workspace.')->middleware('works-for-doctor')->group(function () {
         Route::get('/', [AssistantDashboardController::class, 'workspace'])->name('show');

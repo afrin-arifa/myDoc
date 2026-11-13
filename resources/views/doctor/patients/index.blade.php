@@ -1,8 +1,10 @@
 @extends('layouts.app')
 
-@section('title', 'My patients | myDoc')
+@section('title', ($workspace->inAssistantWorkspace() ? 'Patients of '.$profile->user->name : 'My patients').' | myDoc')
 
 @section('content')
+    @php($forAssistant = $workspace->inAssistantWorkspace())
+    @php($whose = $forAssistant ? $profile->user->name."'s" : 'your')
     <div class="container py-5">
         <div class="row g-4">
             <div class="col-lg-3">
@@ -12,14 +14,14 @@
                 <div class="doctor-page-header">
                     <div>
                         <p class="doctor-eyebrow">Patients</p>
-                        <h1 class="doctor-page-title">My patients</h1>
-                        <p class="text-secondary mb-0">Patients who have booked at least one appointment with you.</p>
+                        <h1 class="doctor-page-title">{{ $forAssistant ? 'Patients of '.$profile->user->name : 'My patients' }}</h1>
+                        <p class="text-secondary mb-0">Patients who have booked at least one appointment with {{ $forAssistant ? $profile->user->name : 'you' }}.</p>
                     </div>
                 </div>
 
                 <form class="row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.patients.index') }}" role="search">
                     <div class="col-sm-9">
-                        <label class="form-label" for="search">Search your patients</label>
+                        <label class="form-label" for="search">{{ $forAssistant ? 'Search patients' : 'Search your patients' }}</label>
                         <input class="form-control" id="search" name="search" type="search" value="{{ $search }}" maxlength="100" placeholder="Name, email or phone">
                     </div>
                     <div class="col-sm-3 d-grid">
@@ -30,13 +32,13 @@
                 @if ($patients->isEmpty())
                     <x-ui.empty-state
                         :title="$search ? 'No matching patients' : 'No patients yet'"
-                        :message="$search ? 'None of your patients match that search.' : 'Patients appear here after they book an appointment with you.'"
+                        :message="$search ? 'None of '.$whose.' patients match that search.' : 'Patients appear here after they book an appointment with '.($forAssistant ? $profile->user->name : 'you').'.'"
                         :action-label="$search ? 'Clear search' : null"
                         :action-url="$search ? $workspace->url('doctor.patients.index') : null" />
                 @else
                     <div class="table-responsive">
                         <table class="table align-middle">
-                            <caption class="visually-hidden">Your patients</caption>
+                            <caption class="visually-hidden">{{ ucfirst($whose) }} patients</caption>
                             <thead>
                                 <tr>
                                     <th scope="col">Patient</th>

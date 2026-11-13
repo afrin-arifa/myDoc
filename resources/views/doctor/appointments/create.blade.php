@@ -5,7 +5,8 @@
 @section('content')
     <div class="doctor-workspace"><div class="container doctor-workspace__container"><div class="row justify-content-center"><div class="col-xl-8">
         <a class="small text-secondary" href="{{ $workspace->url('doctor.schedule') }}">&larr; Back to schedule</a>
-        <div class="doctor-page-header mt-3"><div><p class="doctor-eyebrow">Manual booking</p><h1 class="doctor-page-title">New appointment</h1><p class="text-secondary mb-0">Book an available slot for a registered patient.</p></div></div>
+        <x-assistant.workspace-banner class="mt-3 mb-0" />
+        <div class="doctor-page-header mt-3"><div><p class="doctor-eyebrow">Manual booking</p><h1 class="doctor-page-title">New appointment</h1><p class="text-secondary mb-0">Book an available slot{{ $workspace->inAssistantWorkspace() ? ' with '.$workspace->currentDoctorProfile()->user->name : '' }} for a registered patient.</p></div></div>
         <section class="doctor-panel"><form class="mb-4" method="GET" action="{{ $workspace->url('doctor.appointments.create') }}"><label class="form-label" for="date">Appointment date</label><div class="input-group"><input class="form-control" id="date" name="date" type="date" value="{{ $selectedDate->toDateString() }}"><button class="btn btn-outline-primary" type="submit">Load slots</button></div></form><form method="POST" action="{{ $workspace->url('doctor.appointments.store') }}">@csrf
             <div class="row g-3"><input name="date" type="hidden" value="{{ $selectedDate->toDateString() }}">
                 <div class="col-md-6">
@@ -13,7 +14,7 @@
                     <input class="form-control" id="patient_search" type="search" autocomplete="off" placeholder="Search by name, email or phone" aria-describedby="patient_search_help" data-patient-search data-search-url="{{ $workspace->url('doctor.patients.search') }}">
                     <input name="patient_id" type="hidden" value="{{ old('patient_id') }}" data-patient-id>
                     <input name="patient_label" type="hidden" value="{{ old('patient_label') }}" data-patient-label>
-                    <div class="form-text" id="patient_search_help">Only patients who have booked with you before are listed.</div>
+                    <div class="form-text" id="patient_search_help">Only patients who have booked with {{ $workspace->inAssistantWorkspace() ? $workspace->currentDoctorProfile()->user->name : 'you' }} before are listed.</div>
                     <div class="small fw-semibold mt-1" data-patient-selected aria-live="polite">@if (old('patient_id') && old('patient_label'))Selected: {{ old('patient_label') }}@endif</div>
                     <div class="list-group mt-2" data-patient-search-results></div>
                 </div>

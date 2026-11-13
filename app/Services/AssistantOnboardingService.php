@@ -20,8 +20,6 @@ use Throwable;
  * request input). The assistant activates it by setting their own password through a single-use, expiring
  * invitation (separate from doctor invitations). Deactivation revokes any outstanding invitation and removes every
  * doctor assignment (recorded in the assignment history), so reactivation never restores earlier access.
- *
- * Signing in is still blocked for assistants until their workspace exists (see AuthenticatedSessionController).
  */
 class AssistantOnboardingService
 {

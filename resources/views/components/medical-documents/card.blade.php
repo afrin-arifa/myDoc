@@ -1,8 +1,8 @@
 {{--
     A medical document card, shared by the patient and doctor Medical records pages.
     viewer="patient" (default): the owner's view, with the linked doctor and a Delete action.
-    viewer="doctor": a treating doctor's view, showing whose document it is, linking the appointment to the doctor's
-    own appointment page, and offering Download only (doctors can never delete patient documents).
+    viewer="doctor": a treating doctor's (or their assistant's) view, showing whose document it is, linking the
+    appointment to its page in the current workspace, and offering Download only (staff never delete patient documents).
     Images load through the authorized preview route; nothing links to storage.
 --}}
 @props(['document', 'viewer' => 'patient'])
@@ -62,7 +62,7 @@
                 <dt><i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Appointment</dt>
                 <dd>
                     @if ($document->appointment && $isDoctorView)
-                        <a href="{{ route('doctor.appointments.show', $document->appointment) }}">{{ $document->appointment->slot->starts_at->format('M j, Y g:i A') }}</a>
+                        <a href="{{ $workspace->url('doctor.appointments.show', $document->appointment) }}">{{ $document->appointment->slot->starts_at->format('M j, Y g:i A') }}</a>
                     @elseif ($document->appointment)
                         {{ $document->appointment->slot->starts_at->format('M j, Y') }} · {{ $document->appointment->slot->doctorProfile->user->name }}
                     @else

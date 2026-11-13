@@ -1,18 +1,23 @@
 # myDoc
 
-Multi-doctor appointment booking for patients, doctors and administrators (Laravel 13, PHP 8.5, MySQL).
+Multi-doctor appointment booking for patients, doctors, Doctor Assistants and administrators (Laravel 13,
+PHP 8.5, MySQL 8, Bootstrap 5.3, Blade and Vite).
 
 ## Setup
 
-1. Apply the migrations **before or together with** deploying the code:
+1. Apply the migrations **before or together with** deploying the code. Preview them first, then apply:
 
    ```bash
+   php8.5 artisan migrate --pretend
    php8.5 artisan migrate
    ```
 
-   This adds the `appointment_notifications` delivery ledger, the `doctor_invitation_tokens` table and the
-   `qualifications` / `photo_path` columns on `doctor_profiles`. Every appointment change writes to the ledger,
-   so those actions fail until it exists.
+   The migrations are additive. Besides the base tables they create the `appointment_notifications` delivery
+   ledger, doctor and assistant invitation tokens, the `assistant` role with `doctor_assistant` assignments and
+   their history, the `doctor_workspace_events` audit log and `appointments.cancellation_reason`. Appointment
+   actions write to the ledger and the audit log in the same transaction, so they fail until the tables exist.
+   Never run `migrate:fresh`, `migrate:refresh` or `db:wipe` against a database with real data. Check what is
+   pending with `php8.5 artisan migrate:status`.
 
 2. Configure `.env` (names only; never commit real values): `APP_URL` (links in emails are built from it),
    `MAIL_MAILER`, `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM_ADDRESS`,
@@ -22,6 +27,33 @@ Multi-doctor appointment booking for patients, doctors and administrators (Larav
 
 3. Run a queue worker and the scheduler (see below), and create the first administrator with
    `php8.5 artisan mydoc:admin`.
+
+### Running locally
+
+```bash
+composer install && npm install
+npm run build              # or `npm run dev` while editing views and assets
+php8.5 artisan migrate
+php8.5 artisan serve       # http://127.0.0.1:8000
+php8.5 artisan queue:work  # second terminal: emails, SMS and Google Calendar updates
+php8.5 artisan schedule:work  # third terminal: reminders and notification recovery
+```
+
+`composer run dev` starts the server, queue worker and Vite together. `php8.5 artisan db:seed --class=DemoUsersSeeder`
+creates demo accounts for local use only.
+
+## Roles
+
+| Role | Signs up | Area | Can do |
+|---|---|---|---|
+| Patient | Self-registration | `/patient/...` | Browse doctors, book and cancel own appointments, upload own medical documents, manage profile and SMS preference |
+| Doctor | Admin invitation | `/doctor/...` | Own profile, schedule, slots, appointments (confirm, reject, reschedule, cancel, start, complete), patients and their eligible documents, Google Calendar |
+| Doctor Assistant | Admin invitation | `/assistant/...` | Works in the workspace of each doctor they are assigned to (see below); own account and password |
+| Admin | `mydoc:admin` | `/admin/...` | Users, doctors, assistants and assignments, specialties, all appointments and documents, SMS issues |
+
+Every role area is protected by the `role:` middleware, which also refuses deactivated accounts on every request.
+Navigation only shows each role its own links, but hiding a link is never the access check: routes, policies,
+Form Requests and services authorize every request again.
 
 ## Doctor onboarding (admin)
 
@@ -62,15 +94,79 @@ If an invitation email cannot be sent, the account is still created; use **Resen
 password-reset emails are sent immediately instead of being queued so that raw tokens are never stored in the
 `jobs` table.
 
-## Password reset
+## Password reset and password change
 
-Every active patient, doctor and administrator can use **Forgot password?** on the login page. It uses
+Every active patient, doctor, Doctor Assistant and administrator can use **Forgot password?** on the login page. It uses
 Laravel's password broker: hashed tokens in `password_reset_tokens`, valid for **60 minutes**, single use, and at
 most one email per account per minute. Requests are rate limited (5 per minute per email and IP, 20 per minute
 per IP). Sessions are bound to the password (Laravel's `AuthenticateSession` middleware): after a reset or a
 password change, every other signed-in session and remember-me cookie of that user is signed out on its next
 request; the session that changed the password stays signed in. The response is always the same, whether or not the email belongs to an account; deactivated accounts
 (including doctors still awaiting their invitation) never receive reset emails.
+
+Signed-in users change their password with the shared **Change password** form (patient *My profile*, doctor
+*Account settings*, assistant *My account*), which posts to `PUT /profile/password`. It requires the current
+password, updates only the signed-in user's own account and refuses deactivated accounts. Staff accounts (doctors,
+assistants, admins) must keep the invitation strength: 8+ characters with upper- and lower-case letters and a
+number. Patients keep the registration rule (8+ characters).
+
+## Doctor Assistants
+
+**Invitation and onboarding.** *Admin dashboard → Doctor assistants → Invite assistant* creates the account with the `assistant`
+role set on the server, a random unknown password and a deactivated status, and emails an invitation (separate
+from doctor invitations: `assistant_invitation_tokens`, hashed, single use, valid 72 hours, resend at most once a
+minute). The assistant sets a password from the link, which activates the account, and then signs in normally.
+Admins can resend a pending or expired invitation, edit the assistant's details, and deactivate or reactivate them.
+
+**Assignment.** On the assistant's admin page an admin assigns them to one or more doctors and removes
+assignments. Each change is recorded in the assignment history with the admin as actor. Deactivating an assistant
+removes all their assignments, so reactivation never restores earlier access; the admin assigns doctors again.
+
+**Workspace.** The assistant's dashboard lists the doctors they currently work for. Each doctor's workspace is at
+`/assistant/doctors/{doctor}/...` and reuses the doctor pages, worded for the assistant ("Appointments for
+Dr X", "Patients of Dr X") and always showing *Working for Dr X* with a **Switch doctor** control. Access is
+re-checked on every request (`works-for-doctor` middleware and `DoctorAccess`): the assignment must exist and
+both the assistant and the doctor must be active. An unassigned doctor returns 403, and a record of another
+doctor reached through a workspace URL is refused (403 or 404).
+
+**Permissions** (`DoctorAccess::ASSISTANT_ABILITIES`):
+
+| Assistants can | Assistants cannot |
+|---|---|
+| View appointments; book for patients; confirm, reject, reschedule | Start or complete consultations |
+| Cancel booked or confirmed appointments (reason required) | Edit the doctor's profile, account or Google Calendar |
+| Manage availability, generate, block and unblock slots | Upload or delete patient documents |
+| View patients and eligible medical documents; preview and download them | Use doctor, patient or admin pages; change their own role, status or assignments |
+
+Every action is recorded under the assistant's own user id, never as the doctor. *My account* shows the
+assistant's details and assigned doctors read-only and lets them change their password; name, email, phone and
+assignments are changed by an admin.
+
+## Appointment cancellation
+
+- **Patients** cancel their own booked or confirmed appointments under the existing patient rules on their
+  appointment page. The doctor is notified.
+- **Doctors and their assigned assistants** can cancel any booked or confirmed appointment of that doctor at any
+  time (no 24-hour limit) from the appointment page. A **reason is required** (1–1000 characters, whitespace
+  only is rejected). Completed, rejected and already cancelled appointments cannot be cancelled. Admins do not
+  cancel appointments.
+- **Reason handling:** the reason is stored only in `appointments.cancellation_reason` and shown only on the
+  staff appointment page as "staff only". It is never sent to the patient (email or SMS), never written to the
+  audit log and never shown on patient pages. Staff should not record clinical detail there.
+- **Slot release:** in the same transaction the slot becomes available again only if it belongs to that doctor
+  and is still `booked`; a blocked slot stays blocked. A unique "one active appointment per slot" index prevents
+  double booking when the slot is rebooked. A second or concurrent cancellation is refused after the status is
+  re-checked under a row lock, with no second notification or audit event.
+
+## Workspace audit events
+
+`doctor_workspace_events` is an append-only log of actions in a doctor's workspace: `booked`, `confirmed`,
+`rejected`, `rescheduled`, `cancelled`, `started`, `completed`, `slot_blocked`, `slot_unblocked`,
+`slots_generated`, `availability_created`, `availability_updated` and `availability_deleted`. Each event stores the
+real actor (doctor, assistant or patient, with the role read from the database at that moment), the doctor, the
+record, the status change and a small allow-listed context (for example `source`, `slot_id`, `starts_at`,
+`slot_released`). Events are written inside the operation's transaction, so a failed action leaves none. Notes,
+reasons, names, contact details and documents are never stored in the context. There is no admin viewer yet.
 
 ## Doctor data isolation
 
@@ -131,10 +227,13 @@ unless a queue worker is running.**
 | Doctor confirms an appointment | Patient |
 | Doctor rejects an appointment | Patient |
 | Patient cancels an appointment | Doctor |
-| Doctor reschedules an appointment | Patient |
+| Doctor or assistant cancels an appointment | Patient ("cancelled by the clinic", with a link to book again) and doctor ("you cancelled" / "your assistant cancelled") |
+| Doctor or assistant reschedules an appointment | Patient |
 
-Appointments that a doctor creates manually do not send a booking email; the patient is emailed when the doctor
-confirms the appointment.
+Confirm, reject and reschedule emails are the same whether the doctor or their assistant acted. Appointments
+that a doctor or assistant creates manually do not send a booking email; the patient is emailed when the
+appointment is confirmed. Assistants never receive appointment notifications, and the cancellation reason is
+never included in any message.
 
 ### Running the worker
 
@@ -206,6 +305,7 @@ SMS reuses the same ledger (`appointment_notifications`, now with a `channel` co
 | Doctor books for a patient | patient |
 | Doctor confirms / rejects / reschedules | patient |
 | Patient cancels | doctor |
+| Doctor or assistant cancels | patient and doctor (who cancelled, never the reason) |
 | Reminder 24 h and 2 h before (booked or confirmed only) | patient |
 
 * **Opt-in:** every user starts opted out (`users.sms_notifications_enabled = false`). Patients enable SMS on
@@ -249,12 +349,19 @@ PHP 8.5, which has the SQLite driver:
 php8.5 artisan test
 php8.5 artisan test --filter=DoctorDataIsolationTest
 php8.5 vendor/bin/pint --test
+npm run build
 ```
+
+Tests fake the queue, mail and SMS gateway where needed, so they never send real emails or SMS. Role and
+workspace access is covered by `RoleAccessMatrixTest`, `NavigationTest`, `AssistantWorkspaceTest`,
+`DoctorAccessAuthorizationTest` and `StaffAppointmentCancellationTest`.
 
 ## Known limitations
 
 - PHP 8.5 here has no GD extension, so uploaded photos are validated (type, size, dimensions) but not re-encoded.
-- Pages have been checked through automated HTTP rendering tests, not in a real browser.
+- Pages are covered by automated HTTP rendering tests; the main doctor and assistant pages were also checked
+  in headless Chrome at desktop and phone widths. A full manual cross-browser pass has not been done.
+- Admins have no password-change page; they use **Forgot password?**.
 
 ---
 

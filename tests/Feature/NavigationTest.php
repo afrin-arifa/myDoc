@@ -90,13 +90,33 @@ class NavigationTest extends TestCase
         $this->actingAs($admin)->get(route('admin.users.index', ['role' => 'patient']))->assertOk();
     }
 
+    public function test_assistants_see_their_doctors_and_account_but_no_doctor_patient_or_admin_links(): void
+    {
+        $assistant = User::factory()->create();
+        $assistant->forceFill(['role' => User::ROLE_ASSISTANT])->save();
+
+        $response = $this->actingAs($assistant)->get(route('assistant.account'))->assertOk();
+
+        $this->assertSame([
+            'Home' => route('home'),
+            'My doctors' => route('assistant.doctors.index'),
+            'Account' => route('assistant.account'),
+            'Dashboard' => route('assistant.dashboard'),
+        ], $this->navLinks($response));
+        $this->assertSame(['Account'], $this->activeLinks($response));
+        $this->assertLogoutButton($response);
+    }
+
     public function test_every_role_can_open_each_of_its_navigation_links(): void
     {
         $doctor = User::factory()->create(['role' => 'doctor']);
         DoctorProfile::create(['user_id' => $doctor->id, 'professional_title' => 'GP', 'license_number' => 'LIC-'.$doctor->id, 'consultation_fee' => 10]);
+        $assistant = User::factory()->create();
+        $assistant->forceFill(['role' => User::ROLE_ASSISTANT])->save();
         $users = [
             'patient' => [User::factory()->create(['role' => 'patient']), route('patient.dashboard')],
             'doctor' => [$doctor, route('doctor.dashboard')],
+            'assistant' => [$assistant, route('assistant.dashboard')],
             'admin' => [User::factory()->create(['role' => 'admin']), route('admin.dashboard')],
         ];
 

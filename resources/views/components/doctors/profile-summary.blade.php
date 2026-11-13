@@ -49,6 +49,7 @@
             <a class="{{ $active === 'schedule' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.schedule') }}"><i class="fa-regular fa-clock"></i><span>Schedule and slots</span></a>
             <a class="{{ $active === 'patients' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.patients.index') }}"><i class="fa-regular fa-user"></i><span>Patients</span></a>
             <a class="{{ $active === 'medical-records' ? 'is-active' : '' }}" href="{{ $workspace->url('doctor.medical-records.index') }}"><i class="fa-regular fa-folder-open"></i><span>Medical Records</span></a>
+            <a href="{{ route('assistant.account') }}"><i class="fa-solid fa-user-gear"></i><span>My account</span></a>
         </nav>
         <div class="doctor-sidebar__footer">
             <form method="POST" action="{{ route('logout') }}">

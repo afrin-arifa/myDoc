@@ -29,6 +29,7 @@
         App\Models\User::ROLE_ASSISTANT => [
             $homeLink,
             ['label' => 'My doctors', 'url' => route('assistant.doctors.index'), 'active' => ['assistant.doctors.*', 'assistant.workspace.*']],
+            ['label' => 'Account', 'url' => route('assistant.account'), 'active' => ['assistant.account']],
         ],
         'admin' => [
             ['label' => 'Doctors', 'url' => route('admin.doctors.index'), 'active' => ['admin.doctors.*']],

@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Schedule Timing | myDoc')
+@section('title', ($workspace->inAssistantWorkspace() ? 'Schedule for '.$profile->user->name : 'Schedule Timing').' | myDoc')
 
 @section('doctor_workspace')
 @endsection
@@ -37,9 +37,15 @@
                 <div class="col-xl-9 col-xxl-10">
                     <header class="doctor-page-header doctor-schedule-header">
                         <div>
-                            <p class="doctor-eyebrow"><i class="fa-regular fa-calendar me-2"></i>Doctor workspace</p>
-                            <h1 class="doctor-page-title">My Schedule</h1>
-                            <p class="text-secondary mb-0">Manage your availability, appointments, and consultation slots.</p>
+                            @if ($workspace->inAssistantWorkspace())
+                                <p class="doctor-eyebrow"><i class="fa-regular fa-calendar me-2"></i>Doctor Assistant</p>
+                                <h1 class="doctor-page-title">{{ $profile->user->name }}'s schedule</h1>
+                                <p class="text-secondary mb-0">Manage this doctor's availability, appointments, and consultation slots.</p>
+                            @else
+                                <p class="doctor-eyebrow"><i class="fa-regular fa-calendar me-2"></i>Doctor workspace</p>
+                                <h1 class="doctor-page-title">My Schedule</h1>
+                                <p class="text-secondary mb-0">Manage your availability, appointments, and consultation slots.</p>
+                            @endif
                         </div>
                         <div class="doctor-schedule-header__actions">
                             <a class="btn btn-primary" href="{{ $workspace->url('doctor.appointments.create', ['date' => $selectedDate->toDateString()]) }}">

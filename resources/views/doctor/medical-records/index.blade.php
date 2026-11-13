@@ -3,6 +3,7 @@
 @section('title', 'Medical records | myDoc')
 
 @section('content')
+    @php($forAssistant = $workspace->inAssistantWorkspace())
     <div class="container py-5">
         <div class="row g-4">
             <div class="col-lg-3">
@@ -13,7 +14,7 @@
                     <div>
                         <p class="doctor-eyebrow">Patients</p>
                         <h1 class="doctor-page-title">Medical records</h1>
-                        <p class="text-secondary mb-0">Documents shared by patients who have a booked, confirmed or completed appointment with you.</p>
+                        <p class="text-secondary mb-0">Documents shared by patients who have a booked, confirmed or completed appointment with {{ $forAssistant ? $profile->user->name : 'you' }}.</p>
                     </div>
                 </div>
 
@@ -39,7 +40,7 @@
                 @if ($documents->isEmpty())
                     <x-ui.empty-state class="text-center py-5" :icon="array_filter($filters) ? 'fa-solid fa-filter-circle-xmark' : 'fa-regular fa-folder-open'"
                         title="No medical records found"
-                        :message="array_filter($filters) ? 'No documents match these filters.' : 'Documents your patients upload will appear here.'"
+                        :message="array_filter($filters) ? 'No documents match these filters.' : 'Documents '.($forAssistant ? $profile->user->name."'s" : 'your').' patients upload will appear here.'"
                         :action-label="array_filter($filters) ? 'Show all records' : null" :action-url="$workspace->url('doctor.medical-records.index')" />
                 @else
                     <p class="small text-secondary mb-3">{{ $documents->total() }} {{ Str::plural('document', $documents->total()) }}</p>

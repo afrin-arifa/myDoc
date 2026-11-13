@@ -12,7 +12,7 @@ use Illuminate\View\View;
 /**
  * Lets an invited Doctor Assistant set their password. Only valid, unused, unexpired assistant invitations are
  * accepted; doctor invitations and other accounts are rejected with the same generic message. Setting the password
- * does not sign the assistant in, and assistant sign-in stays blocked until their workspace exists.
+ * does not sign the assistant in; they sign in afterwards with their email and new password.
  */
 class AssistantInvitationController extends Controller
 {

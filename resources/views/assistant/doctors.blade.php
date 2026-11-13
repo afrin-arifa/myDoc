@@ -6,7 +6,8 @@
     <div class="container py-5">
         <a href="{{ route('assistant.dashboard') }}">&larr; Dashboard</a>
         <h1 class="h2 mt-3 mb-1">My doctors</h1>
-        <p class="text-secondary mb-4">Doctors you are currently assigned to. Choose one to open their workspace.</p>
+        <p class="text-secondary mb-4">Doctors you are currently assigned to. Open a doctor's workspace to manage their appointments,
+            schedule, patients and medical records. Inside a workspace, use <strong>Switch doctor</strong> in the sidebar to move to another doctor.</p>
 
         @if ($doctors->isEmpty())
             <x-ui.empty-state class="text-center py-5" icon="fa-solid fa-user-doctor" title="No doctors assigned yet"
