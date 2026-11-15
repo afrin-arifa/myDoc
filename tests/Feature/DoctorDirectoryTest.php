@@ -16,6 +16,7 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_shows_only_accepting_doctors_and_supports_name_and_specialty_search(): void
     {
+        $this->actingAs(User::factory()->create(['role' => 'patient']));
         $specialty = Specialty::create([
             'name' => 'Cardiology',
             'is_active' => true,
@@ -48,6 +49,7 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_supports_fee_experience_and_available_today_filters(): void
     {
+        $this->actingAs(User::factory()->create(['role' => 'patient']));
         $this->doctor('Dr. Low Fee', 'Physician', true, 40, 3);
 
         $this->doctor('Dr. Experienced', 'Physician', true, 90, 20);
@@ -86,6 +88,7 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_preserves_filters_in_pagination_and_exposes_profile_booking_links(): void
     {
+        $this->actingAs(User::factory()->create(['role' => 'patient']));
         $specialty = Specialty::create([
             'name' => 'Family Medicine',
             'is_active' => true,
@@ -137,30 +140,14 @@ class DoctorDirectoryTest extends TestCase
 
         $response->assertOk()
             ->assertSee('Dr. Booking Link')
-            ->assertSee('Log in to book');
+            ->assertSee('href="'.route('appointment-slots.confirm', $slot).'"', false)
+            ->assertDontSee('Log in to book');
 
-        $html = html_entity_decode($response->getContent());
+        $this->get(route('appointment-slots.confirm', $slot))->assertOk();
 
-        $expectedConfirmationUrl = route(
-            'appointment-slots.confirm',
-            $slot,
-            false
-        );
-
-        $expectedLoginUrl = route('login', [
-            'redirect' => $expectedConfirmationUrl,
-        ]);
-
-        $this->assertStringContainsString(
-            parse_url($expectedLoginUrl, PHP_URL_PATH),
-            $html
-        );
-
-        $this->assertStringContainsString(
-            'redirect=',
-            $html
-        );
-
+        $this->app['auth']->forgetGuards();
+        $this->flushSession();
+        $this->get(route('doctors.show', $doctor->doctorProfile))->assertRedirect(route('login'));
         $this->get(route('appointment-slots.confirm', $slot))
             ->assertRedirect(route('login'));
     }

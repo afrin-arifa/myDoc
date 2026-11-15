@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Models\DoctorProfile;
 use App\Models\MedicalDocument;
 use App\Models\User;
 use App\Services\DoctorAccess;
@@ -9,10 +10,14 @@ use App\Services\DoctorAccess;
 /**
  * Medical documents belong to the patient.
  *  - Patients manage (list, upload, download, delete) only their own documents.
- *  - Doctors, and Doctor Assistants currently assigned to an active doctor, may list, preview and download
- *    documents of patients in that doctor's care: at least one booked, confirmed or completed appointment with
- *    the doctor, checked against the patient's appointment history (never the document's optional appointment
- *    link). Neither can upload or delete. Each check is decided by DoctorAccess with its own ability.
+ *  - Doctors may list, preview and download documents of patients in their care: at least one booked, confirmed
+ *    or completed appointment with them, checked against the patient's appointment history (never the document's
+ *    optional appointment link). Each check is decided by DoctorAccess with its own ability.
+ *  - Doctor Assistants have the same access only inside one doctor's workspace: the caller passes the doctor
+ *    selected by the workspace URL (already resolved and checked by the works-for-doctor middleware), the
+ *    assistant must still be assigned to that doctor and the patient must be in that doctor's care. Without a
+ *    doctor context (the shared /medical-documents routes) assistants are refused, so a document id can never
+ *    reach patients of another assigned doctor. Neither doctors nor assistants can upload or delete.
  *  - Admins may list, inspect, download and delete every document.
  *  - Deactivated accounts and guests have no access.
  *
@@ -33,20 +38,20 @@ class MedicalDocumentPolicy
         return $this->isActive($user) && $user->role === 'patient';
     }
 
-    public function view(User $user, MedicalDocument $medicalDocument): bool
+    public function view(User $user, MedicalDocument $medicalDocument, ?DoctorProfile $doctorProfile = null): bool
     {
-        return $this->allows($user, $medicalDocument, DoctorAccess::VIEW_MEDICAL_DOCUMENTS);
+        return $this->allows($user, $medicalDocument, DoctorAccess::VIEW_MEDICAL_DOCUMENTS, $doctorProfile);
     }
 
-    public function download(User $user, MedicalDocument $medicalDocument): bool
+    public function download(User $user, MedicalDocument $medicalDocument, ?DoctorProfile $doctorProfile = null): bool
     {
-        return $this->allows($user, $medicalDocument, DoctorAccess::DOWNLOAD_MEDICAL_DOCUMENTS);
+        return $this->allows($user, $medicalDocument, DoctorAccess::DOWNLOAD_MEDICAL_DOCUMENTS, $doctorProfile);
     }
 
-    public function preview(User $user, MedicalDocument $medicalDocument): bool
+    public function preview(User $user, MedicalDocument $medicalDocument, ?DoctorProfile $doctorProfile = null): bool
     {
         return $medicalDocument->isPreviewableImage()
-            && $this->allows($user, $medicalDocument, DoctorAccess::PREVIEW_MEDICAL_DOCUMENTS);
+            && $this->allows($user, $medicalDocument, DoctorAccess::PREVIEW_MEDICAL_DOCUMENTS, $doctorProfile);
     }
 
     public function delete(User $user, MedicalDocument $medicalDocument): bool
@@ -59,7 +64,10 @@ class MedicalDocumentPolicy
             || ($user->role === 'patient' && $medicalDocument->patient_id === $user->id);
     }
 
-    private function allows(User $user, MedicalDocument $medicalDocument, string $ability): bool
+    /**
+     * The doctor context only narrows access: it is required for assistants and limits a doctor to that profile.
+     */
+    private function allows(User $user, MedicalDocument $medicalDocument, string $ability, ?DoctorProfile $doctorProfile): bool
     {
         if (! $this->isActive($user)) {
             return false;
@@ -68,7 +76,9 @@ class MedicalDocumentPolicy
         return match ($user->role) {
             'admin' => true,
             'patient' => $medicalDocument->patient_id === $user->id,
-            'doctor', User::ROLE_ASSISTANT => $this->access->hasCareRelationship($user, $medicalDocument->patient_id, $ability),
+            'doctor' => $this->access->hasCareRelationship($user, $medicalDocument->patient_id, $ability, $doctorProfile),
+            User::ROLE_ASSISTANT => $doctorProfile !== null
+                && $this->access->hasCareRelationship($user, $medicalDocument->patient_id, $ability, $doctorProfile),
             default => false,
         };
     }

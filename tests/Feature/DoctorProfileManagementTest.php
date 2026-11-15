@@ -162,6 +162,8 @@ class DoctorProfileManagementTest extends TestCase
         $this->actingAs($doctor)->put(route('doctor.profile.update'), $this->profilePayload($doctor->doctorProfile, ['photo' => $this->png()]));
         $profile = $doctor->doctorProfile->fresh();
         Auth::logout();
+        $this->get(route('doctors.photo', $profile))->assertRedirect(route('login'));
+        $this->actingAs(User::factory()->create(['role' => 'patient']));
 
         $this->get(route('doctors.show', $profile))->assertOk()->assertSee(route('doctors.photo', $profile))->assertDontSee($profile->photo_path);
         $this->get(route('doctors.index'))->assertSee(route('doctors.photo', $profile));

@@ -267,16 +267,18 @@ class DoctorAccessAuthorizationTest extends TestCase
         $image = $this->document($patient, 'scan.png', $this->pngBytes());
         $pdf = $this->document($patient, 'report.pdf', "%PDF-1.4\n%%EOF\n");
 
-        foreach ([$this->assistant, $this->doctorA] as $user) {
-            $this->assertSame($granted, $user->can('view', $image));
-            $this->assertSame($granted, $user->can('download', $pdf));
-            $this->assertSame($granted, $user->can('preview', $image));
-            $this->assertFalse($user->can('preview', $pdf), 'PDFs are never previewed.');
+        // Doctors are checked without a context; assistants only ever inside Doctor A's workspace.
+        foreach ([[$this->assistant, $this->profileA], [$this->doctorA, null]] as [$user, $context]) {
+            $this->assertSame($granted, $user->can('view', [$image, $context]));
+            $this->assertSame($granted, $user->can('download', [$pdf, $context]));
+            $this->assertSame($granted, $user->can('preview', [$image, $context]));
+            $this->assertFalse($user->can('preview', [$pdf, $context]), 'PDFs are never previewed.');
             $this->assertFalse($user->can('delete', $image));
         }
+        $this->assertFalse($this->assistant->can('download', $pdf), 'Assistants need a doctor context.');
         $this->assertFalse($this->assistant->can('create', MedicalDocument::class), 'Assistants never upload.');
         $this->assertFalse($this->doctorB->can('view', $image));
-        $this->assertFalse($this->assistant([$this->profileB])->can('view', $image));
+        $this->assertFalse($this->assistant([$this->profileB])->can('view', [$image, $this->profileB]));
         $this->assertTrue($this->assistant->can('viewAny', MedicalDocument::class));
     }
 
@@ -286,12 +288,15 @@ class DoctorAccessAuthorizationTest extends TestCase
         $this->appointment($this->profileA, $patient, 'confirmed');
         $document = $this->document($patient, 'report.pdf', "%PDF-1.4\n%%EOF\n");
 
-        $this->actingAs($this->assistant)->get(route('medical-documents.download', $document))->assertOk();
+        $download = route('assistant.workspace.medical-documents.download', [$this->profileA, $document]);
+
+        $this->actingAs($this->assistant)->get($download)->assertOk();
         $this->assertSame($this->assistant->id, MedicalDocumentEvent::query()->where('action', 'downloaded')->sole()->actor_id);
         $this->actingAs($this->assistant)->delete(route('medical-documents.destroy', $document))->assertForbidden();
         $this->assertModelExists($document);
 
         $this->profileA->assistants()->detach($this->assistant->id);
+        $this->actingAs($this->assistant)->get($download)->assertForbidden();
         $this->actingAs($this->assistant)->get(route('medical-documents.download', $document))->assertForbidden();
         $this->assertSame(1, MedicalDocumentEvent::query()->where('action', 'downloaded')->count());
     }
@@ -323,7 +328,7 @@ class DoctorAccessAuthorizationTest extends TestCase
 
     public function test_a_signed_in_assistant_reaches_only_their_own_dashboard_from_the_home_page(): void
     {
-        $this->actingAs($this->assistant)->get(route('home'))->assertOk()->assertSee('Go to your dashboard')->assertSee(route('assistant.dashboard'), false);
+        $this->actingAs($this->assistant)->get(route('home'))->assertRedirect(route('assistant.dashboard'));
 
         foreach (['patient.dashboard', 'doctor.dashboard', 'admin.dashboard', 'doctor.appointments.index', 'doctor.schedule', 'doctor.medical-records.index'] as $route) {
             $this->actingAs($this->assistant)->get(route($route))->assertForbidden();

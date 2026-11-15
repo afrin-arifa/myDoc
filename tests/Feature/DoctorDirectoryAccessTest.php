@@ -36,24 +36,49 @@ class DoctorDirectoryAccessTest extends TestCase
         $this->withPhoto($this->listedProfile);
     }
 
-    public function test_patients_admins_and_guests_can_browse_search_filter_and_view_profiles(): void
+    public function test_patients_and_admins_can_browse_search_filter_and_view_profiles(): void
     {
         $viewers = [
-            'patient' => User::factory()->create(['role' => 'patient']),
-            'admin' => User::factory()->create(['role' => 'admin']),
-            'guest' => null,
+            'patient' => [User::factory()->create(['role' => 'patient']), 'patient.dashboard'],
+            'admin' => [User::factory()->create(['role' => 'admin']), 'admin.dashboard'],
         ];
 
-        foreach ($viewers as $label => $viewer) {
-            $this->app['auth']->forgetGuards();
-            $as = fn () => $viewer ? $this->actingAs($viewer) : $this;
+        foreach ($viewers as $label => [$viewer, $dashboard]) {
+            $as = fn () => $this->actingAs($viewer);
 
             $as()->get(route('doctors.index'))->assertOk()->assertSee('Dr. Listed Cardiologist');
             $as()->get(route('doctors.index', ['search' => 'Cardio']))->assertOk()->assertSee('Dr. Listed Cardiologist');
             $as()->get(route('doctors.index', ['specialty' => $this->specialty->id, 'filter' => 'fee']))->assertOk()->assertSee('Dr. Listed Cardiologist');
             $as()->get(route('doctors.show', $this->listedProfile))->assertOk()->assertSee('Dr. Listed Cardiologist');
             $as()->get(route('doctors.photo', $this->listedProfile))->assertOk();
-            $as()->get(route('home'))->assertOk()->assertSee('Dr. Listed Cardiologist')->assertSee(route('doctors.index'));
+            $as()->get(route('home'))->assertRedirect(route($dashboard));
+        }
+    }
+
+    public function test_guests_cannot_reach_the_directory_profiles_slots_or_photos(): void
+    {
+        foreach ([
+            route('home'),
+            route('doctors.index'),
+            route('doctors.index', ['specialty' => $this->specialty->id, 'filter' => 'today']),
+            route('doctors.show', $this->listedProfile),
+            route('doctors.photo', $this->listedProfile),
+        ] as $url) {
+            $this->get($url)->assertRedirect(route('login'));
+        }
+
+        $this->getJson(route('doctors.index'))->assertUnauthorized()->assertDontSee('Dr. Listed Cardiologist');
+    }
+
+    public function test_deactivated_patients_and_other_staff_cannot_browse_the_directory(): void
+    {
+        $patient = User::factory()->create(['role' => 'patient', 'deactivated_at' => now()]);
+        $assistant = User::factory()->create();
+        $assistant->forceFill(['role' => User::ROLE_ASSISTANT])->save();
+
+        foreach ([$patient, $assistant] as $user) {
+            $this->actingAs($user)->get(route('doctors.index'))->assertForbidden();
+            $this->actingAs($user)->get(route('doctors.show', $this->listedProfile))->assertForbidden();
         }
     }
 
@@ -87,13 +112,7 @@ class DoctorDirectoryAccessTest extends TestCase
     {
         [$doctor] = $this->doctor('Dr. Viewer');
 
-        $home = $this->actingAs($doctor)->get(route('home'))->assertOk();
-        $home->assertDontSee('Dr. Listed Cardiologist')
-            ->assertDontSee('Cardiology')
-            ->assertDontSee(route('doctors.index'))
-            ->assertSee(route('doctor.dashboard'));
-        $this->assertCount(0, $home->viewData('featuredDoctors'));
-        $this->assertCount(0, $home->viewData('featuredSpecialties'));
+        $this->actingAs($doctor)->get(route('home'))->assertRedirect(route('doctor.dashboard'));
 
         foreach ([route('doctor.dashboard'), route('doctor.appointments.index'), route('doctor.profile')] as $page) {
             $this->actingAs($doctor)->get($page)->assertOk()->assertDontSee(route('doctors.index'));

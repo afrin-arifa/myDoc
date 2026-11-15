@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\MedicalDocument\StoreMedicalDocumentRequest;
 use App\Models\Appointment;
 use App\Models\MedicalDocument;
+use App\Services\DoctorWorkspace;
 use App\Services\MedicalDocumentService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -49,11 +50,12 @@ class MedicalDocumentController extends Controller
     }
 
     /**
-     * Authorized download for patients, doctors in the patient's care and admins.
+     * Authorized download for patients, doctors in the patient's care and admins on the shared route, and for
+     * assistants only through a doctor's workspace route (see MedicalDocumentPolicy).
      */
-    public function download(Request $request, MedicalDocument $document): StreamedResponse|RedirectResponse
+    public function download(Request $request, MedicalDocument $document, DoctorWorkspace $workspace): StreamedResponse|RedirectResponse
     {
-        Gate::authorize('download', $document);
+        Gate::authorize('download', [$document, $workspace->currentDoctorProfile()]);
 
         return $this->documents->download($document, $request->user(), $request->ip())
             ?? back()->withErrors(['document' => 'This document is currently unavailable. Please contact support.']);
@@ -63,9 +65,9 @@ class MedicalDocumentController extends Controller
      * Inline image preview (thumbnails and the preview modal). PDFs and anything that is not a validated image
      * are refused; they are only available through the attachment download.
      */
-    public function preview(MedicalDocument $document): StreamedResponse
+    public function preview(MedicalDocument $document, DoctorWorkspace $workspace): StreamedResponse
     {
-        Gate::authorize('preview', $document);
+        Gate::authorize('preview', [$document, $workspace->currentDoctorProfile()]);
 
         return $this->documents->preview($document) ?? abort(404);
     }

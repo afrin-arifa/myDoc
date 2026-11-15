@@ -1,6 +1,6 @@
 {{--
     Global navigation. Links are defined per role in one place below and rendered by a single loop.
-    Guests see the public, informational links; signed-in users see only the pages their role can open.
+    myDoc has no guest access: guests only see Log in and Register; signed-in users see only their role's pages.
     Each link: label, url, and the route patterns that mark it active.
 --}}
 @php
@@ -8,18 +8,15 @@
     $role = $user?->role;
     $canBrowseDirectory = Illuminate\Support\Facades\Gate::allows('browseDirectory', App\Models\DoctorProfile::class);
     $directoryLink = ['label' => 'Doctors', 'url' => route('doctors.index'), 'active' => ['doctors.*']];
-    $homeLink = ['label' => 'Home', 'url' => route('home'), 'active' => ['home']];
 
     $links = match ($role) {
         'patient' => array_values(array_filter([
-            $homeLink,
             $canBrowseDirectory ? $directoryLink : null,
             ['label' => 'My appointments', 'url' => route('patient.appointments.index'), 'active' => ['patient.appointments.*', 'appointment-slots.*']],
             ['label' => 'Medical records', 'url' => route('patient.documents.index'), 'active' => ['patient.documents.*']],
             ['label' => 'Profile', 'url' => route('patient.profile'), 'active' => ['patient.profile']],
         ])),
         'doctor' => [
-            $homeLink,
             ['label' => 'Appointments', 'url' => route('doctor.appointments.index'), 'active' => ['doctor.appointments.*']],
             ['label' => 'Schedule', 'url' => route('doctor.schedule'), 'active' => ['doctor.schedule']],
             ['label' => 'Patients', 'url' => route('doctor.patients.index'), 'active' => ['doctor.patients.*']],
@@ -27,7 +24,6 @@
             ['label' => 'Profile', 'url' => route('doctor.profile'), 'active' => ['doctor.profile', 'doctor.settings']],
         ],
         App\Models\User::ROLE_ASSISTANT => [
-            $homeLink,
             ['label' => 'My doctors', 'url' => route('assistant.doctors.index'), 'active' => ['assistant.doctors.*', 'assistant.workspace.*']],
             ['label' => 'Account', 'url' => route('assistant.account'), 'active' => ['assistant.account']],
         ],
@@ -37,12 +33,7 @@
             ['label' => 'Appointments', 'url' => route('admin.appointments.index'), 'active' => ['admin.appointments.*']],
             ['label' => 'Medical records', 'url' => route('admin.medical-documents.index'), 'active' => ['admin.medical-documents.*']],
         ],
-        default => array_values(array_filter([
-            $homeLink,
-            $canBrowseDirectory ? $directoryLink : null,
-            ['label' => 'How it works', 'url' => url('/#how-it-works'), 'active' => []],
-            ['label' => 'Why myDoc', 'url' => url('/#features'), 'active' => []],
-        ])),
+        default => [],
     };
 
     $dashboardRoute = App\Http\Controllers\Auth\AuthenticatedSessionController::dashboardRoute($role);
@@ -54,7 +45,7 @@
 
 <nav class="navbar navbar-expand-{{ $breakpoint }} site-navbar bg-white py-3" aria-label="Main navigation">
     <div class="container">
-        <a class="navbar-brand fs-3" href="{{ route('home') }}">my<span class="text-primary">Doc</span></a>
+        <a class="navbar-brand fs-3" href="{{ $user ? route('home') : route('login') }}">my<span class="text-primary">Doc</span></a>
 
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#main-navigation"
             aria-controls="main-navigation" aria-expanded="false" aria-label="Toggle navigation">

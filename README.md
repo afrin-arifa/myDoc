@@ -51,6 +51,12 @@ creates demo accounts for local use only.
 | Doctor Assistant | Admin invitation | `/assistant/...` | Works in the workspace of each doctor they are assigned to (see below); own account and password |
 | Admin | `mydoc:admin` | `/admin/...` | Users, doctors, assistants and assignments, specialties, all appointments and documents, SMS issues |
 
+**There is no guest access.** Without a session only these pages work: log in, patient registration, forgot and
+reset password, and doctor or assistant invitation acceptance (token-checked, expiring, single use). Every other
+URL, including `/`, the doctor directory, doctor profiles, their available slots and doctor photos, redirects to
+the login page. A signed-in user who opens `/` is sent to their role's dashboard, and logging out returns to the
+login page.
+
 Every role area is protected by the `role:` middleware, which also refuses deactivated accounts on every request.
 Navigation only shows each role its own links, but hiding a link is never the access check: routes, policies,
 Form Requests and services authorize every request again.
@@ -59,7 +65,7 @@ Form Requests and services authorize every request again.
 
 1. **Admin → Doctors → Add doctor.** Enter the doctor's name, email, phone and professional details. There is
    no password field: the account is created with a random, unknown password, the `doctor` role is assigned on
-   the server, and the account starts **deactivated** (it cannot sign in and is not listed publicly).
+   the server, and the account starts **deactivated** (it cannot sign in and is not listed in the directory).
 2. An **invitation email** is sent immediately. Its link is valid for **72 hours** and works **once**. Only a
    hash of the token is stored (`doctor_invitation_tokens`, managed by Laravel's password-broker token
    repository); the raw token exists only in the email.
@@ -68,7 +74,8 @@ Form Requests and services authorize every request again.
    queued confirmation email is sent.
 4. The doctor signs in and completes **Profile**: biography, qualifications, specialties, consultation fee and
    photo (JPG, PNG or WebP, up to 2 MB). Photos are stored on the private disk and served through
-   `/doctors/{id}/photo`, which only shows photos of publicly listed doctors to other users.
+   `/doctors/{id}/photo` (signed-in users only), which shows photos of listed doctors only to users who may browse
+   the directory, and otherwise only to the doctor, their assigned assistants and admins.
 
 Account status on the admin doctor pages (searchable and filterable):
 
@@ -136,7 +143,7 @@ doctor reached through a workspace URL is refused (403 or 404).
 | View appointments; book for patients; confirm, reject, reschedule | Start or complete consultations |
 | Cancel booked or confirmed appointments (reason required) | Edit the doctor's profile, account or Google Calendar |
 | Manage availability, generate, block and unblock slots | Upload or delete patient documents |
-| View patients and eligible medical documents; preview and download them | Use doctor, patient or admin pages; change their own role, status or assignments |
+| View patients and eligible medical documents of the selected doctor; preview and download them in that workspace | Use doctor, patient or admin pages; change their own role, status or assignments |
 
 Every action is recorded under the assistant's own user id, never as the doctor. *My account* shows the
 assistant's details and assigned doctors read-only and lets them change their password; name, email, phone and
@@ -185,7 +192,8 @@ Each doctor has a private workspace:
 - Doctors can **block** a free future slot and **unblock** it from the schedule calendar. Slots with a booked or
   confirmed appointment, past slots and other doctors' slots cannot be changed. Blocked slots cannot be booked,
   are kept by slot generation, and are shown on the calendar with their own filter.
-- The public directory shows only public professional information of active, accepting doctors.
+- The doctor directory (signed-in, active patients and admins only) shows the professional information of active,
+  accepting doctors.
 - Administrators have platform-wide access.
 
 ## Medical records
@@ -196,6 +204,11 @@ Each doctor has a private workspace:
 - **Doctors** see and download (never upload or delete) documents of patients who have at least one **booked,
   confirmed or completed** appointment with them. A cancelled or rejected booking alone does not grant access, and
   a document's appointment link never grants access by itself. Links to another doctor's appointment are hidden.
+- **Doctor Assistants** have the same read-only access, but only **inside one doctor's workspace**: they preview
+  and download through `/assistant/doctors/{doctor}/medical-documents/{document}/download|preview`, and the patient
+  must be in the care of *that* doctor. The doctor comes only from the URL path, and the assignment and both accounts
+  are re-checked on every request. The shared `/medical-documents/...` routes refuse assistants, so changing a
+  document id cannot reach patients of another assigned doctor. Downloads are audited under the assistant's own id.
 - **Administrators** can search, filter, inspect, download and delete every document; each document's detail page
   shows its activity (uploads, downloads, deletions) from `medical_document_events`.
 

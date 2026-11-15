@@ -17,6 +17,7 @@ class DeactivatedDoctorVisibilityTest extends TestCase
     {
         $active = $this->doctor('Dr. Active Visible');
         $deactivated = $this->doctor('Dr. Gone Hidden', deactivated: true);
+        $this->actingAs(User::factory()->create(['role' => 'patient']));
 
         foreach (['all', 'fee', 'experience'] as $filter) {
             $this->get(route('doctors.index', ['filter' => $filter]))
@@ -24,11 +25,6 @@ class DeactivatedDoctorVisibilityTest extends TestCase
                 ->assertSee('Dr. Active Visible')
                 ->assertDontSee('Dr. Gone Hidden');
         }
-
-        $this->get(route('home'))
-            ->assertOk()
-            ->assertSee('Dr. Active Visible')
-            ->assertDontSee('Dr. Gone Hidden');
 
         $this->get(route('doctors.show', $active->doctorProfile))->assertOk();
         $this->get(route('doctors.show', $deactivated->doctorProfile))->assertNotFound();

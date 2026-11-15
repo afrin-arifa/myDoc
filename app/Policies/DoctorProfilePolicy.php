@@ -80,17 +80,17 @@ class DoctorProfilePolicy
     }
 
     /**
-     * The doctor directory and public doctor profiles are for guests, patients and administrators. Doctors work
-     * only in their own workspace and cannot browse other doctors.
+     * The doctor directory and doctor profiles are for signed-in, active patients and administrators. There is no
+     * guest access. Doctors work only in their own workspace and cannot browse other doctors.
      */
     public function browseDirectory(?User $user): bool
     {
-        return $user === null || in_array($user->role, ['patient', 'admin'], true);
+        return $user !== null && $user->deactivated_at === null && in_array($user->role, ['patient', 'admin'], true);
     }
 
     /**
-     * Doctors may load only their own photo; everyone allowed to browse the directory may load photos of listed
-     * doctors; the owner and administrators may always load it. A Doctor Assistant may load (read only) the photo
+     * Guests never see photos. Doctors may load only their own photo; everyone allowed to browse the directory may
+     * load photos of listed doctors; the owner and administrators may always load it. A Doctor Assistant may load (read only) the photo
      * of an active doctor they are currently assigned to; unassignment revokes this on the next request.
      */
     public function viewPhoto(?User $user, DoctorProfile $doctorProfile): bool

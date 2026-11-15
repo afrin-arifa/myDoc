@@ -299,8 +299,9 @@ class DoctorContextRefactorTest extends TestCase
         $document = $this->document($inCare);
         $foreign = $this->document($notInCare);
 
-        $this->actingAs($this->assistant)->get(route('medical-documents.download', $document))->assertOk();
-        $this->actingAs($this->assistant)->get(route('medical-documents.download', $foreign))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileB, $document]))->assertOk();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileB, $foreign]))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileC, $foreign]))->assertForbidden();
         $this->actingAs($this->assistant)->delete(route('medical-documents.destroy', $document))->assertForbidden();
         $this->actingAs($this->assistant)->post(route('patient.documents.store'), ['category' => 'other', 'document' => UploadedFile::fake()->createWithContent('x.pdf', "%PDF-1.4\n%%EOF\n")])->assertForbidden();
 

@@ -93,7 +93,8 @@ class AuthenticationTest extends TestCase
 
         $this->actingAs($user)
             ->post(route('logout'))
-            ->assertRedirect(route('home'));
+            ->assertRedirect(route('login'))
+            ->assertSessionHas('status', 'You have been logged out.');
 
         $this->assertGuest();
     }

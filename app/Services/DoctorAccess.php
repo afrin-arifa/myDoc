@@ -165,10 +165,15 @@ class DoctorAccess
      * Whether the patient is in the care of a doctor the user may act for with the given medical document ability:
      * the patient has a booked, confirmed or completed appointment with that doctor. Cancelled or rejected
      * appointments alone never grant access, and the document's own appointment link is irrelevant.
+     *
+     * When a doctor context is given, only that doctor counts: the user must currently be able to act for them with
+     * the ability (assignment and both accounts active, checked now) and the patient must be in that doctor's care.
      */
-    public function hasCareRelationship(User $user, int $patientId, string $ability = self::VIEW_MEDICAL_DOCUMENTS): bool
+    public function hasCareRelationship(User $user, int $patientId, string $ability = self::VIEW_MEDICAL_DOCUMENTS, ?DoctorProfile $doctorProfile = null): bool
     {
-        $profileIds = $this->profileIdsFor($user, $ability);
+        $profileIds = $doctorProfile === null
+            ? $this->profileIdsFor($user, $ability)
+            : ($this->canActFor($user, $doctorProfile, $ability) ? [$doctorProfile->id] : []);
 
         return $profileIds !== [] && Appointment::query()
             ->where('patient_id', $patientId)

@@ -32,11 +32,18 @@ use App\Http\Controllers\MedicalDocumentController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', [HomeController::class, 'index'])->name('home');
+// myDoc has no guest access: apart from the sign-in, registration, password recovery and invitation routes below,
+// every page requires an authenticated session. The root URL only sends signed-in users to their dashboard.
+Route::get('/', [HomeController::class, 'index'])->middleware('auth')->name('home');
 
-Route::get('/doctors', [DoctorDirectoryController::class, 'index'])->name('doctors.index');
-Route::get('/doctors/{doctor}', [DoctorDirectoryController::class, 'show'])->name('doctors.show');
-Route::get('/doctors/{doctor}/photo', [DoctorPhotoController::class, 'show'])->name('doctors.photo');
+// The doctor directory and profiles (with their bookable slots) are for active patients and admins only.
+Route::middleware(['auth', 'role:patient,admin'])->group(function () {
+    Route::get('/doctors', [DoctorDirectoryController::class, 'index'])->name('doctors.index');
+    Route::get('/doctors/{doctor}', [DoctorDirectoryController::class, 'show'])->name('doctors.show');
+});
+
+// Photos are shown inside every role's pages; DoctorProfilePolicy::viewPhoto decides per photo.
+Route::get('/doctors/{doctor}/photo', [DoctorPhotoController::class, 'show'])->middleware('auth')->name('doctors.photo');
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -62,7 +69,7 @@ Route::middleware('guest')->group(function () {
     Route::get('/doctor/invitation-accepted', [DoctorInvitationController::class, 'activated'])
         ->name('doctor.invitation.activated');
 
-    // Doctor Assistant invitations (password setup only; assistant sign-in is not available yet).
+    // Doctor Assistant invitations (password setup; the assistant then signs in normally).
     Route::get('/assistant/invitation/{token}', [AssistantInvitationController::class, 'show'])
         ->middleware('throttle:assistant-invitations')
         ->name('assistant.invitation.show');
@@ -80,8 +87,9 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
 Route::middleware('auth')->put('/profile/password', [ProfileController::class, 'updatePassword'])
     ->name('profile.password.update');
 
-// Medical documents: one download and one delete route for every role, authorized per document by
-// MedicalDocumentPolicy (patients: own documents; doctors: patients in their care; admins: all).
+// Medical documents: shared download, preview and delete routes, authorized per document by MedicalDocumentPolicy
+// (patients: own documents; doctors: patients in their care; admins: all). Assistants are refused here: they use
+// the download and preview routes inside a doctor's workspace below, which carry the doctor context.
 Route::middleware('auth')->group(function () {
     Route::get('/medical-documents/{document}/download', [MedicalDocumentController::class, 'download'])
         ->middleware('throttle:60,1')
@@ -197,6 +205,12 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
         Route::post('/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('slots.block');
         Route::delete('/slots/{slot}/block', [DoctorSlotController::class, 'unblock'])->name('slots.unblock');
         Route::get('/medical-records', [DoctorMedicalRecordController::class, 'index'])->name('medical-records.index');
+        Route::get('/medical-documents/{document}/download', [MedicalDocumentController::class, 'download'])
+            ->middleware('throttle:60,1')
+            ->name('medical-documents.download');
+        Route::get('/medical-documents/{document}/preview', [MedicalDocumentController::class, 'preview'])
+            ->middleware('throttle:120,1')
+            ->name('medical-documents.preview');
     });
 });
 

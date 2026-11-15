@@ -33,13 +33,9 @@
                         @forelse ($doctor->appointmentSlots as $slot)
                             <div class="border-bottom py-3 d-flex justify-content-between align-items-center gap-3">
                                 <span>{{ $slot->starts_at->format('D, M j, Y g:i A') }}</span>
-                                @auth
-                                    @if (auth()->user()->role === 'patient')
-                                        <a class="btn btn-sm btn-primary" href="{{ route('appointment-slots.confirm', $slot) }}">Book</a>
-                                    @endif
-                                @else
-                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('login', ['redirect' => route('appointment-slots.confirm', $slot, false)]) }}">Log in to book</a>
-                                @endauth
+                                @if (auth()->user()->role === 'patient')
+                                    <a class="btn btn-sm btn-primary" href="{{ route('appointment-slots.confirm', $slot) }}">Book</a>
+                                @endif
                             </div>
                         @empty
                             <p class="text-secondary mb-0">No future slots are currently available.</p>

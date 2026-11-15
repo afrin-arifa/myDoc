@@ -15,7 +15,7 @@ class AppointmentBookingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_can_browse_accepting_doctors_and_future_slots(): void
+    public function test_patients_can_browse_accepting_doctors_and_future_slots(): void
     {
         $doctor = $this->doctorWithProfile();
         $specialty = Specialty::create([
@@ -32,13 +32,15 @@ class AppointmentBookingTest extends TestCase
             'status' => 'available',
         ]);
 
-        $this->get(route('doctors.index', [
+        $patient = User::factory()->create(['role' => 'patient']);
+
+        $this->actingAs($patient)->get(route('doctors.index', [
             'specialty' => $specialty->id,
         ]))
             ->assertOk()
             ->assertSee($doctor->name);
 
-        $this->get(route('doctors.show', $doctor->doctorProfile))
+        $this->actingAs($patient)->get(route('doctors.show', $doctor->doctorProfile))
             ->assertOk()
             ->assertSee(
                 $doctor->doctorProfile->appointmentSlots
@@ -47,9 +49,7 @@ class AppointmentBookingTest extends TestCase
                     ->format('M j')
             );
 
-        $this->get(route('home'))
-            ->assertOk()
-            ->assertSee($doctor->name);
+        $this->actingAs($patient)->get(route('home'))->assertRedirect(route('patient.dashboard'));
     }
 
     public function test_booking_rechecks_that_the_doctor_accepts_patients(): void

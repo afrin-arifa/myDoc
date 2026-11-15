@@ -12,21 +12,19 @@ class NavigationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_guests_see_the_informational_links_and_sign_in_options(): void
+    public function test_guests_only_see_sign_in_and_registration(): void
     {
-        $response = $this->get(route('home'))->assertOk();
+        $this->get(route('home'))->assertRedirect(route('login'));
+        $response = $this->get(route('login'))->assertOk();
 
         $this->assertSame([
-            'Home' => route('home'),
-            'Doctors' => route('doctors.index'),
-            'How it works' => url('/#how-it-works'),
-            'Why myDoc' => url('/#features'),
             'Log in' => route('login'),
             'Register' => route('register'),
         ], $this->navLinks($response));
-        $this->assertSame(['Home'], $this->activeLinks($response));
-        $response->assertSee('id="how-it-works"', false)->assertSee('id="features"', false);
-        $response->assertSee('navbar-expand-lg', false);
+        $this->assertSame(['Log in'], $this->activeLinks($response));
+        $response->assertSee('class="navbar-brand fs-3" href="'.route('login').'"', false)
+            ->assertDontSee('How it works')->assertDontSee('Why myDoc')->assertDontSee(route('doctors.index'), false)
+            ->assertSee('navbar-expand-lg', false);
     }
 
     public function test_patients_see_their_own_pages_without_informational_links(): void
@@ -36,7 +34,6 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($patient)->get(route('patient.documents.index'))->assertOk();
 
         $this->assertSame([
-            'Home' => route('home'),
             'Doctors' => route('doctors.index'),
             'My appointments' => route('patient.appointments.index'),
             'Medical records' => route('patient.documents.index'),
@@ -56,7 +53,6 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($doctor)->get(route('doctor.medical-records.index'))->assertOk();
 
         $this->assertSame([
-            'Home' => route('home'),
             'Appointments' => route('doctor.appointments.index'),
             'Schedule' => route('doctor.schedule'),
             'Patients' => route('doctor.patients.index'),
@@ -98,7 +94,6 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($assistant)->get(route('assistant.account'))->assertOk();
 
         $this->assertSame([
-            'Home' => route('home'),
             'My doctors' => route('assistant.doctors.index'),
             'Account' => route('assistant.account'),
             'Dashboard' => route('assistant.dashboard'),
@@ -127,15 +122,25 @@ class NavigationTest extends TestCase
         }
     }
 
-    public function test_the_how_it_works_and_why_mydoc_sections_still_exist_for_signed_in_users(): void
+    public function test_the_root_url_sends_each_signed_in_role_to_its_dashboard_without_a_marketing_page(): void
     {
-        $patient = User::factory()->create(['role' => 'patient']);
+        $doctor = User::factory()->create(['role' => 'doctor']);
+        DoctorProfile::create(['user_id' => $doctor->id, 'professional_title' => 'GP', 'license_number' => 'LIC-'.$doctor->id, 'consultation_fee' => 10]);
+        $assistant = User::factory()->create();
+        $assistant->forceFill(['role' => User::ROLE_ASSISTANT])->save();
 
-        $this->actingAs($patient)->get(route('home'))->assertOk()
-            ->assertSee('id="how-it-works"', false)
-            ->assertSee('id="features"', false)
-            ->assertDontSee('>How it works</a>', false)
-            ->assertDontSee('>Why myDoc</a>', false);
+        foreach ([
+            'patient.dashboard' => User::factory()->create(['role' => 'patient']),
+            'doctor.dashboard' => $doctor,
+            'assistant.dashboard' => $assistant,
+            'admin.dashboard' => User::factory()->create(['role' => 'admin']),
+        ] as $dashboard => $user) {
+            $this->flushSession();
+            $this->actingAs($user)->get('/')->assertRedirect(route($dashboard));
+            $this->actingAs($user)->get(route('login'))->assertRedirect(route('home'));
+            $this->actingAs($user)->get(route($dashboard))->assertOk()
+                ->assertDontSee('id="how-it-works"', false)->assertDontSee('>Home</a>', false);
+        }
     }
 
     /**

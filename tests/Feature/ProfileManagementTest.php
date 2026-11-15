@@ -118,7 +118,7 @@ class ProfileManagementTest extends TestCase
         $patient = User::factory()->create(['role' => 'patient']);
 
         $this->actingAs($patient)->delete(route('patient.account.deactivate'))
-            ->assertRedirect(route('home'));
+            ->assertRedirect(route('login'));
 
         $this->assertNotNull($patient->fresh()->deactivated_at);
         $this->actingAs($patient)->get(route('patient.dashboard'))->assertForbidden();

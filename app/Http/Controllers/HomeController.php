@@ -2,39 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DoctorProfile;
-use App\Models\Specialty;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\View\View;
+use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 
+/**
+ * The root URL. myDoc has no public homepage: guests are sent to the login page by the auth middleware, and a
+ * signed-in user is sent to their role's dashboard (the same mapping used after login).
+ */
 class HomeController extends Controller
 {
-    public function index(): View
+    public function index(Request $request): RedirectResponse
     {
-        // Doctors cannot browse other doctors, so the directory sections are neither queried nor shown for them.
-        if (Gate::denies('browseDirectory', DoctorProfile::class)) {
-            return view('home', [
-                'canBrowseDoctors' => false,
-                'featuredDoctors' => collect(),
-                'featuredSpecialties' => collect(),
-            ]);
-        }
+        $dashboard = AuthenticatedSessionController::dashboardRoute($request->user()->role);
 
-        return view('home', [
-            'canBrowseDoctors' => true,
-            'featuredDoctors' => DoctorProfile::query()
-                ->publiclyListed()
-                ->with(['user:id,name', 'specialties:id,name'])
-                ->orderByDesc('years_of_experience')
-                ->orderBy('id')
-                ->limit(4)
-                ->get(),
-            'featuredSpecialties' => Specialty::query()
-                ->where('is_active', true)
-                ->withCount(['doctorProfiles' => fn ($doctors) => $doctors->publiclyListed()])
-                ->orderBy('name')
-                ->limit(6)
-                ->get(),
-        ]);
+        abort_if($dashboard === null, 403);
+
+        return redirect()->route($dashboard);
     }
 }

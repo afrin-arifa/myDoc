@@ -3,13 +3,15 @@
     viewer="patient" (default): the owner's view, with the linked doctor and a Delete action.
     viewer="doctor": a treating doctor's (or their assistant's) view, showing whose document it is, linking the
     appointment to its page in the current workspace, and offering Download only (staff never delete patient documents).
-    Images load through the authorized preview route; nothing links to storage.
+    Images load through the authorized preview route; nothing links to storage. Download and preview use the current
+    workspace's routes, so in an assistant workspace they carry the selected doctor.
 --}}
 @props(['document', 'viewer' => 'patient'])
 
 @php
     $name = $document->title ?: $document->original_name;
-    $downloadUrl = route('medical-documents.download', $document);
+    $downloadUrl = $workspace->url('medical-documents.download', $document);
+    $previewUrl = $workspace->url('medical-documents.preview', $document);
     $isDoctorView = $viewer === 'doctor';
 @endphp
 
@@ -17,9 +19,9 @@
     <div class="document-card__media">
         @if ($document->isPreviewableImage())
             <button class="document-card__preview" type="button" data-bs-toggle="modal" data-bs-target="#document-preview"
-                data-preview-src="{{ route('medical-documents.preview', $document) }}" data-preview-title="{{ $name }}"
+                data-preview-src="{{ $previewUrl }}" data-preview-title="{{ $name }}"
                 data-preview-download="{{ $downloadUrl }}" aria-label="Preview {{ $name }}">
-                <img class="document-card__image" src="{{ route('medical-documents.preview', $document) }}" alt="Preview of {{ $name }}"
+                <img class="document-card__image" src="{{ $previewUrl }}" alt="Preview of {{ $name }}"
                     loading="lazy" decoding="async" data-preview-thumbnail>
                 <span class="document-card__placeholder" data-preview-fallback hidden>
                     <i class="fa-regular fa-image" aria-hidden="true"></i>

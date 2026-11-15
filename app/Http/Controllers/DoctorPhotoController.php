@@ -11,8 +11,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class DoctorPhotoController extends Controller
 {
     /**
-     * Stream a doctor's photo from the private disk. Photos of publicly listed doctors are public; otherwise only
-     * the doctor and administrators may see them. Anyone else gets a 404 so hidden profiles are not revealed.
+     * Stream a doctor's photo from the private disk. Only signed-in users reach this route; photos of listed doctors
+     * are visible to users who may browse the directory, otherwise only to the doctor, their assistants and admins. Anyone else gets a 404 so hidden profiles are not revealed.
      */
     public function show(DoctorProfile $doctor): StreamedResponse
     {
@@ -29,7 +29,7 @@ class DoctorPhotoController extends Controller
             'Content-Type' => $disk->mimeType($doctor->photo_path),
             'X-Content-Type-Options' => 'nosniff',
             'Content-Security-Policy' => "default-src 'none'",
-            'Cache-Control' => $doctor->isPubliclyListed() ? 'public, max-age=86400' : 'private, no-store',
+            'Cache-Control' => $doctor->isPubliclyListed() ? 'private, max-age=86400' : 'private, no-store',
         ], 'inline');
     }
 }

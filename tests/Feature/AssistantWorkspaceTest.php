@@ -282,13 +282,17 @@ class AssistantWorkspaceTest extends TestCase
 
         $records = $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-records.index', $this->profileA))->assertOk();
         $records->assertSee('alpha-report.pdf')->assertDontSee('beta-report.pdf')->assertDontSee('gamma-report.pdf')->assertDontSee('cancelled-report.pdf')
-            ->assertDontSee('btn-outline-danger', false)->assertSee(route('medical-documents.download', $docA), false);
+            ->assertDontSee('btn-outline-danger', false)->assertSee(route('assistant.workspace.medical-documents.download', [$this->profileA, $docA]), false)
+            ->assertDontSee(route('medical-documents.download', $docA).'"', false);
         $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-records.index', $this->profileB))->assertOk()->assertSee('beta-report.pdf');
         $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-records.index', $this->profileC))->assertForbidden();
 
-        $this->actingAs($this->assistant)->get(route('medical-documents.download', $docA))->assertOk();
-        $this->actingAs($this->assistant)->get(route('medical-documents.download', $docC))->assertForbidden();
-        $this->actingAs($this->assistant)->get(route('medical-documents.download', $docCancelled))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileA, $docA]))->assertOk();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileA, $docB]))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileA, $docC]))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileC, $docC]))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.medical-documents.download', [$this->profileA, $docCancelled]))->assertForbidden();
+        $this->actingAs($this->assistant)->get(route('medical-documents.download', $docA))->assertForbidden();
         $this->actingAs($this->assistant)->delete(route('medical-documents.destroy', $docA))->assertForbidden();
         $this->actingAs($this->assistant)->post(route('patient.documents.store'), ['category' => 'other', 'document' => UploadedFile::fake()->createWithContent('x.pdf', "%PDF-1.4\n%%EOF\n")])->assertForbidden();
 
