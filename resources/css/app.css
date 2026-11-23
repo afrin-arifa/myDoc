@@ -507,6 +507,11 @@ main {
     border-color: #6b7280;
     color: #374151;
 }
+.doctor-calendar-event--held {
+    background: #f1ecff;
+    border-color: #8b5cf6;
+    color: #5b21b6;
+}
 .doctor-calendar-event--cancelled,
 .doctor-calendar-event--rejected {
     background: #fde8e8;
@@ -1365,15 +1370,160 @@ main {
     }
 }
 
-.filter-chip-select {
-    min-width: 10.5rem;
+.directory-controls {
+    align-items: flex-end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem 1.5rem;
+    justify-content: space-between;
 }
 
-.filter-chip-select .form-select {
+.directory-refine {
+    align-items: flex-end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.directory-refine__field {
+    min-width: 11rem;
+}
+
+.directory-refine .form-select {
     border-color: #d4e1e7;
     border-radius: 999px;
     min-height: 2.5rem;
     padding-inline: 1rem 2rem;
+}
+
+.directory-refine .btn {
+    border-radius: 999px;
+    min-height: 2.5rem;
+}
+
+/* Doctor profile: date strip and time grid (server-rendered; each day is a link with ?date=). */
+.availability-days__list {
+    display: flex;
+    gap: 0.5rem;
+    list-style: none;
+    margin: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    padding: 0.25rem 0.125rem 0.5rem;
+    scroll-snap-type: x proximity;
+}
+
+.availability-day {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #d4e1e7;
+    border-radius: 0.75rem;
+    color: var(--mydoc-ink);
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    min-width: 4.25rem;
+    padding: 0.5rem 0.4rem;
+    scroll-snap-align: start;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+        border-color: var(--mydoc-primary);
+        color: var(--mydoc-primary-dark);
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--mydoc-primary);
+        outline-offset: 2px;
+    }
+
+    &.is-selected {
+        background: var(--mydoc-primary);
+        border-color: var(--mydoc-primary);
+        color: #fff;
+    }
+
+    &.is-empty:not(.is-selected) {
+        background: #f6f8f9;
+        color: var(--mydoc-muted);
+    }
+}
+
+.availability-day__weekday {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.availability-day__date {
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.availability-day__count {
+    font-size: 0.75rem;
+}
+
+.slot-grid {
+    display: grid;
+    gap: 0.5rem;
+    grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.slot-time {
+    align-items: center;
+    background: #fff;
+    border: 1px solid var(--mydoc-primary);
+    border-radius: 0.6rem;
+    color: var(--mydoc-primary-dark);
+    display: flex;
+    flex-direction: column;
+    font-weight: 600;
+    height: 100%;
+    justify-content: center;
+    min-height: 2.75rem;
+    padding: 0.5rem;
+    text-align: center;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+        background: var(--mydoc-primary);
+        color: #fff;
+    }
+
+    &:focus-visible {
+        outline: 2px solid var(--mydoc-primary-dark);
+        outline-offset: 2px;
+    }
+
+    small {
+        font-size: 0.7rem;
+        font-weight: 500;
+        line-height: 1.2;
+    }
+
+    &.is-disabled {
+        background: #f6f8f9;
+        border-color: #d4e1e7;
+        color: var(--mydoc-muted);
+        cursor: not-allowed;
+    }
+
+    &.slot-time--static {
+        border-color: #d4e1e7;
+        color: var(--mydoc-ink);
+    }
+}
+
+.availability-empty {
+    background: var(--mydoc-surface);
+    border-radius: 0.75rem;
+    padding: 1rem;
 }
 
 .doctor-card {
@@ -1411,27 +1561,6 @@ main {
         height: 100%;
         object-fit: cover;
         width: 100%;
-    }
-}
-
-.doctor-card__availability {
-    align-items: center;
-    background: rgba(255, 255, 255, 0.94);
-    border-radius: 999px;
-    bottom: 0.75rem;
-    display: inline-flex;
-    font-size: 0.72rem;
-    font-weight: 600;
-    gap: 0.35rem;
-    left: 0.75rem;
-    padding: 0.35rem 0.55rem;
-    position: absolute;
-
-    span {
-        background: #1f9d5c;
-        border-radius: 50%;
-        height: 0.45rem;
-        width: 0.45rem;
     }
 }
 
@@ -1497,27 +1626,25 @@ main {
         min-width: 2.25rem;
     }
 
-    .filter-chips {
+    .directory-controls,
+    .directory-refine {
         align-items: stretch;
         flex-direction: column;
     }
 
-    .filter-chip,
-    .filter-chip-select,
-    .filter-chips form {
-        width: 100%;
-    }
-
     .filter-chip {
+        flex: 1 1 0;
         justify-content: center;
     }
 
-    .filter-chip-select .form-select {
+    .directory-refine__field,
+    .directory-refine .form-select,
+    .directory-refine .btn {
         width: 100%;
     }
 
-    .filter-chips form .btn {
-        width: 100%;
+    .slot-grid {
+        grid-template-columns: repeat(auto-fill, minmax(5.75rem, 1fr));
     }
 }
 

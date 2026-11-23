@@ -24,6 +24,12 @@
                 </div>
             @endif
 
+            @if (session('warning'))
+                <div class="container pt-4">
+                    <x-ui.alert type="warning" role="alert" class="mb-0">{{ session('warning') }}</x-ui.alert>
+                </div>
+            @endif
+
             @if ($errors->any())
                 <div class="container pt-4">
                     <x-ui.alert type="danger" role="alert" class="mb-0">

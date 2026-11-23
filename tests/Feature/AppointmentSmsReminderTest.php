@@ -6,9 +6,11 @@ use App\Jobs\SendAppointmentNotification;
 use App\Models\Appointment;
 use App\Models\AppointmentNotification;
 use App\Models\User;
+use App\Services\AppointmentNotificationService;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Tests\Concerns\InteractsWithAppointmentSms;
 use Tests\TestCase;
 
@@ -56,16 +58,59 @@ class AppointmentSmsReminderTest extends TestCase
         $this->assertSame(0, AppointmentNotification::query()->where('channel', 'email')->count(), 'Reminders are SMS only.');
     }
 
-    public function test_only_booked_or_confirmed_appointments_get_reminders(): void
+    public function test_only_confirmed_appointments_get_reminders(): void
     {
-        foreach (['booked', 'confirmed', 'cancelled', 'rejected', 'completed'] as $offset => $status) {
+        foreach (['booked', 'confirmed', 'cancelled', 'rejected', 'completed', 'expired'] as $offset => $status) {
             $this->bookedEarly(now()->addHours(2)->subMinutes(5 + $offset), $status);
         }
 
         $this->runReminders();
 
-        $this->assertSame(['booked', 'confirmed'], $this->smsLedger('reminder')->map(fn ($row) => $row->appointment->status)->all());
-        $this->assertCount(2, $this->sms->sent);
+        $this->assertSame(['confirmed'], $this->smsLedger('reminder')->map(fn ($row) => $row->appointment->status)->all(), 'Pending requests are never reminded.');
+        $this->assertCount(1, $this->sms->sent);
+    }
+
+    public function test_a_reminder_queued_for_a_pending_request_before_this_rule_is_not_sent(): void
+    {
+        // A reminder row recorded for a still-pending request (as the earlier rules allowed) waits in the queue.
+        $appointment = $this->bookedEarly(now()->addHours(2)->subMinutes(10), 'booked');
+        $this->holdJobs();
+        DB::transaction(fn () => app(AppointmentNotificationService::class)->recordReminder($appointment, 2));
+
+        $this->deliverHeld();
+
+        $this->assertSame([], $this->sms->sent);
+        $this->assertSame('skipped', $this->smsLedger('reminder')->sole()->status);
+    }
+
+    public function test_a_request_confirmed_inside_the_catch_up_window_is_reminded_once(): void
+    {
+        $appointment = $this->bookedEarly(now()->addHours(2)->subMinutes(5), 'booked');
+
+        $this->runReminders();
+        $this->assertCount(0, $this->smsLedger('reminder'), 'Still pending: no reminder yet.');
+
+        $this->actingAs($this->doctor)->post(route('doctor.appointments.confirm', $appointment))->assertRedirect();
+        $this->travel(5)->minutes();
+        $this->runReminders();
+        $this->runReminders();
+
+        $reminders = $this->smsLedger('reminder');
+        $this->assertCount(1, $reminders);
+        $this->assertSame([2, 'sent'], [$reminders->first()->context['reminder_hours'], $reminders->first()->status]);
+    }
+
+    public function test_a_reminder_still_queued_when_the_appointment_starts_is_not_sent(): void
+    {
+        $appointment = $this->bookedEarly(now()->addHours(2)->subMinutes(10));
+
+        $this->holdJobs();
+        $this->runReminders();
+        $this->travelTo($appointment->slot->starts_at->copy()->addMinute());
+        $this->deliverHeld();
+
+        $this->assertSame([], $this->sms->sent);
+        $this->assertSame('skipped', $this->smsLedger('reminder')->sole()->status);
     }
 
     public function test_a_reminder_queued_before_a_cancellation_is_not_sent(): void
@@ -121,7 +166,7 @@ class AppointmentSmsReminderTest extends TestCase
     public function test_late_bookings_skip_reminders_that_were_already_due(): void
     {
         // Booked only three hours before the appointment starts.
-        $appointment = $this->smsAppointment($this->doctor, $this->patient, now()->addHours(30));
+        $appointment = $this->smsAppointment($this->doctor, $this->patient, now()->addHours(30), 'confirmed');
         $appointment->forceFill(['created_at' => $appointment->slot->starts_at->copy()->subHours(3)])->save();
 
         $this->travelTo($appointment->slot->starts_at->copy()->subHours(24)->addMinutes(5));
@@ -181,7 +226,7 @@ class AppointmentSmsReminderTest extends TestCase
         $this->assertCount(1, collect(app(Schedule::class)->events())->filter(fn ($event) => str_contains($event->command, 'mydoc:requeue-pending-notifications')));
     }
 
-    private function bookedEarly(\DateTimeInterface $startsAt, string $status = 'booked', ?User $patient = null): Appointment
+    private function bookedEarly(\DateTimeInterface $startsAt, string $status = 'confirmed', ?User $patient = null): Appointment
     {
         $appointment = $this->smsAppointment($this->doctor, $patient ?? $this->patient, $startsAt, $status);
         $appointment->forceFill(['created_at' => now()->subDays(3)])->save();

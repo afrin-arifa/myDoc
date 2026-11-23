@@ -29,6 +29,7 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Tests\Concerns\CreatesDoctorLocations;
 use Tests\TestCase;
 
 /**
@@ -37,7 +38,7 @@ use Tests\TestCase;
  */
 class DoctorContextRefactorTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesDoctorLocations, RefreshDatabase;
 
     private User $doctorA;
 
@@ -222,7 +223,7 @@ class DoctorContextRefactorTest extends TestCase
         $this->actingAs($this->doctorA)->get(route('doctor.schedule'))->assertOk();
         $this->actingAs($this->doctorA)->get(route('doctor.patients.index'))->assertOk();
         $this->actingAs($this->doctorA)->get(route('doctor.medical-records.index'))->assertOk();
-        $this->actingAs($this->doctorA)->post(route('doctor.availability.store'), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00'])->assertSessionHasNoErrors();
+        $this->actingAs($this->doctorA)->post(route('doctor.availability.store'), ['doctor_location_id' => $this->locationFor($this->profileA)->id, 'day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00'])->assertSessionHasNoErrors();
 
         $this->assertSame('confirmed', $booked->fresh()->status);
         $this->assertSame('available', $slot->fresh()->status);

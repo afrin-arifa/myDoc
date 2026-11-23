@@ -2,10 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\SendAppointmentNotification;
 use App\Models\Appointment;
 use App\Models\AppointmentNotification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Tests\Concerns\InteractsWithAppointmentSms;
 use Tests\TestCase;
 
@@ -30,7 +32,7 @@ class AdminSmsIssuesTest extends TestCase
 
     public function test_only_active_admins_can_open_the_page(): void
     {
-        $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk()->assertSee('SMS delivery issues');
+        $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk()->assertSee('Notification delivery issues');
 
         $this->actingAs($this->appointment->patient)->get(route('admin.sms-issues.index'))->assertForbidden();
         $this->actingAs($this->appointment->slot->doctorProfile->user)->get(route('admin.sms-issues.index'))->assertForbidden();
@@ -56,11 +58,13 @@ class AdminSmsIssuesTest extends TestCase
         foreach (['sent', 'skipped', 'pending', 'sending'] as $status) {
             $this->issue($status, ['last_error' => "Not an issue: {$status}"]);
         }
-        $this->issue('failed', ['channel' => 'email', 'last_error' => 'Email delivery failed.']);
+        $failedEmail = $this->issue('failed', ['channel' => 'email', 'type' => 'expired', 'last_error' => 'Email delivery failed.']);
+        $exhaustedEmail = $this->issue('exhausted', ['channel' => 'email', 'type' => 'staff_cancelled', 'last_error' => 'Email delivery failed.']);
+        $this->issue('sent', ['channel' => 'email', 'last_error' => 'Not an issue: sent email']);
 
         $page = $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk();
 
-        $page->assertViewHas('issues', fn ($issues) => $issues->pluck('id')->sort()->values()->all() === collect([$unconfirmed->id, $failed->id, $undelivered->id])->sort()->values()->all());
+        $page->assertViewHas('issues', fn ($issues) => $issues->pluck('id')->sort()->values()->all() === collect([$unconfirmed->id, $failed->id, $undelivered->id, $failedEmail->id, $exhaustedEmail->id])->sort()->values()->all());
         $page->assertSee('#'.$unconfirmed->id)
             ->assertSee($this->appointment->reference())
             ->assertSee(route('admin.appointments.show', $this->appointment), false)
@@ -71,9 +75,17 @@ class AdminSmsIssuesTest extends TestCase
             ->assertSee($unconfirmed->provider_requested_at->format('M j, Y g:i A'))
             ->assertSee('Not contacted')
             ->assertSee('2 attempts')
-            ->assertDontSee('Not an issue')
-            ->assertDontSee('Email delivery failed.');
-        $this->assertSame(['unconfirmed' => 1, 'failed' => 1, 'undelivered' => 1], $page->viewData('counts')->all());
+            ->assertSee('Expiry')->assertSee('Cancellation by clinic')->assertSee('Retries exhausted')
+            ->assertSee('Email delivery failed.')
+            ->assertDontSee('Not an issue');
+        $this->assertSame(['unconfirmed' => 1, 'failed' => 2, 'undelivered' => 1, 'exhausted' => 1], $page->viewData('counts')->all());
+
+        $emailOnly = $this->actingAs($this->admin)->get(route('admin.sms-issues.index', ['channel' => 'email']))->assertOk();
+        $emailOnly->assertViewHas('issues', fn ($issues) => $issues->pluck('id')->sort()->values()->all() === [$failedEmail->id, $exhaustedEmail->id]);
+        $this->assertSame(['unconfirmed' => 0, 'failed' => 1, 'undelivered' => 0, 'exhausted' => 1], $emailOnly->viewData('counts')->all());
+        $this->actingAs($this->admin)->get(route('admin.sms-issues.index', ['channel' => 'sms']))->assertOk()
+            ->assertViewHas('issues', fn ($issues) => $issues->count() === 3 && $issues->every(fn ($issue) => $issue->channel === 'sms'));
+        $this->actingAs($this->admin)->get(route('admin.sms-issues.index', ['channel' => 'fax']))->assertSessionHasErrors('channel');
     }
 
     public function test_never_exposes_phones_message_text_recipients_or_credentials(): void
@@ -96,17 +108,76 @@ class AdminSmsIssuesTest extends TestCase
         }
     }
 
-    public function test_offers_no_way_to_resend_or_change_notifications(): void
+    public function test_only_messages_certainly_not_delivered_offer_a_retry(): void
     {
-        $this->issue('unconfirmed');
+        foreach (['unconfirmed', 'failed', 'undelivered'] as $status) {
+            $this->issue($status);
+        }
+        $this->issue('failed', ['channel' => 'email']);
+        // An SMS that reached the provider can never be retried, even if it were marked exhausted.
+        $contacted = $this->issue('exhausted', ['provider_requested_at' => now()]);
 
         $html = $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk()->getContent();
         $main = substr($html, strpos($html, '<main'));
 
-        $this->assertStringNotContainsString('method="POST"', $main, 'The page is read only.');
+        $this->assertStringNotContainsString('method="POST"', $main, 'Unconfirmed, undelivered and still-retrying messages offer no action.');
         $this->assertStringNotContainsStringIgnoringCase('resend', $main);
-        $this->assertCount(1, collect(app('router')->getRoutes())->filter(fn ($route) => str_contains($route->uri(), 'sms-issues')));
-        $this->assertSame(['GET', 'HEAD'], collect(app('router')->getRoutes())->first(fn ($route) => str_contains($route->uri(), 'sms-issues'))->methods());
+        $this->assertFalse($this->admin->can('retry', $contacted));
+
+        $exhaustedSms = $this->issue('exhausted');
+        $exhaustedEmail = $this->issue('exhausted', ['channel' => 'email']);
+        $html = $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk()->getContent();
+        $this->assertSame(2, substr_count($html, 'method="POST" action="'.url('/admin/sms-issues')));
+        $this->assertStringContainsString(route('admin.sms-issues.retry', $exhaustedSms), $html);
+        $this->assertStringContainsString(route('admin.sms-issues.retry', $exhaustedEmail), $html);
+        $this->assertStringContainsString('data-confirm="Retry notification #'.$exhaustedEmail->id, $html);
+
+        $routes = collect(app('router')->getRoutes())->filter(fn ($route) => str_contains($route->uri(), 'sms-issues'));
+        $this->assertEqualsCanonicalizing([['GET', 'HEAD'], ['POST']], $routes->map(fn ($route) => $route->methods())->values()->all());
+    }
+
+    public function test_an_admin_retry_queues_an_exhausted_message_once_and_it_is_delivered_once(): void
+    {
+        Queue::fake();
+        $email = $this->issue('exhausted', ['channel' => 'email', 'type' => 'confirmed', 'transition_key' => 'confirmed', 'last_error' => 'Email delivery failed.', 'attempts' => 5]);
+
+        $this->actingAs($this->admin)->from(route('admin.sms-issues.index'))->post(route('admin.sms-issues.retry', $email))
+            ->assertRedirect(route('admin.sms-issues.index'))
+            ->assertSessionHas('status', 'Notification #'.$email->id.' was queued for another delivery attempt.');
+        $this->assertSame(['pending', 'Retry requested by an administrator.'], [$email->fresh()->status, $email->fresh()->last_error]);
+        Queue::assertPushed(SendAppointmentNotification::class, fn (SendAppointmentNotification $job) => $job->notificationId === $email->id);
+
+        // A second click (or a second admin at the same moment) queues nothing more.
+        $this->actingAs($this->admin)->post(route('admin.sms-issues.retry', $email))->assertForbidden();
+        Queue::assertPushed(SendAppointmentNotification::class, 1);
+
+        $this->appointment->update(['status' => 'confirmed']);
+        (new SendAppointmentNotification($email->id))->handle();
+        (new SendAppointmentNotification($email->id))->handle();
+        $this->assertSame('sent', $email->fresh()->status);
+        $this->assertCount(1, app('mail.manager')->mailer('array')->getSymfonyTransport()->messages());
+    }
+
+    public function test_retry_is_refused_for_other_statuses_and_non_admins(): void
+    {
+        Queue::fake();
+        foreach (['unconfirmed', 'undelivered', 'failed', 'sent', 'skipped', 'pending', 'sending'] as $status) {
+            $row = $this->issue($status);
+            $this->actingAs($this->admin)->post(route('admin.sms-issues.retry', $row))->assertForbidden();
+            $this->assertSame($status, $row->fresh()->status);
+        }
+        $this->actingAs($this->admin)->post(route('admin.sms-issues.retry', $this->issue('exhausted', ['provider_requested_at' => now()])))->assertForbidden();
+
+        $exhausted = $this->issue('exhausted');
+        $deactivated = User::factory()->create(['role' => 'admin', 'deactivated_at' => now()]);
+        foreach ([$this->appointment->patient, $this->appointment->slot->doctorProfile->user, $deactivated] as $user) {
+            $this->actingAs($user)->post(route('admin.sms-issues.retry', $exhausted))->assertForbidden();
+        }
+        $this->app['auth']->forgetGuards();
+        $this->post(route('admin.sms-issues.retry', $exhausted))->assertRedirect(route('login'));
+
+        $this->assertSame('exhausted', $exhausted->fresh()->status);
+        Queue::assertNothingPushed();
     }
 
     public function test_filters_by_status_and_rejects_other_statuses(): void
@@ -146,10 +217,10 @@ class AdminSmsIssuesTest extends TestCase
 
     public function test_empty_state_and_admin_navigation_link(): void
     {
-        $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk()->assertSee('No SMS delivery issues');
-        $this->actingAs($this->admin)->get(route('admin.sms-issues.index', ['status' => 'failed']))->assertOk()->assertSee('No failed SMS');
+        $this->actingAs($this->admin)->get(route('admin.sms-issues.index'))->assertOk()->assertSee('No notification delivery issues');
+        $this->actingAs($this->admin)->get(route('admin.sms-issues.index', ['status' => 'failed']))->assertOk()->assertSee('No matching delivery issues');
 
-        $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee(route('admin.sms-issues.index'), false)->assertSee('SMS delivery issues');
+        $this->actingAs($this->admin)->get(route('admin.dashboard'))->assertOk()->assertSee(route('admin.sms-issues.index'), false)->assertSee('Notification delivery issues');
         $this->actingAs($this->appointment->patient)->get(route('patient.dashboard'))->assertOk()->assertDontSee(route('admin.sms-issues.index'), false);
     }
 

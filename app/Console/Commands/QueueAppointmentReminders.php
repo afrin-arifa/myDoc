@@ -9,11 +9,13 @@ use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Queues reminder SMS (by default 24 and 2 hours before an appointment) for booked or confirmed appointments.
+ * Queues reminder SMS (by default 24 and 2 hours before an appointment) for confirmed appointments only; pending
+ * requests are never reminded (AppointmentNotificationService::REMINDER_STATUSES).
  *
  * Runs every few minutes from the scheduler. A reminder becomes due when the appointment is within its offset and
- * stays due for a catch-up window, so a short scheduler outage does not lose it. Appointments booked after the
- * reminder time are skipped (their booking confirmation is recent). Each reminder's ledger key contains the slot
+ * stays due for a catch-up window, so a short scheduler outage does not lose it, and a request confirmed during
+ * that window is reminded on the next run. Appointments booked after the reminder time are skipped (their booking
+ * confirmation is recent). Each reminder's ledger key contains the slot
  * and start time, so re-running never duplicates a reminder and a rescheduled appointment gets fresh reminders;
  * the delivery job re-checks status, slot and start time before sending.
  */
@@ -21,7 +23,7 @@ class QueueAppointmentReminders extends Command
 {
     protected $signature = 'mydoc:queue-appointment-reminders';
 
-    protected $description = 'Queue SMS reminders for upcoming booked or confirmed appointments';
+    protected $description = 'Queue SMS reminders for upcoming confirmed appointments';
 
     public function handle(AppointmentNotificationService $notifications): int
     {
@@ -34,7 +36,7 @@ class QueueAppointmentReminders extends Command
             $earliestStart = $latestStart->copy()->subMinutes($windowMinutes);
 
             Appointment::query()
-                ->whereIn('appointments.status', Appointment::ACTIVE_STATUSES)
+                ->whereIn('appointments.status', AppointmentNotificationService::REMINDER_STATUSES)
                 ->whereHas('slot', fn ($slots) => $slots
                     ->where('starts_at', '>', max($earliestStart, now()))
                     ->where('starts_at', '<=', $latestStart))

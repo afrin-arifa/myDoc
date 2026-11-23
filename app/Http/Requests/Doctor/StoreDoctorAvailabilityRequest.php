@@ -40,6 +40,8 @@ class StoreDoctorAvailabilityRequest extends FormRequest
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'is_active' => ['sometimes', 'boolean'],
+            // Must be one of the doctor's active locations; DoctorAvailabilityService checks it under the schedule lock.
+            'doctor_location_id' => ['required', 'integer'],
         ];
     }
 

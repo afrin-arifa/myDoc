@@ -29,6 +29,8 @@ class AppointmentSmsNotificationTest extends TestCase
 
     public function test_patient_booking_texts_the_patient_and_the_doctor_without_medical_details(): void
     {
+        config(['booking.remote_consultations_enabled' => true]);
+
         $doctor = $this->smsDoctor();
         $patient = $this->smsPatient('+880 1712-345678');
         $slot = $this->smsSlot($doctor, now()->addDays(3));
@@ -102,7 +104,7 @@ class AppointmentSmsNotificationTest extends TestCase
         $this->assertStringContainsString('was cancelled by the patient', $toDoctor[0]['message']);
     }
 
-    public function test_doctor_created_booking_texts_the_patient_and_still_sends_no_email(): void
+    public function test_doctor_created_booking_texts_and_emails_only_the_patient(): void
     {
         $doctor = $this->smsDoctor();
         $patient = $this->smsPatient();
@@ -113,7 +115,25 @@ class AppointmentSmsNotificationTest extends TestCase
         $this->assertCount(1, $this->sms->sentTo('8801712345678'));
         $this->assertSame([], $this->sms->sentTo('8801812345678'));
         $this->assertStringNotContainsString('previous reports', $this->sms->sent[0]['message']);
-        $this->assertSame(0, AppointmentNotification::query()->where('channel', 'email')->count(), 'P1.2 behaviour: no email for doctor-created bookings.');
+        $this->assertSame([[$patient->id, 'booked:patient']], AppointmentNotification::query()->where('channel', 'email')->get()->map(fn (AppointmentNotification $row): array => [$row->recipient_id, $row->transition_key])->all(), 'Phase 5C: the patient, never the doctor, is emailed about a staff booking.');
+    }
+
+    public function test_expiry_texts_only_the_opted_in_patient_with_scheduling_details_only(): void
+    {
+        $doctor = $this->smsDoctor();
+        $patient = $this->smsPatient();
+        $appointment = $this->smsAppointment($doctor, $patient, now()->addHour(), 'booked');
+        $appointment->update(['patient_notes' => 'Private symptom description']);
+        $this->travelTo($appointment->slot->starts_at);
+
+        $this->artisan('mydoc:expire-pending-appointments')->assertSuccessful();
+
+        $toPatient = $this->sms->sentTo('8801712345678');
+        $this->assertCount(1, $toPatient);
+        $this->assertStringContainsString($appointment->reference(), $toPatient[0]['message']);
+        $this->assertStringContainsString('has expired', $toPatient[0]['message']);
+        $this->assertStringNotContainsString('symptom', $toPatient[0]['message']);
+        $this->assertSame([], $this->sms->sentTo('8801812345678'), 'The doctor is not texted about an expiry.');
     }
 
     public function test_sms_is_sent_only_to_opted_in_users_and_never_changes_email(): void

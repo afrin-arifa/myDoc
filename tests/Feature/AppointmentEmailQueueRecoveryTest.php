@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use ReflectionMethod;
+use RuntimeException;
 use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
@@ -96,6 +97,49 @@ class AppointmentEmailQueueRecoveryTest extends TestCase
         $this->assertCount(0, $this->sentEmails());
     }
 
+    public function test_an_email_that_fails_five_times_is_marked_exhausted_and_no_longer_claimable(): void
+    {
+        $this->freezeTime();
+        $this->useFailingMailTransport();
+        $ledger = $this->bookAndGetLedger();
+
+        foreach (range(1, 5) as $attempt) {
+            $this->work();
+            $this->travel(1801)->seconds();
+        }
+
+        $this->assertSame(0, $this->jobCount());
+        $this->assertSame(1, DB::table('failed_jobs')->count(), 'The queue gave up after five delivery failures.');
+        $this->assertSame([AppointmentNotification::STATUS_EXHAUSTED, 5, 'Email delivery failed.'], [$ledger->fresh()->status, $ledger->fresh()->attempts, $ledger->fresh()->last_error]);
+
+        config(['mail.default' => 'array']);
+        (new SendAppointmentNotification($ledger->id))->handle();
+        $this->assertCount(0, $this->sentEmails(), 'A stray job cannot send an exhausted row; only an admin retry can.');
+        $this->assertSame(AppointmentNotification::STATUS_EXHAUSTED, $ledger->fresh()->status);
+    }
+
+    public function test_giving_up_closes_each_row_state_safely(): void
+    {
+        $cases = [
+            'failed email' => [['channel' => 'email', 'status' => 'failed', 'last_error' => 'Email delivery failed.'], 'exhausted', 'Email delivery failed.'],
+            'failed sms' => [['channel' => 'sms', 'status' => 'failed', 'last_error' => 'SMS balance is insufficient.'], 'exhausted', 'SMS balance is insufficient.'],
+            'interrupted email' => [['channel' => 'email', 'status' => 'sending'], 'exhausted', 'Delivery attempts were interrupted repeatedly.'],
+            'sms before the provider call' => [['channel' => 'sms', 'status' => 'sending'], 'exhausted', 'Delivery attempts were interrupted repeatedly.'],
+            'sms after the provider call' => [['channel' => 'sms', 'status' => 'sending', 'provider_requested_at' => now()], 'unconfirmed', 'Delivery was interrupted after the SMS provider was contacted.'],
+            'already sent' => [['channel' => 'email', 'status' => 'sent'], 'sent', null],
+            'unconfirmed sms' => [['channel' => 'sms', 'status' => 'unconfirmed', 'last_error' => 'SMS provider did not respond in time.'], 'unconfirmed', 'SMS provider did not respond in time.'],
+        ];
+        $appointmentId = $this->bookAndGetLedger()->appointment_id;
+
+        foreach ($cases as $case => [$attributes, $expectedStatus, $expectedError]) {
+            $row = AppointmentNotification::query()->create(['appointment_id' => $appointmentId, 'type' => 'confirmed', 'transition_key' => $case, 'attempts' => 3, ...$attributes]);
+
+            (new SendAppointmentNotification($row->id))->failed(new RuntimeException('gave up'));
+
+            $this->assertSame([$expectedStatus, $expectedError], [$row->fresh()->status, $row->fresh()->last_error], $case);
+        }
+    }
+
     public function test_a_second_worker_cannot_claim_while_delivery_is_in_progress(): void
     {
         $ledger = $this->bookAndGetLedger();
@@ -127,6 +171,8 @@ class AppointmentEmailQueueRecoveryTest extends TestCase
 
     public function test_failed_smtp_attempt_stays_queued_for_retry_and_success_is_never_resent(): void
     {
+        // Frozen so a second boundary between the worker run and the assertion cannot shift the expected back-off.
+        $this->freezeTime();
         $this->useFailingMailTransport();
         $ledger = $this->bookAndGetLedger();
 
@@ -168,7 +214,8 @@ class AppointmentEmailQueueRecoveryTest extends TestCase
             $this->travelTo(now()->setTimestamp((int) DB::table('jobs')->value('available_at') + 1));
             $this->work();
 
-            $this->assertSame(AppointmentNotification::STATUS_FAILED, $ledger->fresh()->status);
+            // Retrying while the job has delivery attempts left; marked exhausted once the queue gives up.
+            $this->assertSame($deliveryAttempt < 5 ? AppointmentNotification::STATUS_FAILED : AppointmentNotification::STATUS_EXHAUSTED, $ledger->fresh()->status);
             if ($deliveryAttempt < 5) {
                 $this->assertSame(1, $this->jobCount(), "Still retryable after {$deliveryAttempt} delivery failure(s).");
             }
@@ -285,8 +332,10 @@ class AppointmentEmailQueueRecoveryTest extends TestCase
             'status' => 'available',
         ]);
 
+        // A staff booking records exactly one email (to the patient, who has not opted in to SMS), so each test
+        // works with a single ledger row and a single queued job.
         $appointment = app(AppointmentBookingService::class)
-            ->book(User::factory()->create(['role' => 'patient']), $slot->id, 'physical');
+            ->bookForDoctor($doctor, User::factory()->create(['role' => 'patient']), $slot->id, 'physical');
 
         return AppointmentNotification::query()->where('appointment_id', $appointment->id)->firstOrFail();
     }

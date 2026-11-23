@@ -20,7 +20,7 @@
             @foreach ([
                 'total' => 'Total appointments',
                 'upcoming' => 'Upcoming',
-                'booked' => 'Awaiting confirmation',
+                'booked' => App\Models\Appointment::statusLabel('booked'),
                 'confirmed' => 'Confirmed',
             ] as $key => $label)
                 <div class="col-6 col-lg-3">

@@ -11,11 +11,12 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
+use Tests\Concerns\CreatesDoctorLocations;
 use Tests\TestCase;
 
 class DoctorManagementTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesDoctorLocations, RefreshDatabase;
 
     public function test_a_doctor_can_create_a_profile_and_associate_specialties(): void
     {
@@ -102,6 +103,7 @@ class DoctorManagementTest extends TestCase
 
         $this->actingAs($doctor)
             ->post(route('doctor.availability.store'), [
+                'doctor_location_id' => $this->locationFor($doctor->doctorProfile()->firstOrFail())->id,
                 'day_of_week' => 1,
                 'start_time' => '11:00',
                 'end_time' => '13:00',
@@ -189,6 +191,7 @@ class DoctorManagementTest extends TestCase
 
         $this->actingAs($doctor)
             ->post(route('doctor.availability.store'), [
+                'doctor_location_id' => $this->locationFor($doctor->doctorProfile()->firstOrFail())->id,
                 'day_of_week' => 1,
                 'start_time' => '09:00',
                 'end_time' => '10:00',
@@ -201,6 +204,8 @@ class DoctorManagementTest extends TestCase
 
     public function test_doctor_can_create_a_manual_appointment_for_a_registered_patient(): void
     {
+        config(['booking.remote_consultations_enabled' => true]);
+
         $doctor = User::factory()->create(['role' => 'doctor']);
         $patient = User::factory()->create(['role' => 'patient']);
         $profile = DoctorProfile::create([

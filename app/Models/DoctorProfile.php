@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\DB;
+use LogicException;
 
 #[Fillable([
     'user_id',
@@ -18,11 +20,38 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
     'qualifications',
     'license_number',
     'consultation_fee',
+    'follow_up_fee',
     'years_of_experience',
     'is_accepting_patients',
+    'waitlist_enabled',
 ])]
 class DoctorProfile extends Model
 {
+    /**
+     * Lock the doctor's profile row for the rest of the transaction. Every change to a doctor's weekly availability
+     * and every slot generation takes this lock first, so they run one at a time per doctor: overlap checks on
+     * availability windows and on generated slots always see the other operation's committed result. Booking never
+     * takes it, so it does not slow down or change booking. Lock order: profile, then availability, then slots.
+     *
+     * @throws LogicException When called outside a transaction.
+     */
+    public static function lockForScheduling(int $doctorProfileId): void
+    {
+        if (DB::transactionLevel() === 0) {
+            throw new LogicException('The doctor schedule lock must be taken inside a transaction.');
+        }
+
+        static::query()->whereKey($doctorProfileId)->lockForUpdate()->first();
+    }
+
+    protected function casts(): array
+    {
+        return [
+            'follow_up_fee' => 'decimal:2',
+            'waitlist_enabled' => 'boolean',
+        ];
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
@@ -60,6 +89,16 @@ class DoctorProfile extends Model
     public function availabilities(): HasMany
     {
         return $this->hasMany(DoctorAvailability::class);
+    }
+
+    public function locations(): HasMany
+    {
+        return $this->hasMany(DoctorLocation::class);
+    }
+
+    public function waitlistEntries(): HasMany
+    {
+        return $this->hasMany(WaitlistEntry::class);
     }
 
     /**

@@ -19,7 +19,7 @@ class AdminDashboardController extends Controller
             'booked' => Appointment::where('status', 'booked')->count(),
             'confirmed' => Appointment::where('status', 'confirmed')->count(),
             'completed' => Appointment::where('status', 'completed')->count(),
-            'cancelled_or_rejected' => Appointment::whereIn('status', ['cancelled', 'rejected'])->count(),
+            'cancelled_or_rejected' => Appointment::whereIn('status', Appointment::CLOSED_STATUSES)->count(),
         ];
 
         return view('admin.dashboard', compact('counts'));

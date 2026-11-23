@@ -10,12 +10,16 @@ use App\Models\AppointmentSlot;
 use App\Models\DoctorProfile;
 use App\Models\User;
 use App\Notifications\AppointmentBookedNotification;
+use App\Notifications\AppointmentCancellationReceiptNotification;
 use App\Notifications\AppointmentCancelledNotification;
 use App\Notifications\AppointmentConfirmedNotification;
+use App\Notifications\AppointmentExpiredNotification;
 use App\Notifications\AppointmentRejectedNotification;
+use App\Notifications\AppointmentRequestReceivedNotification;
 use App\Notifications\AppointmentRescheduledNotification;
 use App\Services\AppointmentBookingService;
 use App\Services\DoctorAppointmentService;
+use App\Services\PendingAppointmentExpiry;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -28,16 +32,19 @@ use Symfony\Component\Mailer\Exception\TransportException;
 use Symfony\Component\Mailer\SentMessage;
 use Symfony\Component\Mailer\Transport\AbstractTransport;
 use Symfony\Component\Mime\Email;
+use Tests\Concerns\AssertsUnavailableSlotRedirect;
 use Tests\TestCase;
 
 class AppointmentEmailNotificationTest extends TestCase
 {
-    use RefreshDatabase;
+    use AssertsUnavailableSlotRedirect, RefreshDatabase;
 
     private int $slotOffset = 0;
 
     public function test_patient_booking_emails_the_doctor_with_scheduling_details_only(): void
     {
+        config(['booking.remote_consultations_enabled' => true]);
+
         $doctor = $this->doctor('Dr. Rowan Hale');
         $patient = $this->patient('Sam Patient');
         $slot = $this->slot($doctor);
@@ -48,10 +55,8 @@ class AppointmentEmailNotificationTest extends TestCase
 
         $appointment = Appointment::firstOrFail();
         $appointment->update(['patient_notes' => 'Private symptom description']);
-        $emails = $this->sentEmails();
-        $this->assertCount(1, $emails);
-        $email = $emails->first();
-        $this->assertSame($doctor->email, $email->getTo()[0]->getAddress());
+        $this->assertCount(2, $this->sentEmails(), 'The doctor and the patient each get one email.');
+        $email = $this->emailsTo($doctor)->sole();
         $this->assertStringStartsWith('New appointment request', $email->getSubject());
         foreach ([$email->getHtmlBody(), $email->getTextBody()] as $body) {
             $this->assertStringContainsString('Sam Patient', $body);
@@ -66,14 +71,61 @@ class AppointmentEmailNotificationTest extends TestCase
         $this->assertLedger($appointment, AppointmentNotification::TYPE_BOOKED, AppointmentNotification::STATUS_SENT, $doctor);
     }
 
+    public function test_patient_booking_also_emails_the_patient_a_request_received_receipt(): void
+    {
+        $doctor = $this->doctor('Dr. Rowan Hale');
+        $patient = $this->patient('Sam Patient');
+        $slot = $this->slot($doctor);
+
+        $this->actingAs($patient)->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])->assertRedirect();
+
+        $appointment = Appointment::firstOrFail();
+        $appointment->update(['patient_notes' => 'Private symptom description']);
+        $email = $this->emailsTo($patient)->sole();
+        $this->assertStringStartsWith('Appointment request received', $email->getSubject());
+        foreach ([$email->getHtmlBody(), $email->getTextBody()] as $body) {
+            $this->assertStringContainsString('Dr. Rowan Hale', $body);
+            $this->assertStringContainsString('waiting for the doctor', $body);
+            $this->assertStringContainsString($appointment->reference(), $body);
+            $this->assertStringContainsString(route('patient.appointments.show', $appointment), $body);
+            $this->assertStringNotContainsString('Private symptom description', $body);
+        }
+        $this->assertDatabaseHas('appointment_notifications', [
+            'appointment_id' => $appointment->id,
+            'channel' => AppointmentNotification::CHANNEL_EMAIL,
+            'type' => AppointmentNotification::TYPE_BOOKED,
+            'transition_key' => 'booked:patient',
+            'status' => AppointmentNotification::STATUS_SENT,
+            'recipient_id' => $patient->id,
+        ]);
+    }
+
+    public function test_a_doctor_booking_email_recorded_before_patient_receipts_existed_still_reaches_the_doctor(): void
+    {
+        Queue::fake();
+        $doctor = $this->doctor();
+        $appointment = $this->appointment($doctor, $this->patient());
+        $legacy = AppointmentNotification::query()->create([
+            'appointment_id' => $appointment->id,
+            'channel' => AppointmentNotification::CHANNEL_EMAIL,
+            'type' => AppointmentNotification::TYPE_BOOKED,
+            'transition_key' => AppointmentNotification::TYPE_BOOKED,
+            'status' => AppointmentNotification::STATUS_PENDING,
+        ]);
+
+        (new SendAppointmentNotification($legacy->id))->handle();
+
+        $this->assertStringStartsWith('New appointment request', $this->emailsTo($doctor)->sole()->getSubject());
+        $this->assertSame(AppointmentNotification::STATUS_SENT, $legacy->fresh()->status);
+    }
+
     public function test_failed_booking_sends_nothing(): void
     {
         $doctor = $this->doctor();
         $slot = $this->slot($doctor, status: 'blocked');
 
-        $this->actingAs($this->patient())
-            ->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])
-            ->assertSessionHasErrors('slot');
+        $this->assertSentToChooseAnotherTime($this->actingAs($this->patient())
+            ->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical']), $slot);
 
         $this->assertCount(0, $this->sentEmails());
         $this->assertDatabaseCount('appointment_notifications', 0);
@@ -110,12 +162,12 @@ class AppointmentEmailNotificationTest extends TestCase
         $this->assertCount(0, $this->sentEmails(), 'Nothing may be sent while the transaction is still open.');
         DB::commit();
 
-        $this->assertCount(1, $this->sentEmails());
+        $this->assertCount(2, $this->sentEmails());
     }
 
-    public function test_doctor_manual_booking_sends_no_email(): void
+    public function test_doctor_manual_booking_emails_only_the_patient(): void
     {
-        $doctor = $this->doctor();
+        $doctor = $this->doctor('Dr. Ada Lin');
         $patient = $this->patient();
         $slot = $this->slot($doctor);
 
@@ -124,12 +176,18 @@ class AppointmentEmailNotificationTest extends TestCase
                 'patient_email' => $patient->email,
                 'slot_id' => $slot->id,
                 'consultation_type' => 'physical',
+                'notes' => 'Staff-only booking note',
             ])
             ->assertRedirect(route('doctor.schedule'));
 
         $this->assertDatabaseCount('appointments', 1);
-        $this->assertCount(0, $this->sentEmails());
-        $this->assertDatabaseCount('appointment_notifications', 0);
+        $this->assertCount(1, $this->sentEmails(), 'The doctor made the booking, so only the patient is emailed.');
+        $email = $this->emailsTo($patient)->sole();
+        $this->assertStringStartsWith('An appointment was booked for you', $email->getSubject());
+        $this->assertStringContainsString('Dr. Ada Lin', $email->getHtmlBody());
+        $this->assertStringNotContainsString('Staff-only booking note', $email->getHtmlBody().$email->getTextBody());
+        $this->assertDatabaseCount('appointment_notifications', 1);
+        $this->assertDatabaseHas('appointment_notifications', ['transition_key' => 'booked:patient', 'recipient_id' => $patient->id, 'status' => AppointmentNotification::STATUS_SENT]);
     }
 
     public function test_confirmation_emails_the_patient_once_even_when_repeated(): void
@@ -180,11 +238,13 @@ class AppointmentEmailNotificationTest extends TestCase
         $this->actingAs($patient)->post(route('appointments.cancel', $appointment))->assertSessionHasErrors('appointment');
         $this->actingAs($patient)->post(route('appointments.cancel', $tooLate))->assertSessionHasErrors('appointment');
 
-        $emails = $this->sentEmails();
-        $this->assertCount(1, $emails);
-        $this->assertSame($doctor->email, $emails->first()->getTo()[0]->getAddress());
-        $this->assertStringContainsString('Casey Cancel', $emails->first()->getHtmlBody());
-        $this->assertStringContainsString($appointment->reference(), $emails->first()->getSubject());
+        $this->assertCount(2, $this->sentEmails());
+        $doctorEmail = $this->emailsTo($doctor)->sole();
+        $this->assertStringContainsString('Casey Cancel', $doctorEmail->getHtmlBody());
+        $this->assertStringContainsString($appointment->reference(), $doctorEmail->getSubject());
+        $receipt = $this->emailsTo($patient)->sole();
+        $this->assertStringStartsWith('You cancelled your appointment', $receipt->getSubject());
+        $this->assertStringContainsString(route('doctors.show', $doctor->doctorProfile), $receipt->getHtmlBody());
         $this->assertSame(0, $tooLate->emailNotifications()->count());
     }
 
@@ -245,7 +305,7 @@ class AppointmentEmailNotificationTest extends TestCase
             ->post(route('appointment-slots.book', $this->slot($doctor)), ['consultation_type' => 'physical'])
             ->assertRedirect();
 
-        Queue::assertPushed(SendAppointmentNotification::class, 1);
+        Queue::assertPushed(SendAppointmentNotification::class, 2);
         Notification::assertNothingSent();
         $this->assertSame(AppointmentNotification::STATUS_PENDING, AppointmentNotification::firstOrFail()->status);
 
@@ -335,8 +395,8 @@ class AppointmentEmailNotificationTest extends TestCase
 
         AppointmentNotification::all()->each(fn (AppointmentNotification $ledger) => (new SendAppointmentNotification($ledger->id))->handle());
 
-        $this->assertCount(0, $this->sentEmails());
-        $this->assertSame('Recipient account is deactivated.', $first->emailNotifications()->firstOrFail()->last_error);
+        $this->assertSame([$first->patient->email], $this->sentEmails()->map(fn (Email $email): string => $email->getTo()[0]->getAddress())->all(), 'Only the active patient\'s cancellation receipt is sent.');
+        $this->assertSame('Recipient account is deactivated.', $first->emailNotifications()->where('transition_key', 'cancelled')->firstOrFail()->last_error);
         $this->assertSame('Recipient has no valid email address.', $second->emailNotifications()->firstOrFail()->last_error);
         $this->assertSame(2, AppointmentNotification::where('status', AppointmentNotification::STATUS_SKIPPED)->count());
     }
@@ -354,9 +414,9 @@ class AppointmentEmailNotificationTest extends TestCase
         AppointmentNotification::query()->orderBy('id')->get()
             ->each(fn (AppointmentNotification $ledger) => (new SendAppointmentNotification($ledger->id))->handle());
 
-        $emails = $this->sentEmails();
-        $this->assertCount(1, $emails);
-        $this->assertSame($doctor->email, $emails->first()->getTo()[0]->getAddress(), 'Only the cancellation reaches the doctor.');
+        $this->assertCount(2, $this->sentEmails(), 'Only the cancellation notice and the patient\'s receipt are sent.');
+        $this->assertStringContainsString('cancelled by patient', $this->emailsTo($doctor)->sole()->getSubject());
+        $this->assertStringStartsWith('You cancelled', $this->emailsTo($patient)->sole()->getSubject());
         $this->assertSame(
             AppointmentNotification::STATUS_SKIPPED,
             $appointment->emailNotifications()->where('type', AppointmentNotification::TYPE_CONFIRMED)->firstOrFail()->status
@@ -365,6 +425,8 @@ class AppointmentEmailNotificationTest extends TestCase
 
     public function test_each_event_uses_its_notification_class_and_recipient(): void
     {
+        config(['booking.remote_consultations_enabled' => true]);
+
         Notification::fake();
         $doctor = $this->doctor();
         $patient = $this->patient();
@@ -378,14 +440,63 @@ class AppointmentEmailNotificationTest extends TestCase
         $rejected = $booking->book($patient, $this->slot($doctor)->id, 'voice');
         $service->transition($doctor, $rejected, 'rejected');
 
-        Notification::assertSentTo($doctor, AppointmentBookedNotification::class, 2);
+        $staffBooked = $booking->bookForDoctor($doctor, $patient, $this->slot($doctor)->id, 'physical');
+        $expiring = $booking->book($patient, $this->slot($doctor, daysAhead: 1)->id, 'physical');
+        $this->travelTo($expiring->slot->starts_at);
+        app(PendingAppointmentExpiry::class)->expireDue();
+
+        Notification::assertSentTo($doctor, AppointmentBookedNotification::class, 3);
+        Notification::assertSentTo($patient, AppointmentRequestReceivedNotification::class, 4);
         Notification::assertSentTo($patient, AppointmentConfirmedNotification::class, 1);
         Notification::assertSentTo($patient, AppointmentRescheduledNotification::class, 1);
         Notification::assertSentTo($doctor, AppointmentCancelledNotification::class, 1);
+        Notification::assertSentTo($patient, AppointmentCancellationReceiptNotification::class, 1);
         Notification::assertSentTo($patient, AppointmentRejectedNotification::class, 1);
+        Notification::assertSentTo($patient, AppointmentExpiredNotification::class, fn (AppointmentExpiredNotification $notification): bool => $notification->appointment->is($expiring));
         Notification::assertNotSentTo($patient, AppointmentBookedNotification::class);
         Notification::assertNotSentTo($doctor, AppointmentConfirmedNotification::class);
-        Notification::assertCount(6);
+        Notification::assertNotSentTo($doctor, AppointmentRequestReceivedNotification::class);
+        Notification::assertNotSentTo($doctor, AppointmentExpiredNotification::class);
+        Notification::assertSentTo($patient, AppointmentRequestReceivedNotification::class, fn (AppointmentRequestReceivedNotification $notification): bool => $notification->appointment->is($staffBooked));
+        Notification::assertCount(13);
+    }
+
+    public function test_expiry_emails_the_patient_once_and_skips_if_the_appointment_is_no_longer_expired(): void
+    {
+        Queue::fake();
+        $doctor = $this->doctor('Dr. Ada Lin');
+        $patient = $this->patient();
+        $appointment = $this->appointment($doctor, $patient, daysAhead: 1);
+        $this->travelTo($appointment->slot->starts_at);
+
+        $this->assertSame(1, app(PendingAppointmentExpiry::class)->expireDue());
+        $this->assertSame(0, app(PendingAppointmentExpiry::class)->expireDue(), 'A second run changes nothing.');
+
+        $ledger = $appointment->emailNotifications()->sole();
+        $this->assertSame(['expired', 'expired:patient'], [$ledger->type, $ledger->transition_key]);
+        (new SendAppointmentNotification($ledger->id))->handle();
+
+        $email = $this->emailsTo($patient)->sole();
+        $this->assertStringStartsWith('Your appointment request has expired', $email->getSubject());
+        $this->assertStringContainsString('Dr. Ada Lin', $email->getHtmlBody());
+        $this->assertCount(0, $this->emailsTo($doctor));
+
+        // An expiry email that waited in the queue while the record changed again is not sent.
+        $stale = $this->appointment($doctor, $this->patient(), daysAhead: 1, hoursAhead: 2);
+        $this->travelTo($stale->slot->starts_at);
+        app(PendingAppointmentExpiry::class)->expireDue();
+        $stale->update(['status' => 'rejected']);
+        $staleLedger = $stale->emailNotifications()->sole();
+        (new SendAppointmentNotification($staleLedger->id))->handle();
+        $this->assertSame(AppointmentNotification::STATUS_SKIPPED, $staleLedger->fresh()->status);
+    }
+
+    /**
+     * @return Collection<int, Email>
+     */
+    private function emailsTo(User $recipient): Collection
+    {
+        return $this->sentEmails()->filter(fn (Email $email): bool => $email->getTo()[0]->getAddress() === $recipient->email)->values();
     }
 
     public function test_google_calendar_jobs_are_still_dispatched_alongside_emails(): void

@@ -49,6 +49,7 @@ class DoctorDirectoryTest extends TestCase
 
     public function test_directory_supports_fee_experience_and_available_today_filters(): void
     {
+        $this->travelTo(CarbonImmutable::today(config('app.timezone'))->setTime(8, 0));
         $this->actingAs(User::factory()->create(['role' => 'patient']));
         $this->doctor('Dr. Low Fee', 'Physician', true, 40, 3);
 

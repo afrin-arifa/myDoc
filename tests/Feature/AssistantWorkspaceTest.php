@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
+use Tests\Concerns\CreatesDoctorLocations;
 use Tests\TestCase;
 
 /**
@@ -27,7 +28,7 @@ use Tests\TestCase;
  */
 class AssistantWorkspaceTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesDoctorLocations, RefreshDatabase;
 
     private User $assistant;
 
@@ -165,12 +166,13 @@ class AssistantWorkspaceTest extends TestCase
             ->assertSee('value="'.$free->id.'"', false);
         $this->actingAs($this->assistant)->getJson(route('assistant.workspace.patients.search', [$this->profileA, 'search' => 'Pat']))->assertOk()
             ->assertJsonPath('data.0.id', $this->patient->id);
+        $this->actingAs($this->assistant)->post(route('assistant.workspace.appointments.confirm', [$this->profileA, $toConfirm]))->assertRedirect()->assertSessionHasNoErrors();
+        $this->actingAs($this->assistant)->post(route('assistant.workspace.appointments.reject', [$this->profileA, $toReject]))->assertRedirect()->assertSessionHasNoErrors();
+        // The patient held three active appointments; the rejection frees one place under the limit for the new booking.
         $this->actingAs($this->assistant)->post(route('assistant.workspace.appointments.store', $this->profileA), [
             'patient_id' => $this->patient->id, 'slot_id' => $free->id, 'consultation_type' => 'physical',
         ])->assertRedirect(route('assistant.workspace.schedule', $this->profileA));
-        $this->actingAs($this->assistant)->post(route('assistant.workspace.appointments.confirm', [$this->profileA, $toConfirm]))->assertRedirect()->assertSessionHasNoErrors();
-        $this->actingAs($this->assistant)->post(route('assistant.workspace.appointments.reject', [$this->profileA, $toReject]))->assertRedirect()->assertSessionHasNoErrors();
-        $this->actingAs($this->assistant)->get(route('assistant.workspace.appointments.reschedule', [$this->profileA, $toReschedule]))->assertOk()->assertSee('value="'.$newSlot->id.'"', false);
+        $this->actingAs($this->assistant)->get(route('assistant.workspace.appointments.reschedule', [$this->profileA, $toReschedule, 'date' => $newSlot->starts_at->toDateString()]))->assertOk()->assertSee('value="'.$newSlot->id.'"', false);
         $this->actingAs($this->assistant)->post(route('assistant.workspace.appointments.reschedule.store', [$this->profileA, $toReschedule]), ['slot_id' => $newSlot->id, 'reason' => 'Clinic closed'])
             ->assertRedirect(route('assistant.workspace.appointments.show', [$this->profileA, $toReschedule]));
 
@@ -181,7 +183,7 @@ class AssistantWorkspaceTest extends TestCase
         $this->assertSame($this->assistant->id, AppointmentRescheduleHistory::sole()->performed_by);
 
         $events = DoctorWorkspaceEvent::orderBy('id')->get();
-        $this->assertSame(['booked', 'confirmed', 'rejected', 'rescheduled'], $events->pluck('action')->all());
+        $this->assertSame(['confirmed', 'rejected', 'booked', 'rescheduled'], $events->pluck('action')->all());
         $this->assertTrue($events->every(fn ($event) => $event->actor_id === $this->assistant->id && $event->actor_role === 'assistant' && $event->doctor_profile_id === $this->profileA->id));
         $this->assertSame(0, DoctorWorkspaceEvent::where('actor_id', $this->doctorA->id)->count());
         $this->assertDatabaseHas('appointment_notifications', ['appointment_id' => $toConfirm->id, 'channel' => 'email', 'type' => 'confirmed', 'recipient_id' => $this->patient->id]);
@@ -226,7 +228,7 @@ class AssistantWorkspaceTest extends TestCase
         $this->assertStringNotContainsString(url('/doctor/'), $page->getContent(), 'No link leaves the assistant workspace for a doctor-only page.');
         $page->assertDontSee('Account settings');
 
-        $this->actingAs($this->assistant)->post(route('assistant.workspace.availability.store', $this->profileA), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => '1'])->assertSessionHasNoErrors();
+        $this->actingAs($this->assistant)->post(route('assistant.workspace.availability.store', $this->profileA), ['doctor_location_id' => $this->locationFor($this->profileA)->id, 'day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => '1'])->assertSessionHasNoErrors();
         $availability = DoctorAvailability::sole();
         $this->assertSame($this->profileA->id, $availability->doctor_profile_id);
         $this->actingAs($this->assistant)->patch(route('assistant.workspace.availability.update', [$this->profileA, $availability]), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '11:00', 'is_active' => '1'])->assertSessionHasNoErrors();
@@ -244,7 +246,10 @@ class AssistantWorkspaceTest extends TestCase
         $events = DoctorWorkspaceEvent::orderBy('id')->get();
         $this->assertSame(['availability_created', 'availability_updated', 'slots_generated', 'slot_blocked', 'slot_unblocked', 'availability_deleted'], $events->pluck('action')->all());
         $this->assertTrue($events->every(fn ($event) => $event->actor_id === $this->assistant->id && $event->actor_role === 'assistant' && $event->doctor_profile_id === $this->profileA->id));
-        $this->assertSame('available', $slot->fresh()->status);
+        $generated = AppointmentSlot::where('doctor_profile_id', $this->profileA->id)->count();
+        $this->assertSame('blocked', $slot->fresh()->status, 'Removing the weekly window blocks the open slots it covered.');
+        $this->assertSame($generated, AppointmentSlot::where('doctor_profile_id', $this->profileA->id)->where('status', 'blocked')->count());
+        $this->assertSame($generated, $events[5]->context['blocked_slot_count']);
     }
 
     public function test_other_doctors_slots_and_availability_cannot_be_changed(): void

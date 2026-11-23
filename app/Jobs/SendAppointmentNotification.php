@@ -6,19 +6,25 @@ use App\Models\Appointment;
 use App\Models\AppointmentNotification;
 use App\Models\AppointmentRescheduleHistory;
 use App\Models\User;
+use App\Models\WaitlistOffer;
 use App\Notifications\AppointmentBookedNotification;
+use App\Notifications\AppointmentCancellationReceiptNotification;
 use App\Notifications\AppointmentCancelledByStaffNotification;
 use App\Notifications\AppointmentCancelledNotification;
 use App\Notifications\AppointmentConfirmedNotification;
+use App\Notifications\AppointmentExpiredNotification;
 use App\Notifications\AppointmentMailNotification;
 use App\Notifications\AppointmentRejectedNotification;
+use App\Notifications\AppointmentRequestReceivedNotification;
 use App\Notifications\AppointmentRescheduledNotification;
+use App\Notifications\WaitlistOfferNotification;
 use App\Services\AppointmentNotificationService;
 use App\Services\Sms\AppointmentSmsComposer;
 use App\Services\Sms\SmsDeliveryException;
 use App\Services\Sms\SmsGateway;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Notifications\Notification;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -90,6 +96,13 @@ class SendAppointmentNotification implements ShouldQueue
         }
 
         $notification = AppointmentNotification::query()->findOrFail($this->notificationId);
+
+        if ($notification->waitlist_offer_id !== null) {
+            $this->deliverWaitlistOffer($notification, $sms, $composer);
+
+            return;
+        }
+
         $appointment = Appointment::query()
             ->with(['patient', 'slot.doctorProfile.user'])
             ->find($notification->appointment_id);
@@ -115,13 +128,60 @@ class SendAppointmentNotification implements ShouldQueue
         }
 
         if ($this->isSms($notification)) {
-            $this->deliverSms($notification, $appointment, $recipient, $sms, $composer);
+            $this->deliverSms($notification, $composer->compose($notification, $appointment), $recipient, $sms);
 
             return;
         }
 
+        $this->sendEmail($notification, $recipient, $this->mailFor($notification, $appointment));
+    }
+
+    /**
+     * A time held for a waiting-list patient. Sent only while the offer is still open, so a declined, withdrawn or
+     * expired offer is never announced late.
+     */
+    private function deliverWaitlistOffer(AppointmentNotification $notification, SmsGateway $sms, AppointmentSmsComposer $composer): void
+    {
+        $offer = WaitlistOffer::query()->with(['entry.patient', 'slot.doctorProfile.user'])->find($notification->waitlist_offer_id);
+        $recipient = $offer?->entry?->patient;
+        $skipReason = match (true) {
+            $offer === null => 'Offer no longer exists.',
+            $recipient === null => 'Recipient could not be resolved.',
+            $recipient->deactivated_at !== null => 'Recipient account is deactivated.',
+            ! $offer->isOpen() => 'Offer is no longer open.',
+            $this->isSms($notification) && ! $recipient->wantsAppointmentSms() => 'Recipient has SMS notifications turned off.',
+            $this->isSms($notification) && $recipient->smsPhoneNumber() === null => 'Recipient has no valid Bangladeshi mobile number.',
+            $this->isSms($notification) && ! $sms->isConfigured() => 'No SMS provider is configured.',
+            ! $this->isSms($notification) && ! filter_var($recipient->email, FILTER_VALIDATE_EMAIL) => 'Recipient has no valid email address.',
+            default => null,
+        };
+
+        if ($skipReason !== null) {
+            $notification->update([
+                'status' => AppointmentNotification::STATUS_SKIPPED,
+                'recipient_id' => $recipient?->id,
+                'last_error' => $skipReason,
+            ]);
+
+            return;
+        }
+
+        if ($this->isSms($notification)) {
+            $this->deliverSms($notification, $composer->composeWaitlistOffer($offer), $recipient, $sms);
+
+            return;
+        }
+
+        $this->sendEmail($notification, $recipient, new WaitlistOfferNotification($offer));
+    }
+
+    /**
+     * Send one email now and mark the ledger row sent; a failure marks it failed and is rethrown so the queue retries.
+     */
+    private function sendEmail(AppointmentNotification $notification, User $recipient, Notification $mail): void
+    {
         try {
-            $recipient->notifyNow($this->mailFor($notification, $appointment));
+            $recipient->notifyNow($mail);
         } catch (Throwable $exception) {
             $notification->update([
                 'status' => AppointmentNotification::STATUS_FAILED,
@@ -132,6 +192,7 @@ class SendAppointmentNotification implements ShouldQueue
             Log::warning('Appointment email delivery failed.', [
                 'appointment_notification_id' => $notification->id,
                 'appointment_id' => $notification->appointment_id,
+                'waitlist_offer_id' => $notification->waitlist_offer_id,
                 'type' => $notification->type,
                 'attempt' => $notification->attempts,
                 'exception' => $exception::class,
@@ -148,11 +209,43 @@ class SendAppointmentNotification implements ShouldQueue
         ]);
     }
 
+    /**
+     * The queue gave up on this job. Close the ledger row so its state is visible to administrators: a row that was
+     * certainly not delivered becomes "exhausted" (retryable by an administrator), while an SMS whose provider request
+     * may have gone out becomes "unconfirmed" and is never re-sent. Final rows (sent, skipped, ...) are left alone.
+     */
     public function failed(?Throwable $exception): void
     {
+        $exhausted = AppointmentNotification::query()
+            ->whereKey($this->notificationId)
+            ->whereIn('status', [AppointmentNotification::STATUS_PENDING, AppointmentNotification::STATUS_FAILED])
+            ->update(['status' => AppointmentNotification::STATUS_EXHAUSTED, 'updated_at' => now()]);
+
+        $exhausted += AppointmentNotification::query()
+            ->whereKey($this->notificationId)
+            ->where('status', AppointmentNotification::STATUS_SENDING)
+            ->whereNull('provider_requested_at')
+            ->update([
+                'status' => AppointmentNotification::STATUS_EXHAUSTED,
+                'last_error' => 'Delivery attempts were interrupted repeatedly.',
+                'updated_at' => now(),
+            ]);
+
+        AppointmentNotification::query()
+            ->whereKey($this->notificationId)
+            ->where('channel', AppointmentNotification::CHANNEL_SMS)
+            ->where('status', AppointmentNotification::STATUS_SENDING)
+            ->whereNotNull('provider_requested_at')
+            ->update([
+                'status' => AppointmentNotification::STATUS_UNCONFIRMED,
+                'last_error' => 'Delivery was interrupted after the SMS provider was contacted.',
+                'updated_at' => now(),
+            ]);
+
         Log::error('Appointment notification delivery gave up after all retries.', [
             'appointment_notification_id' => $this->notificationId,
             'exception' => $exception ? $exception::class : null,
+            'marked_exhausted' => $exhausted === 1,
         ]);
     }
 
@@ -270,10 +363,8 @@ class SendAppointmentNotification implements ShouldQueue
         };
     }
 
-    private function deliverSms(AppointmentNotification $notification, Appointment $appointment, User $recipient, SmsGateway $sms, AppointmentSmsComposer $composer): void
+    private function deliverSms(AppointmentNotification $notification, string $message, User $recipient, SmsGateway $sms): void
     {
-        $message = $composer->compose($notification, $appointment);
-
         // From here on the provider may receive the request, so this row must never be re-sent automatically.
         $notification->update(['recipient_id' => $recipient->id, 'provider_requested_at' => now()]);
 
@@ -345,19 +436,20 @@ class SendAppointmentNotification implements ShouldQueue
             AppointmentNotification::TYPE_RESCHEDULED => in_array($appointment->status, Appointment::ACTIVE_STATUSES, true)
                 && $this->rescheduleHistory($notification)?->new_slot_id === $appointment->appointment_slot_id,
             AppointmentNotification::TYPE_REMINDER => $this->reminderStillRelevant($notification, $appointment),
+            AppointmentNotification::TYPE_EXPIRED => $appointment->status === Appointment::STATUS_EXPIRED,
             default => true,
         };
     }
 
     /**
-     * A reminder is only sent for a booked or confirmed appointment that still uses the same slot at the same
-     * start time, and that has not started yet.
+     * A reminder is only sent for a confirmed appointment that still uses the same slot at the same start time, and
+     * that has not started yet.
      */
     private function reminderStillRelevant(AppointmentNotification $notification, Appointment $appointment): bool
     {
         $slot = $appointment->slot;
 
-        return in_array($appointment->status, Appointment::ACTIVE_STATUSES, true)
+        return in_array($appointment->status, AppointmentNotificationService::REMINDER_STATUSES, true)
             && $slot !== null
             && (int) ($notification->context['slot_id'] ?? 0) === $slot->id
             && (int) ($notification->context['starts_at'] ?? 0) === $slot->starts_at->getTimestamp()
@@ -366,11 +458,18 @@ class SendAppointmentNotification implements ShouldQueue
 
     private function mailFor(AppointmentNotification $notification, Appointment $appointment): AppointmentMailNotification
     {
+        $forPatient = ($notification->context['audience'] ?? null) === AppointmentNotification::AUDIENCE_PATIENT;
+
         return match ($notification->type) {
-            AppointmentNotification::TYPE_BOOKED => new AppointmentBookedNotification($appointment),
+            AppointmentNotification::TYPE_BOOKED => $forPatient
+                ? new AppointmentRequestReceivedNotification($appointment, ($notification->context['source'] ?? null) === 'staff')
+                : new AppointmentBookedNotification($appointment),
             AppointmentNotification::TYPE_CONFIRMED => new AppointmentConfirmedNotification($appointment),
             AppointmentNotification::TYPE_REJECTED => new AppointmentRejectedNotification($appointment),
-            AppointmentNotification::TYPE_CANCELLED => new AppointmentCancelledNotification($appointment),
+            AppointmentNotification::TYPE_CANCELLED => $forPatient
+                ? new AppointmentCancellationReceiptNotification($appointment)
+                : new AppointmentCancelledNotification($appointment),
+            AppointmentNotification::TYPE_EXPIRED => new AppointmentExpiredNotification($appointment),
             AppointmentNotification::TYPE_RESCHEDULED => new AppointmentRescheduledNotification(
                 $appointment,
                 $this->rescheduleHistory($notification)

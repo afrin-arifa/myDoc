@@ -10,12 +10,30 @@ use Google\Service\Calendar\Event;
 use Google\Service\Calendar\EventDateTime;
 use Google\Service\Exception as GoogleServiceException;
 use Google\Service\Oauth2;
+use GuzzleHttp\Client as HttpClient;
+use GuzzleHttp\ClientInterface;
 use Illuminate\Support\Carbon;
 use RuntimeException;
 
+/**
+ * Talks to the doctor's own Google Calendar. Events are private to the doctor's calendar and carry only a generic
+ * title, the consultation type and the chamber where it is held: never the patient's name, contact details, notes or
+ * documents.
+ *
+ * Every Google request has a timeout (config services.google.calendar.timeout), so a slow Google API cannot hold a
+ * queue worker or a web request. Lost authorization (revoked or expired refresh token, or a 401) is reported as
+ * GoogleCalendarAuthorizationException so callers can ask the doctor to reconnect instead of retrying.
+ */
 class GoogleCalendarService
 {
-    public function __construct(private readonly ?Calendar $calendar = null) {}
+    /**
+     * Both dependencies are optional: by default the Calendar service is built from the doctor's authenticated client
+     * and requests go through a Guzzle client with the configured timeouts.
+     */
+    public function __construct(
+        private readonly ?Calendar $calendar = null,
+        private readonly ?ClientInterface $httpClient = null,
+    ) {}
 
     public function authorizationUrl(string $state): string
     {
@@ -75,11 +93,13 @@ class GoogleCalendarService
                 $this->event($appointment, $eventId)
             );
         } catch (GoogleServiceException $exception) {
+            $this->throwIfUnauthorized($exception);
+
             if ($exception->getCode() !== 409) {
                 throw $exception;
             }
 
-            $calendar->events->update('primary', $eventId, $this->event($appointment, $eventId));
+            $this->call(fn () => $calendar->events->update('primary', $eventId, $this->event($appointment, $eventId)));
         }
 
         return $eventId;
@@ -99,6 +119,8 @@ class GoogleCalendarService
                 $this->event($appointment, $googleEventId)
             );
         } catch (GoogleServiceException $exception) {
+            $this->throwIfUnauthorized($exception);
+
             if ($exception->getCode() !== 404) {
                 throw $exception;
             }
@@ -115,7 +137,9 @@ class GoogleCalendarService
                 $googleEventId
             );
         } catch (GoogleServiceException $exception) {
-            if ($exception->getCode() !== 404) {
+            $this->throwIfUnauthorized($exception);
+
+            if ($exception->getCode() !== 404 && $exception->getCode() !== 410) {
                 throw $exception;
             }
         }
@@ -131,12 +155,44 @@ class GoogleCalendarService
         return $this->calendar ?? new Calendar($this->authenticatedClient($connection));
     }
 
+    /**
+     * @template T
+     *
+     * @param  callable(): T  $request
+     * @return T
+     */
+    private function call(callable $request): mixed
+    {
+        try {
+            return $request();
+        } catch (GoogleServiceException $exception) {
+            $this->throwIfUnauthorized($exception);
+
+            throw $exception;
+        }
+    }
+
+    private function throwIfUnauthorized(GoogleServiceException $exception): void
+    {
+        if ($exception->getCode() === 401) {
+            throw new GoogleCalendarAuthorizationException('Google authorization is no longer valid.', 401, $exception);
+        }
+    }
+
     private function client(): Client
     {
         $client = new Client;
         $client->setClientId((string) config('services.google.calendar.client_id'));
         $client->setClientSecret((string) config('services.google.calendar.client_secret'));
         $client->setRedirectUri((string) config('services.google.calendar.redirect_uri'));
+        // Same options as the library's default HTTP client (base URI, and HTTP errors returned rather than thrown so
+        // OAuth errors such as "invalid_grant" can be read), plus timeouts.
+        $client->setHttpClient($this->httpClient ?? new HttpClient([
+            'base_uri' => $client->getConfig('base_path'),
+            'http_errors' => false,
+            'timeout' => (float) config('services.google.calendar.timeout', 10),
+            'connect_timeout' => (float) config('services.google.calendar.connect_timeout', 5),
+        ]));
         $client->setAccessType('offline');
         $client->setPrompt('consent');
         $client->setScopes([
@@ -150,23 +206,31 @@ class GoogleCalendarService
     private function authenticatedClient(GoogleCalendarConnection $connection): Client
     {
         $client = $this->client();
+        // The client judges expiry from "created" + "expires_in"; without "created" it treats every token as
+        // expired and refreshes it on every request.
         $client->setAccessToken([
             'access_token' => $connection->access_token,
             'refresh_token' => $connection->refresh_token,
+            'created' => now()->getTimestamp(),
             'expires_in' => $connection->token_expires_at
-                ? max(0, now()->diffInSeconds($connection->token_expires_at, false))
+                ? max(0, (int) now()->diffInSeconds($connection->token_expires_at, false))
                 : 0,
         ]);
 
         if ($client->isAccessTokenExpired()) {
             if (! $connection->refresh_token) {
-                throw new RuntimeException('Google authorization has expired.');
+                throw new GoogleCalendarAuthorizationException('Google authorization has expired and cannot be refreshed.');
             }
 
             $tokens = $client->fetchAccessTokenWithRefreshToken($connection->refresh_token);
 
+            if (($tokens['error'] ?? null) === 'invalid_grant') {
+                // Revoked by the doctor in their Google account, expired, or the password changed.
+                throw new GoogleCalendarAuthorizationException('Google authorization was revoked or has expired.');
+            }
+
             if (isset($tokens['error']) || ! isset($tokens['access_token'])) {
-                throw new RuntimeException('Google authorization has expired.');
+                throw new RuntimeException('Google authorization could not be refreshed.');
             }
 
             $refreshedToken = [
@@ -198,14 +262,25 @@ class GoogleCalendarService
         ]);
     }
 
+    private function consultationLabel(?string $consultationType): string
+    {
+        return match ($consultationType) {
+            'voice' => 'Voice call',
+            'video' => 'Video call',
+            default => 'Physical visit',
+        };
+    }
+
     private function event(Appointment $appointment, string $eventId): Event
     {
-        $appointment->loadMissing('slot');
+        $appointment->loadMissing('slot.location');
 
         return new Event([
             'id' => $eventId,
             'summary' => 'myDoc Appointment',
-            'description' => 'Appointment type: '.$appointment->consultation_type,
+            'description' => 'Consultation: '.$this->consultationLabel($appointment->consultation_type),
+            // The doctor's own chamber (practice details, not patient data).
+            'location' => $appointment->slot->location?->summary(),
             'start' => new EventDateTime([
                 'dateTime' => $appointment->slot->starts_at->toRfc3339String(),
                 'timeZone' => config('app.timezone'),

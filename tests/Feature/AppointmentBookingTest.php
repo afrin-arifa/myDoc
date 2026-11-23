@@ -9,11 +9,12 @@ use App\Models\Specialty;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\AssertsUnavailableSlotRedirect;
 use Tests\TestCase;
 
 class AppointmentBookingTest extends TestCase
 {
-    use RefreshDatabase;
+    use AssertsUnavailableSlotRedirect, RefreshDatabase;
 
     public function test_patients_can_browse_accepting_doctors_and_future_slots(): void
     {
@@ -112,11 +113,10 @@ class AppointmentBookingTest extends TestCase
             'role' => 'patient',
         ]);
 
-        $this->actingAs($anotherPatient)
+        $this->assertSentToChooseAnotherTime($this->actingAs($anotherPatient)
             ->post(route('appointment-slots.book', $slot), [
                 'consultation_type' => 'physical',
-            ])
-            ->assertSessionHasErrors('slot');
+            ]), $slot);
     }
 
     public function test_past_and_blocked_slots_cannot_be_booked(): void
@@ -139,21 +139,21 @@ class AppointmentBookingTest extends TestCase
             'blocked'
         );
 
-        $this->actingAs($patient)
+        $this->assertSentToChooseAnotherTime($this->actingAs($patient)
             ->post(route('appointment-slots.book', $past), [
                 'consultation_type' => 'physical',
-            ])
-            ->assertSessionHasErrors('slot');
+            ]), $past);
 
-        $this->actingAs($patient)
+        $this->assertSentToChooseAnotherTime($this->actingAs($patient)
             ->post(route('appointment-slots.book', $blocked), [
                 'consultation_type' => 'physical',
-            ])
-            ->assertSessionHasErrors('slot');
+            ]), $blocked);
     }
 
     public function test_booking_persists_each_supported_consultation_type_and_rejects_invalid_values(): void
     {
+        config(['booking.remote_consultations_enabled' => true]);
+
         $doctor = $this->doctorWithProfile();
 
         $patient = User::factory()->create([

@@ -51,7 +51,7 @@ class DoctorInvitationNotification extends AccountMailNotification
 
     protected function actionUrl(object $notifiable): string
     {
-        return route('doctor.invitation.show', ['token' => $this->token, 'email' => $notifiable->email]);
+        return $this->trustedUrl('doctor.invitation.show', ['token' => $this->token, 'email' => $notifiable->email]);
     }
 
     protected function actionLabel(): string

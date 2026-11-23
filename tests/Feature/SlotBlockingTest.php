@@ -2,6 +2,8 @@
 
 namespace Tests\Feature;
 
+use App\Jobs\OfferSlotToWaitlist;
+use App\Jobs\SendAppointmentNotification;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
@@ -15,11 +17,12 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
+use Tests\Concerns\AssertsUnavailableSlotRedirect;
 use Tests\TestCase;
 
 class SlotBlockingTest extends TestCase
 {
-    use RefreshDatabase;
+    use AssertsUnavailableSlotRedirect, RefreshDatabase;
 
     private int $slotOffset = 0;
 
@@ -34,7 +37,10 @@ class SlotBlockingTest extends TestCase
 
         $this->actingAs($doctor)->delete(route('doctor.slots.unblock', $slot))->assertRedirect()->assertSessionHas('status');
         $this->assertSame('available', $slot->fresh()->status);
-        Queue::assertNothingPushed();
+        Queue::assertNotPushed(SendAppointmentNotification::class);
+        Queue::assertNotPushed(SyncAppointmentToGoogleCalendar::class);
+        // The reopened time is offered to the waiting list, if anyone is waiting for it.
+        Queue::assertPushed(OfferSlotToWaitlist::class, fn ($job) => $job->slotId === $slot->id);
     }
 
     public function test_blocked_slot_cannot_be_booked_by_patients_doctors_or_rescheduling(): void
@@ -46,8 +52,8 @@ class SlotBlockingTest extends TestCase
         $confirmed = $this->appointment($doctor, $patient, 'confirmed');
         $this->actingAs($doctor)->post(route('doctor.slots.block', $slot));
 
-        $this->actingAs($patient)->get(route('appointment-slots.confirm', $slot))->assertNotFound();
-        $this->actingAs($patient)->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])->assertSessionHasErrors('slot');
+        $this->assertSentToChooseAnotherTime($this->actingAs($patient)->get(route('appointment-slots.confirm', $slot)), $slot);
+        $this->assertSentToChooseAnotherTime($this->actingAs($patient)->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical']), $slot);
         $this->actingAs($doctor)->post(route('doctor.appointments.store'), ['patient_email' => $patient->email, 'slot_id' => $slot->id, 'consultation_type' => 'physical'])->assertSessionHasErrors('slot');
         $this->actingAs($doctor)->post(route('doctor.appointments.reschedule.store', $confirmed), ['slot_id' => $slot->id])->assertSessionHasErrors('slot_id');
         $this->get(route('doctors.show', $doctor->doctorProfile))->assertDontSee($slot->starts_at->format('g:i A'));

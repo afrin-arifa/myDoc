@@ -51,7 +51,7 @@ class AssistantInvitationNotification extends AccountMailNotification
 
     protected function actionUrl(object $notifiable): string
     {
-        return route('assistant.invitation.show', ['token' => $this->token, 'email' => $notifiable->email]);
+        return $this->trustedUrl('assistant.invitation.show', ['token' => $this->token, 'email' => $notifiable->email]);
     }
 
     protected function actionLabel(): string

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\OfferSlotToWaitlist;
 use App\Models\DoctorAvailability;
 use App\Models\DoctorProfile;
 use App\Models\DoctorWorkspaceEvent;
@@ -17,11 +18,26 @@ class DoctorSlotGenerator
      */
     private const INSERT_CHUNK_SIZE = 500;
 
+    /**
+     * A conflicting existing slot starts at exactly the same time.
+     */
+    private const CONFLICT_SAME_START = 'same_start';
+
+    /**
+     * A conflicting existing slot overlaps the time but starts at a different moment.
+     */
+    private const CONFLICT_OVERLAP = 'overlap';
+
     public function __construct(private readonly DoctorWorkspaceEventService $events) {}
 
     /**
-     * Create missing future slots. Existing slots (including booked and blocked ones) are never modified,
-     * because rows that collide with the unique (doctor_profile_id, starts_at) index are ignored.
+     * Create missing future slots. Existing slots (including booked and blocked ones) are never modified, and a new
+     * slot is skipped when it would overlap any existing slot of the doctor, whatever that slot's start time or status
+     * (for example after a weekly window moved from 09:00 to 09:05). New slots never overlap each other either.
+     *
+     * The doctor's schedule lock (DoctorProfile::lockForScheduling) is taken first, so concurrent generations and
+     * availability changes for the same doctor run one after another and each sees the slots the previous one
+     * created. The unique (doctor_profile_id, starts_at) index remains a last line of defence (insertOrIgnore).
      *
      * When any slots were created, one "slots_generated" audit event is recorded in the same transaction, with the
      * actor (null for system-initiated generation) and the number of slots created.
@@ -47,9 +63,19 @@ class DoctorSlotGenerator
         $timestamp = now();
 
         DB::transaction(function () use ($profile, $startDate, $endDate, $weekdays, $timestamp, $actor, &$rows, &$created): void {
-            $this->forEachSlot($profile, $startDate, $endDate, $weekdays, function (CarbonImmutable $slotStart, CarbonImmutable $slotEnd) use ($profile, $timestamp, &$rows, &$created): void {
+            DoctorProfile::lockForScheduling($profile->id);
+            $occupied = $this->occupiedIntervals($profile, $startDate, $endDate);
+
+            $this->forEachSlot($profile, $startDate, $endDate, $weekdays, function (CarbonImmutable $slotStart, CarbonImmutable $slotEnd, DoctorAvailability $window) use ($profile, $timestamp, &$rows, &$created, &$occupied): void {
+                if ($this->conflict($occupied, $slotStart, $slotEnd) !== null) {
+                    return;
+                }
+
+                $this->occupy($occupied, $slotStart, $slotEnd);
+                // The slot keeps its window's location for good (never taken from the request).
                 $rows[] = [
                     'doctor_profile_id' => $profile->id,
+                    'doctor_location_id' => $window->doctor_location_id,
                     'starts_at' => $this->storageFormat($slotStart),
                     'ends_at' => $this->storageFormat($slotEnd),
                     'status' => 'available',
@@ -80,14 +106,21 @@ class DoctorSlotGenerator
             }
         });
 
+        if ($created > 0) {
+            // New times may be what waiting-list patients are waiting for.
+            OfferSlotToWaitlist::dispatch(doctorProfileId: (int) $profile->id);
+        }
+
         return $created;
     }
 
     /**
-     * Describe the slots a generation would cover without writing anything.
+     * Describe the slots a generation would cover without writing anything. "existing" marks a time that already has
+     * a slot with the same start; "overlapping" marks a time that would overlap a different existing slot (or an
+     * earlier time in this same preview) and will therefore be skipped. Past times are skipped as well.
      *
      * @param  list<int>  $weekdays  Explicitly selected ISO weekdays, where Monday is 1 and Sunday is 7.
-     * @return array{slots: list<array{date: string, starts_at: string, ends_at: string, existing: bool, past: bool}>, total: int, existing: int, past: int}
+     * @return array{slots: list<array{date: string, starts_at: string, ends_at: string, existing: bool, overlapping: bool, past: bool, location: string|null}>, total: int, existing: int, overlapping: int, past: int}
      *
      * @throws ValidationException When the weekday selection is empty, invalid or contains duplicates.
      */
@@ -98,23 +131,35 @@ class DoctorSlotGenerator
         array $weekdays
     ): array {
         $weekdays = $this->validatedWeekdays($weekdays);
-        $existingStarts = $this->existingSlotStarts($profile, $startDate, $endDate);
+        $occupied = $this->occupiedIntervals($profile, $startDate, $endDate);
         $now = CarbonImmutable::now();
         $slots = [];
         $existingCount = 0;
+        $overlappingCount = 0;
         $pastCount = 0;
 
-        $this->forEachSlot($profile, $startDate, $endDate, $weekdays, function (CarbonImmutable $slotStart, CarbonImmutable $slotEnd) use ($existingStarts, $now, &$slots, &$existingCount, &$pastCount): void {
-            $existing = isset($existingStarts[$this->storageFormat($slotStart)]);
+        $this->forEachSlot($profile, $startDate, $endDate, $weekdays, function (CarbonImmutable $slotStart, CarbonImmutable $slotEnd, DoctorAvailability $window) use (&$occupied, $now, &$slots, &$existingCount, &$overlappingCount, &$pastCount): void {
+            $conflict = $this->conflict($occupied, $slotStart, $slotEnd);
             $past = $slotStart->lte($now);
+            $existing = $conflict === self::CONFLICT_SAME_START;
+            $overlapping = $conflict === self::CONFLICT_OVERLAP;
             $existingCount += (int) $existing;
+            $overlappingCount += (int) $overlapping;
             $pastCount += (int) $past;
+
+            // Mirror generation: a time that would be created occupies its interval for later times in this run.
+            if ($conflict === null && ! $past) {
+                $this->occupy($occupied, $slotStart, $slotEnd);
+            }
+
             $slots[] = [
                 'date' => $slotStart->toDateString(),
                 'starts_at' => $slotStart->toIso8601String(),
                 'ends_at' => $slotEnd->toIso8601String(),
                 'existing' => $existing,
+                'overlapping' => $overlapping,
                 'past' => $past,
+                'location' => $window->location?->name,
             ];
         }, false);
 
@@ -122,33 +167,81 @@ class DoctorSlotGenerator
             'slots' => $slots,
             'total' => count($slots),
             'existing' => $existingCount,
+            'overlapping' => $overlappingCount,
             'past' => $pastCount,
         ];
     }
 
     /**
-     * Fetch the start times of the doctor's existing slots in the range with a single query.
+     * The doctor's existing slots that touch the range (any status), fetched with a single query and grouped by
+     * calendar date for quick overlap checks. Intervals are [start, end) Unix timestamps.
      *
-     * @return array<string, true> Keyed by the stored UTC start time.
+     * @return array<string, list<array{0: int, 1: int}>>
      */
-    private function existingSlotStarts(DoctorProfile $profile, CarbonImmutable $startDate, CarbonImmutable $endDate): array
+    private function occupiedIntervals(DoctorProfile $profile, CarbonImmutable $startDate, CarbonImmutable $endDate): array
     {
         $timezone = config('app.timezone', 'UTC');
         $rangeStart = $startDate->setTimezone($timezone)->startOfDay();
         $rangeEnd = $endDate->setTimezone($timezone)->startOfDay()->addDay();
+        $occupied = [];
 
-        return DB::table('appointment_slots')
+        DB::table('appointment_slots')
             ->where('doctor_profile_id', $profile->id)
-            ->where('starts_at', '>=', $this->storageFormat($rangeStart))
             ->where('starts_at', '<', $this->storageFormat($rangeEnd))
-            ->pluck('starts_at')
-            ->mapWithKeys(fn (string $startsAt): array => [CarbonImmutable::parse($startsAt, 'UTC')->format('Y-m-d H:i:s') => true])
-            ->all();
+            ->where('ends_at', '>', $this->storageFormat($rangeStart))
+            ->get(['starts_at', 'ends_at'])
+            ->each(function (object $slot) use ($timezone, &$occupied): void {
+                $this->occupy($occupied, CarbonImmutable::parse($slot->starts_at, $timezone), CarbonImmutable::parse($slot->ends_at, $timezone));
+            });
+
+        return $occupied;
     }
 
+    /**
+     * @param  array<string, list<array{0: int, 1: int}>>  $occupied
+     */
+    private function occupy(array &$occupied, CarbonImmutable $start, CarbonImmutable $end): void
+    {
+        $interval = [$start->getTimestamp(), $end->getTimestamp()];
+
+        // Registered under every date the interval touches, so a lookup by the candidate's start date is complete.
+        foreach (array_unique([$start->toDateString(), $end->subSecond()->toDateString()]) as $date) {
+            $occupied[$date][] = $interval;
+        }
+    }
+
+    /**
+     * Whether [start, end) collides with an occupied interval: the same start, another overlap, or none (null).
+     * Back-to-back slots (one ends exactly when the next starts) do not overlap.
+     *
+     * @param  array<string, list<array{0: int, 1: int}>>  $occupied
+     */
+    private function conflict(array $occupied, CarbonImmutable $start, CarbonImmutable $end): ?string
+    {
+        $startTimestamp = $start->getTimestamp();
+        $endTimestamp = $end->getTimestamp();
+        $conflict = null;
+
+        foreach ($occupied[$start->toDateString()] ?? [] as [$occupiedStart, $occupiedEnd]) {
+            if ($occupiedStart === $startTimestamp) {
+                return self::CONFLICT_SAME_START;
+            }
+
+            if ($occupiedStart < $endTimestamp && $occupiedEnd > $startTimestamp) {
+                $conflict = self::CONFLICT_OVERLAP;
+            }
+        }
+
+        return $conflict;
+    }
+
+    /**
+     * Slots are stored as wall-clock times in the application timezone (Asia/Dhaka), never converted to UTC, so a
+     * doctor's "09:00" is stored and shown as 09:00.
+     */
     private function storageFormat(CarbonImmutable $moment): string
     {
-        return $moment->utc()->format('Y-m-d H:i:s');
+        return $moment->setTimezone(config('app.timezone', 'UTC'))->format('Y-m-d H:i:s');
     }
 
     /**
@@ -197,6 +290,7 @@ class DoctorSlotGenerator
         $periodEnd = $endDate->setTimezone($timezone)->startOfDay()->addDay();
         $duration = DoctorAvailability::SLOT_DURATION_MINUTES;
         $profile->availabilities()
+            ->with('location')
             ->where('is_active', true)
             ->orderBy('day_of_week')
             ->orderBy('start_time')
@@ -242,7 +336,7 @@ class DoctorSlotGenerator
                         if ($skipPast && $slotStart->lte($now)) {
                             continue;
                         }
-                        $callback($slotStart, $slotEnd);
+                        $callback($slotStart, $slotEnd, $availability);
                     }
                 }
             });

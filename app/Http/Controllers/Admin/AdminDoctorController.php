@@ -78,7 +78,7 @@ class AdminDoctorController extends Controller
         ['doctor' => $doctor, 'invitation' => $invitation] = $this->onboarding->createDoctor(
             ['name' => $data['name'], 'email' => $data['email'], 'phone' => $data['phone'] ?? null],
             [
-                ...$request->safe()->only(['professional_title', 'license_number', 'consultation_fee', 'years_of_experience', 'qualifications', 'bio']),
+                ...$request->safe()->only(['professional_title', 'license_number', 'consultation_fee', 'follow_up_fee', 'years_of_experience', 'qualifications', 'bio']),
                 'is_accepting_patients' => $request->boolean('is_accepting_patients'),
             ],
             array_map('intval', $data['specialty_ids'] ?? [])

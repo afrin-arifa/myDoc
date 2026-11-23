@@ -2,11 +2,13 @@
 
 namespace App\Http\Requests\Doctor;
 
+use App\Models\Appointment;
 use App\Models\DoctorProfile;
 use App\Models\User;
 use App\Services\DoctorAccess;
 use App\Services\DoctorWorkspace;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
 
 class StoreDoctorAppointmentRequest extends FormRequest
@@ -30,7 +32,9 @@ class StoreDoctorAppointmentRequest extends FormRequest
             'patient_email' => ['nullable', 'required_without:patient_id', 'string', 'email', 'max:255'],
             'patient_label' => ['nullable', 'string', 'max:500'],
             'slot_id' => ['required', 'integer', 'exists:appointment_slots,id'],
-            'consultation_type' => ['required', 'in:physical,voice,video'],
+            // Eligibility (this patient's completed appointment with this doctor) is decided by the booking service.
+            'follow_up_of_id' => ['nullable', 'integer'],
+            'consultation_type' => ['required', Rule::in(Appointment::bookableConsultationTypes())],
             'provider_notes' => ['nullable', 'string', 'max:5000'],
         ];
     }

@@ -16,9 +16,14 @@
                 <p><strong>Patient:</strong> {{ $appointment->patient->name }}</p>
                 <p><strong>Contact:</strong> {{ $appointment->patient->email }}</p>
                 <p><strong>Date and time:</strong> {{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
-                <p><strong>Consultation fee:</strong> {{ number_format((float) $appointment->slot->doctorProfile->consultation_fee, 2) }}</p>
+                <p><strong>Location:</strong> <x-appointments.location :location="$appointment->slot->location" compact /></p>
+                <x-appointments.fee :appointment="$appointment" />
                 <p><strong>Consultation:</strong> <x-appointments.consultation-type :type="$appointment->consultation_type" /></p>
                 <p><strong>Status:</strong> <x-ui.status-badge :status="$appointment->status" /></p>
+                <x-appointments.follow-up-links :appointment="$appointment" audience="staff" class="small mb-3" />
+                @if ($canBookFollowUp)
+                    <a class="btn btn-outline-primary mb-3" href="{{ $workspace->url('doctor.appointments.create', ['follow_up' => $appointment->id]) }}">Book follow-up</a>
+                @endif
                 @if ($appointment->status === 'cancelled' && $appointment->cancellation_reason)
                     <p class="mb-1"><strong>Cancellation reason (staff only):</strong></p>
                     <p class="text-secondary" data-cancellation-reason>{{ $appointment->cancellation_reason }}</p>

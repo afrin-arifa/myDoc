@@ -7,8 +7,8 @@ Hello {!! $recipientName !!},
 {!! $introduction !!}
 
 @if ($scheduleChange)
-Previous time: {!! $scheduleChange['previous']['date'] !!}, {!! $scheduleChange['previous']['time'] !!}
-New time:      {!! $scheduleChange['current']['date'] !!}, {!! $scheduleChange['current']['time'] !!}
+Previous time: {!! implode(', ', array_filter([$scheduleChange['previous']['date'], $scheduleChange['previous']['time'], $scheduleChange['previous']['location'] ?? null])) !!}
+New time:      {!! implode(', ', array_filter([$scheduleChange['current']['date'], $scheduleChange['current']['time'], $scheduleChange['current']['location'] ?? null])) !!}
 
 @endif
 @foreach ($details as $label => $value)

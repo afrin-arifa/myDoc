@@ -60,7 +60,7 @@ class DoctorProfileController extends Controller
                 'total' => $profile?->appointmentSlots()->whereHas('appointments')->count() ?? 0,
                 'booked' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'booked'))->count() ?? 0,
                 'confirmed' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'confirmed'))->count() ?? 0,
-                'cancelled' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->whereIn('status', ['cancelled', 'rejected']))->count() ?? 0,
+                'cancelled' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->whereIn('status', Appointment::CLOSED_STATUSES))->count() ?? 0,
             ],
             'pendingCount' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'booked'))->count() ?? 0,
         ]);
@@ -86,6 +86,9 @@ class DoctorProfileController extends Controller
         return view('doctor.settings', [
             'profile' => $profile,
             'pendingCount' => $this->pendingCount($profile->id),
+            'calendarIssueCount' => $profile->googleCalendarConnection
+                ? $profile->googleCalendarConnection->appointmentEvents()->whereIn('status', ['failed', 'delete_pending'])->count()
+                : 0,
         ]);
     }
 

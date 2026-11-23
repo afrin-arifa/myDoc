@@ -8,11 +8,12 @@ use App\Models\DoctorProfile;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesDoctorLocations;
 use Tests\TestCase;
 
 class SlotDurationTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesDoctorLocations, RefreshDatabase;
 
     public function test_new_availability_always_stores_ten_minutes_regardless_of_input(): void
     {
@@ -20,7 +21,7 @@ class SlotDurationTest extends TestCase
 
         foreach ([['day_of_week' => 1], ['day_of_week' => 2, 'slot_duration_minutes' => 45], ['day_of_week' => 3, 'slot_duration_minutes' => 'abc']] as $input) {
             $this->actingAs($doctor)
-                ->post(route('doctor.availability.store'), [...$input, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => 1])
+                ->post(route('doctor.availability.store'), [...$input, 'doctor_location_id' => $this->locationFor($doctor->doctorProfile)->id, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => 1])
                 ->assertSessionHasNoErrors();
         }
 

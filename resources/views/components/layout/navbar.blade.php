@@ -13,6 +13,7 @@
         'patient' => array_values(array_filter([
             $canBrowseDirectory ? $directoryLink : null,
             ['label' => 'My appointments', 'url' => route('patient.appointments.index'), 'active' => ['patient.appointments.*', 'appointment-slots.*']],
+            ['label' => 'Waiting list', 'url' => route('patient.waitlist.index'), 'active' => ['patient.waitlist.*']],
             ['label' => 'Medical records', 'url' => route('patient.documents.index'), 'active' => ['patient.documents.*']],
             ['label' => 'Profile', 'url' => route('patient.profile'), 'active' => ['patient.profile']],
         ])),

@@ -12,6 +12,7 @@ use App\Services\DoctorWorkspace;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
 
 /**
  * Weekly availability in a doctor's workspace. Writes go through DoctorAvailabilityService, which authorizes the
@@ -33,7 +34,7 @@ class DoctorAvailabilityController extends Controller
 
     public function update(UpdateDoctorAvailabilityRequest $request, DoctorAvailability $availability): RedirectResponse
     {
-        $this->availabilities->update(
+        $blocked = $this->availabilities->update(
             $request->user(),
             $availability,
             $request->validated(),
@@ -41,7 +42,7 @@ class DoctorAvailabilityController extends Controller
             $this->workspace->forRequest($request, DoctorAccess::MANAGE_SCHEDULE),
         );
 
-        return back()->with('status', 'Availability updated.');
+        return back()->with('status', 'Availability updated.'.$this->blockedNotice($blocked));
     }
 
     public function destroy(Request $request, DoctorAvailability $availability): RedirectResponse
@@ -50,8 +51,22 @@ class DoctorAvailabilityController extends Controller
         $profile = $this->workspace->forRequest($request, DoctorAccess::MANAGE_SCHEDULE);
         abort_unless($profile, 403);
 
-        $this->availabilities->delete($request->user(), $availability, $profile);
+        $blocked = $this->availabilities->delete($request->user(), $availability, $profile);
 
-        return back()->with('status', 'Availability removed.');
+        return back()->with('status', 'Availability removed.'.$this->blockedNotice($blocked));
+    }
+
+    /**
+     * Explains which open times were blocked because the weekly schedule no longer covers them.
+     */
+    private function blockedNotice(int $blocked): string
+    {
+        if ($blocked === 0) {
+            return '';
+        }
+
+        return ' '.$blocked.' open future '.Str::plural('slot', $blocked).' no longer covered by your weekly schedule '
+            .($blocked === 1 ? 'was' : 'were').' blocked so patients cannot book '.($blocked === 1 ? 'it' : 'them')
+            .'. Existing appointments are unchanged, and you can unblock individual slots from the timetable.';
     }
 }

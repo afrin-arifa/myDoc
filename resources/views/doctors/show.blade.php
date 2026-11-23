@@ -5,9 +5,10 @@
 @section('content')
     <div class="container py-5">
         <div class="row g-5">
-            <div class="col-lg-7">
+            <div class="col-lg-6 col-xl-7">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <img class="rounded-circle object-fit-cover flex-shrink-0" src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="{{ $doctor->user->name }} profile photo" width="96" height="96">
+                    {{-- Decorative: the doctor's name is the heading beside it. --}}
+                    <img class="rounded-circle object-fit-cover flex-shrink-0" src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="" width="96" height="96">
                     <div>
                         <p class="hero__eyebrow mb-2">{{ $doctor->professional_title }}</p>
                         <h1 class="h2 mb-0">{{ $doctor->user->name }}</h1>
@@ -17,31 +18,162 @@
                 @if ($doctor->qualifications)
                     <p><strong>Qualifications:</strong> {{ $doctor->qualifications }}</p>
                 @endif
-                <p><strong>Experience:</strong> {{ $doctor->years_of_experience ?? 'Not specified' }} years</p>
-                <p><strong>Consultation fee:</strong> {{ number_format((float) $doctor->consultation_fee, 2) }}</p>
-                <p><strong>Availability:</strong> <span class="status-badge status-badge--success">Accepting patients</span></p>
+                <p><strong>Experience:</strong> {{ $doctor->years_of_experience !== null ? $doctor->years_of_experience.' years' : 'Not specified' }}</p>
+                <p><strong>Consultation fee:</strong> {{ App\Services\ConsultationFee::format($doctor->consultation_fee) }}</p>
+                @if ($doctor->follow_up_fee !== null)
+                    <p><strong>Follow-up fee:</strong> {{ App\Services\ConsultationFee::format($doctor->follow_up_fee) }}</p>
+                @endif
                 <div class="d-flex flex-wrap gap-2">
                     @foreach ($doctor->specialties as $specialty)
                         <span class="badge text-bg-light">{{ $specialty->name }}</span>
                     @endforeach
                 </div>
+                @if ($locations->isNotEmpty())
+                    <h2 class="h5 mt-4 mb-2">{{ Str::plural('Practice location', $locations->count()) }}</h2>
+                    <ul class="list-unstyled mb-0" aria-label="Practice locations">
+                        @foreach ($locations as $location)
+                            <li class="mb-2">
+                                <i class="fa-solid fa-location-dot text-secondary me-1" aria-hidden="true"></i>
+                                <strong>{{ $location->name }}</strong>
+                                <span class="d-block small text-secondary ms-3">{{ collect([$location->address, $location->area])->filter()->join(', ') ?: 'Address not provided yet' }}{{ $location->phone ? ' · '.$location->phone : '' }}</span>
+                                @if ($location->directions)
+                                    <span class="d-block small text-secondary ms-3">{{ $location->directions }}</span>
+                                @endif
+                            </li>
+                        @endforeach
+                    </ul>
+                @endif
             </div>
-            <div class="col-lg-5">
-                <div class="card border-0 shadow-sm">
+            <div class="col-lg-6 col-xl-5">
+                <section class="card border-0 shadow-sm" id="availability" aria-labelledby="availability-heading">
                     <div class="card-body p-4">
-                        <h2 class="h4 mb-3">Available times</h2>
-                        @forelse ($doctor->appointmentSlots as $slot)
-                            <div class="border-bottom py-3 d-flex justify-content-between align-items-center gap-3">
-                                <span>{{ $slot->starts_at->format('D, M j, Y g:i A') }}</span>
-                                @if (auth()->user()->role === 'patient')
-                                    <a class="btn btn-sm btn-primary" href="{{ route('appointment-slots.confirm', $slot) }}">Book</a>
+                        <h2 class="h4 mb-1" id="availability-heading">Available times</h2>
+                        <p class="small text-secondary mb-3">Times are shown in Bangladesh time (Asia/Dhaka). Choose a day to see its times.</p>
+
+                        @if ($followUpOf)
+                            <div class="alert alert-info small" role="status" data-follow-up-banner>
+                                Booking a follow-up to your appointment {{ $followUpOf->reference() }} on {{ $followUpOf->slot->starts_at->format('D, M j, Y') }}. Choose a time below.
+                                <a class="alert-link" href="{{ route('doctors.show', $doctor) }}">Book a regular appointment instead</a>
+                            </div>
+                        @endif
+
+                        @if ($canBook && $hasReachedLimit)
+                            <div class="alert alert-warning small" role="status" id="booking-limit-notice">
+                                You already have {{ $activeLimit }} active appointment requests (pending or confirmed), which is the maximum.
+                                Cancel one, or wait until one has taken place, before requesting another.
+                                <a class="alert-link" href="{{ route('patient.appointments.index') }}">View my appointments</a>
+                            </div>
+                        @endif
+
+                        @if ($locations->count() > 1)
+                            <nav class="d-flex flex-wrap gap-2 mb-3" aria-label="Choose a location">
+                                <a @class(['btn btn-sm', 'btn-primary' => ! $selectedLocation, 'btn-outline-primary' => $selectedLocation]) href="{{ route('doctors.show', array_filter(['doctor' => $doctor, 'date' => $selectedDate->toDateString(), 'follow_up' => $followUpOf?->id])) }}#availability" @if (! $selectedLocation) aria-current="true" @endif>All locations</a>
+                                @foreach ($locations as $location)
+                                    <a @class(['btn btn-sm', 'btn-primary' => $selectedLocation?->is($location), 'btn-outline-primary' => ! $selectedLocation?->is($location)]) href="{{ route('doctors.show', array_filter(['doctor' => $doctor, 'date' => $selectedDate->toDateString(), 'location' => $location->id, 'follow_up' => $followUpOf?->id])) }}#availability" @if ($selectedLocation?->is($location)) aria-current="true" @endif>{{ $location->name }}</a>
+                                @endforeach
+                            </nav>
+                        @endif
+
+                        <nav class="availability-days mb-3" aria-label="Choose a day">
+                            <ul class="availability-days__list">
+                                @foreach ($days as $day)
+                                    @php
+                                        $isSelected = $day['date']->isSameDay($selectedDate);
+                                    @endphp
+                                    <li>
+                                        <a @class(['availability-day', 'is-selected' => $isSelected, 'is-empty' => $day['openSlots'] === 0])
+                                            href="{{ route('doctors.show', array_filter(['doctor' => $doctor, 'date' => $day['date']->toDateString(), 'location' => $selectedLocation?->id, 'follow_up' => $followUpOf?->id])) }}#availability"
+                                            @if ($isSelected) aria-current="date" @endif
+                                            aria-label="{{ $day['date']->format('l, F j') }}: {{ $day['openSlots'] === 0 ? 'no open times' : $day['openSlots'].' open '.Str::plural('time', $day['openSlots']) }}">
+                                            <span class="availability-day__weekday">{{ $day['date']->isToday() ? 'Today' : $day['date']->format('D') }}</span>
+                                            <span class="availability-day__date">{{ $day['date']->format('M j') }}</span>
+                                            <span class="availability-day__count" aria-hidden="true">{{ $day['openSlots'] === 0 ? '–' : $day['openSlots'] }}</span>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </nav>
+
+                        <h3 class="h6 mb-2">{{ $selectedDate->format('l, M j, Y') }}</h3>
+
+                        @if ($slots->isEmpty())
+                            <div class="availability-empty">
+                                <p class="text-secondary mb-2">No open times on this day.</p>
+                                @if ($nextOpenSlotStart)
+                                    <a class="btn btn-sm btn-outline-primary" href="{{ route('doctors.show', array_filter(['doctor' => $doctor, 'date' => $nextOpenSlotStart->toDateString(), 'location' => $selectedLocation?->id, 'follow_up' => $followUpOf?->id])) }}#availability">
+                                        Next open time: {{ $nextOpenSlotStart->format('D, M j, g:i A') }}
+                                    </a>
+                                @else
+                                    <p class="small text-secondary mb-0">This doctor has no future open times listed right now.</p>
                                 @endif
                             </div>
-                        @empty
-                            <p class="text-secondary mb-0">No future slots are currently available.</p>
-                        @endforelse
+                        @else
+                            @foreach ($slots->groupBy(fn ($slot) => $slot->doctor_location_id ?? 0) as $locationSlots)
+                            @php
+                                $slotLocation = $locationSlots->first()->location;
+                                $locationLabel = $slotLocation?->name ?? 'Location not specified';
+                            @endphp
+                            <h4 class="h6 mt-3 mb-1"><i class="fa-solid fa-location-dot text-secondary me-1" aria-hidden="true"></i>{{ $locationLabel }}</h4>
+                            @if ($slotLocation?->address)
+                                <p class="small text-secondary mb-2">{{ collect([$slotLocation->address, $slotLocation->area])->filter()->join(', ') }}</p>
+                            @endif
+                            <ul class="slot-grid" aria-label="Times at {{ $locationLabel }} on {{ $selectedDate->format('l, F j, Y') }}">
+                                @foreach ($locationSlots as $slot)
+                                    @php
+                                        $time = $slot->starts_at->format('g:i A');
+                                        $fullTime = $slot->starts_at->format('D, M j, Y').' at '.$time.($slotLocation ? ' at '.$slotLocation->name : '');
+                                        $overlap = $overlaps[$slot->id] ?? null;
+                                    @endphp
+                                    <li>
+                                        @if (! $canBook)
+                                            <span class="slot-time slot-time--static">{{ $time }}</span>
+                                        @elseif ($overlap)
+                                            <span class="slot-time is-disabled" aria-disabled="true">
+                                                <span>{{ $time }}</span>
+                                                <small>Overlaps your appointment at {{ $overlap->slot->starts_at->format('g:i A') }}</small>
+                                                <span class="visually-hidden">: {{ $fullTime }} is unavailable because it overlaps your appointment on {{ $overlap->slot->starts_at->format('D, M j, Y \a\t g:i A') }}.</span>
+                                            </span>
+                                        @elseif ($hasReachedLimit)
+                                            <span class="slot-time is-disabled" aria-disabled="true" aria-describedby="booking-limit-notice">
+                                                <span>{{ $time }}</span>
+                                                <span class="visually-hidden">: {{ $fullTime }} cannot be requested while you are at the limit.</span>
+                                            </span>
+                                        @else
+                                            <a class="slot-time" href="{{ route('appointment-slots.confirm', array_filter([$slot, 'follow_up' => $followUpOf?->id])) }}" aria-label="Book {{ $fullTime }}">{{ $time }}</a>
+                                        @endif
+                                    </li>
+                                @endforeach
+                            </ul>
+                            @endforeach
+                        @endif
+
+                        @if ($waitlistEntry)
+                            <div class="alert alert-light border mt-4 mb-0 small" role="status" data-waitlist-status>
+                                You are on {{ $doctor->user->name }}'s waiting list ({{ $waitlistEntry->statusLabel() }}).
+                                <a class="alert-link" href="{{ route('patient.waitlist.index') }}">View your waiting list</a>
+                            </div>
+                        @elseif ($canJoinWaitlist)
+                            @php($waitFrom = $selectedDate->isPast() && ! $selectedDate->isToday() ? today() : $selectedDate)
+                            <details class="mt-4" @if ($errors->hasAny(['waitlist', 'date_from', 'date_to', 'time_of_day', 'doctor_location_id'])) open @endif data-waitlist-join>
+                                <summary class="fw-semibold">None of these times suit you? Join the waiting list</summary>
+                                <form class="row g-2 mt-2" method="POST" action="{{ route('patient.waitlist.store', $doctor) }}" data-disable-on-submit>
+                                    @csrf
+                                    @if ($followUpOf)<input type="hidden" name="follow_up_of_id" value="{{ $followUpOf->id }}">@endif
+                                    <div class="col-sm-6"><label class="form-label small" for="waitlist_date_from">From</label><input class="form-control form-control-sm @error('date_from') is-invalid @enderror" id="waitlist_date_from" name="date_from" type="date" min="{{ today()->toDateString() }}" value="{{ old('date_from', $waitFrom->toDateString()) }}" required></div>
+                                    <div class="col-sm-6"><label class="form-label small" for="waitlist_date_to">Until</label><input class="form-control form-control-sm @error('date_to') is-invalid @enderror" id="waitlist_date_to" name="date_to" type="date" min="{{ today()->toDateString() }}" value="{{ old('date_to', $waitFrom->addDays(6)->toDateString()) }}" required></div>
+                                    <div class="col-sm-6"><label class="form-label small" for="waitlist_time_of_day">Time of day</label><select class="form-select form-select-sm" id="waitlist_time_of_day" name="time_of_day"><option value="">Any time</option>@foreach (App\Models\WaitlistEntry::TIMES_OF_DAY as $value => [, , $label])<option value="{{ $value }}" @selected(old('time_of_day') === $value)>{{ $label }}</option>@endforeach</select></div>
+                                    <div class="col-sm-6"><label class="form-label small" for="waitlist_location">Location</label><select class="form-select form-select-sm" id="waitlist_location" name="doctor_location_id"><option value="">Any location</option>@foreach ($locations as $location)<option value="{{ $location->id }}" @selected((int) old('doctor_location_id', $selectedLocation?->id) === $location->id)>{{ $location->name }}</option>@endforeach</select></div>
+                                    @if (count(App\Models\Appointment::bookableConsultationTypes()) > 1)
+                                        <div class="col-sm-6"><label class="form-label small" for="waitlist_consultation_type">Consultation</label><select class="form-select form-select-sm" id="waitlist_consultation_type" name="consultation_type">@foreach (App\Models\Appointment::bookableConsultationTypes() as $type)<option value="{{ $type }}">{{ $type === 'physical' ? 'Physical visit' : ucfirst($type).' call' }}</option>@endforeach</select></div>
+                                    @else
+                                        <input type="hidden" name="consultation_type" value="{{ App\Models\Appointment::bookableConsultationTypes()[0] }}">
+                                    @endif
+                                    <div class="col-12"><p class="small text-secondary mb-2">Up to {{ config('booking.waitlist.max_range_days') }} days. When a matching time opens, it is held for you for up to {{ config('booking.waitlist.hold_minutes') }} minutes and we let you know.</p><button class="btn btn-sm btn-outline-primary" type="submit">Join the waiting list</button></div>
+                                </form>
+                            </details>
+                        @endif
                     </div>
-                </div>
+                </section>
             </div>
         </div>
     </div>

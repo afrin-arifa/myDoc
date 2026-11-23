@@ -11,6 +11,7 @@ use App\Models\DoctorProfile;
 use App\Models\DoctorWorkspaceEvent;
 use App\Models\User;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -28,6 +29,8 @@ class DoctorAppointmentService
         private readonly AppointmentNotificationService $notifications,
         private readonly DoctorWorkspace $workspace,
         private readonly DoctorWorkspaceEventService $events,
+        private readonly PatientAppointmentRules $rules,
+        private readonly AppointmentSlotRelease $slotRelease,
     ) {}
 
     public function complete(User $actor, Appointment $appointment, ?DoctorProfile $doctorProfile = null): void
@@ -44,6 +47,11 @@ class DoctorAppointmentService
         });
     }
 
+    /**
+     * Move a booked or confirmed appointment to another free slot of the same doctor. Lock order: appointment, patient,
+     * then both slots in id order (so two reschedules swapping slots cannot deadlock). The new slot is claimed and the
+     * appointment moved before the old slot is released, so the old slot is only released once nothing holds it.
+     */
     public function reschedule(User $actor, Appointment $appointment, int $newSlotId, ?string $reason = null, ?DoctorProfile $doctorProfile = null): void
     {
         $doctorProfile = $this->workspace->authorize($actor, $doctorProfile, DoctorAccess::RESCHEDULE_APPOINTMENTS);
@@ -53,8 +61,10 @@ class DoctorAppointmentService
             if (! in_array($locked->status, ['booked', 'confirmed'], true)) {
                 throw ValidationException::withMessages(['status' => 'Only booked or confirmed appointments can be rescheduled.']);
             }
-            $oldSlot = AppointmentSlot::query()->whereKey($locked->appointment_slot_id)->lockForUpdate()->firstOrFail();
-            $newSlot = AppointmentSlot::query()->whereKey($newSlotId)->lockForUpdate()->firstOrFail();
+            $this->rules->lockPatient($locked->patient()->firstOrFail());
+            $slots = AppointmentSlot::query()->whereKey(array_unique([$locked->appointment_slot_id, $newSlotId]))->orderBy('id')->lockForUpdate()->get()->keyBy('id');
+            $oldSlot = $slots->get($locked->appointment_slot_id) ?? throw (new ModelNotFoundException)->setModel(AppointmentSlot::class);
+            $newSlot = $slots->get($newSlotId) ?? throw (new ModelNotFoundException)->setModel(AppointmentSlot::class, [$newSlotId]);
             if ($newSlot->id === $oldSlot->id) {
                 throw ValidationException::withMessages(['slot_id' => 'Choose a different appointment slot.']);
             }
@@ -64,7 +74,7 @@ class DoctorAppointmentService
             if ($newSlot->starts_at->lte(now())) {
                 throw ValidationException::withMessages(['slot_id' => 'Appointments must be scheduled in the future.']);
             }
-            $oldSlot->update(['status' => 'available']);
+            $this->rules->ensureNoOverlap($locked->patient, $newSlot, 'slot_id', PatientAppointmentRules::AUDIENCE_STAFF, ignoreAppointmentId: $locked->id);
             $newSlot->update(['status' => 'booked']);
             $history = AppointmentRescheduleHistory::create([
                 'appointment_id' => $locked->id,
@@ -76,6 +86,7 @@ class DoctorAppointmentService
                 'reason' => $reason,
             ]);
             $locked->update(['appointment_slot_id' => $newSlot->id]);
+            $this->slotRelease->release($oldSlot, AppointmentSlotRelease::REASON_RESCHEDULED, $locked, $actor);
             $this->notifications->record(
                 $locked,
                 AppointmentNotification::TYPE_RESCHEDULED,
@@ -104,6 +115,14 @@ class DoctorAppointmentService
         }
     }
 
+    /**
+     * Confirm or reject a pending request. The appointment row is locked and its status re-checked under the lock
+     * (expiry and reschedule take the same lock first), so the slot read here is the one the request holds. A request
+     * whose slot has already started (starts_at <= now, Asia/Dhaka) can no longer be confirmed, even if the expiry
+     * job has not run yet; it can still be rejected.
+     *
+     * @throws ValidationException
+     */
     public function transition(User $actor, Appointment $appointment, string $status, ?DoctorProfile $doctorProfile = null): void
     {
         $doctorProfile = $this->workspace->authorize(
@@ -126,10 +145,16 @@ class DoctorAppointmentService
                 ]);
             }
 
+            if ($status === 'confirmed' && $appointment->slot->starts_at->lte(now())) {
+                throw ValidationException::withMessages([
+                    'status' => 'This appointment time has already started, so the request can no longer be confirmed.',
+                ]);
+            }
+
             $appointment->update(['status' => $status]);
 
             if ($status === 'rejected') {
-                $appointment->slot()->lockForUpdate()->first()->update(['status' => 'available']);
+                $this->slotRelease->release($appointment->appointment_slot_id, AppointmentSlotRelease::REASON_REJECTED, $appointment, $actor);
             }
 
             $this->notifications->record(
@@ -194,10 +219,8 @@ class DoctorAppointmentService
                 'cancellation_reason' => $reason,
             ]);
 
-            $releaseSlot = (int) $slot->doctor_profile_id === (int) $doctorProfile->id && $slot->status === 'booked';
-            if ($releaseSlot) {
-                $slot->update(['status' => 'available']);
-            }
+            $releaseSlot = (int) $slot->doctor_profile_id === (int) $doctorProfile->id
+                && $this->slotRelease->release($slot, AppointmentSlotRelease::REASON_STAFF_CANCELLED, $locked, $actor);
 
             $this->notifications->record($locked, AppointmentNotification::TYPE_STAFF_CANCELLED, context: [
                 'cancelled_by' => $actor->id,

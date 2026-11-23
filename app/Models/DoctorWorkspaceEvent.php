@@ -27,6 +27,11 @@ class DoctorWorkspaceEvent extends Model
 
     public const ACTION_COMPLETED = 'completed';
 
+    /**
+     * A pending request closed by the system because its slot started before it was approved.
+     */
+    public const ACTION_EXPIRED = 'expired';
+
     public const ACTION_SLOT_BLOCKED = 'slot_blocked';
 
     public const ACTION_SLOT_UNBLOCKED = 'slot_unblocked';
@@ -39,12 +44,31 @@ class DoctorWorkspaceEvent extends Model
 
     public const ACTION_AVAILABILITY_DELETED = 'availability_deleted';
 
+    public const ACTION_LOCATION_CREATED = 'location_created';
+
+    /**
+     * Details edited, archived or restored (context.changes holds is_active for the latter two).
+     */
+    public const ACTION_LOCATION_UPDATED = 'location_updated';
+
+    public const ACTION_LOCATION_DELETED = 'location_deleted';
+
+    public const ACTION_WAITLIST_OFFERED = 'waitlist_offered';
+
+    public const ACTION_WAITLIST_DECLINED = 'waitlist_declined';
+
+    public const ACTION_WAITLIST_OFFER_EXPIRED = 'waitlist_offer_expired';
+
+    public const ACTION_WAITLIST_WITHDRAWN = 'waitlist_withdrawn';
+
+    public const ACTION_WAITLIST_SETTINGS = 'waitlist_settings';
+
     /**
      * @var list<string>
      */
     public const APPOINTMENT_ACTIONS = [
         self::ACTION_BOOKED, self::ACTION_CONFIRMED, self::ACTION_REJECTED, self::ACTION_RESCHEDULED,
-        self::ACTION_CANCELLED, self::ACTION_STARTED, self::ACTION_COMPLETED,
+        self::ACTION_CANCELLED, self::ACTION_STARTED, self::ACTION_COMPLETED, self::ACTION_EXPIRED,
     ];
 
     /**
@@ -54,6 +78,9 @@ class DoctorWorkspaceEvent extends Model
         ...self::APPOINTMENT_ACTIONS,
         self::ACTION_SLOT_BLOCKED, self::ACTION_SLOT_UNBLOCKED, self::ACTION_SLOTS_GENERATED,
         self::ACTION_AVAILABILITY_CREATED, self::ACTION_AVAILABILITY_UPDATED, self::ACTION_AVAILABILITY_DELETED,
+        self::ACTION_LOCATION_CREATED, self::ACTION_LOCATION_UPDATED, self::ACTION_LOCATION_DELETED,
+        self::ACTION_WAITLIST_OFFERED, self::ACTION_WAITLIST_DECLINED, self::ACTION_WAITLIST_OFFER_EXPIRED,
+        self::ACTION_WAITLIST_WITHDRAWN, self::ACTION_WAITLIST_SETTINGS,
     ];
 
     /**
@@ -66,6 +93,8 @@ class DoctorWorkspaceEvent extends Model
     public const SUBJECT_SLOT = 'appointment_slot';
 
     public const SUBJECT_AVAILABILITY = 'doctor_availability';
+
+    public const SUBJECT_LOCATION = 'doctor_location';
 
     public const UPDATED_AT = null;
 

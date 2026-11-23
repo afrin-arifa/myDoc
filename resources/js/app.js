@@ -21,19 +21,32 @@ document.querySelector(".schedule-consultation-filter")?.addEventListener("chang
     });
 });
 
+const showScheduleTab = (tab) => {
+    if (!document.querySelector(`[data-schedule-panel="${tab}"]`)) {
+        return;
+    }
+
+    document.querySelectorAll("[data-schedule-tab]").forEach((item) => {
+        item.classList.toggle("is-active", item.dataset.scheduleTab === tab);
+    });
+    document.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
+        panel.hidden = panel.dataset.schedulePanel !== tab;
+    });
+};
+
 document.querySelectorAll("[data-schedule-tab], [data-open-schedule-tab]").forEach((trigger) => {
     trigger.addEventListener("click", (event) => {
         event.preventDefault();
-        const tab = trigger.dataset.scheduleTab || trigger.dataset.openScheduleTab;
-
-        document.querySelectorAll("[data-schedule-tab]").forEach((item) => {
-            item.classList.toggle("is-active", item.dataset.scheduleTab === tab);
-        });
-        document.querySelectorAll("[data-schedule-panel]").forEach((panel) => {
-            panel.hidden = panel.dataset.schedulePanel !== tab;
-        });
+        showScheduleTab(trigger.dataset.scheduleTab || trigger.dataset.openScheduleTab);
     });
 });
+
+// After a form on the schedule page redirects back (e.g. to #locations-panel) or fails validation, reopen its tab.
+const initialScheduleTab = document.querySelector("[data-initial-schedule-tab]")?.dataset.initialScheduleTab
+    || window.location.hash.replace(/^#/, "").replace(/-panel$/, "");
+if (initialScheduleTab) {
+    showScheduleTab(initialScheduleTab);
+}
 
 const slotGenerationForm = document.querySelector("[data-slot-generation-form]");
 const slotPreviewOutput = document.querySelector("[data-slot-preview-output]");
@@ -70,7 +83,22 @@ document.querySelector("[data-slot-preview]")?.addEventListener("click", async (
         if (!response.ok) {
             throw new Error(result.message || "Unable to preview slots.");
         }
-        slotPreviewOutput.textContent = `${result.total} slot(s) match this range; ${result.existing} already exist and ${result.past} are in the past.`;
+        let summary = `${result.total} slot(s) match this range; ${result.existing} already exist, ${result.overlapping} overlap an existing slot and ${result.past} are in the past. Only the remaining times will be created.`;
+
+        // Times come from the server as ISO strings in Bangladesh time; slicing keeps that wall-clock time.
+        const overlapping = result.slots.filter((slot) => slot.overlapping && !slot.past);
+        if (overlapping.length > 0) {
+            const shown = overlapping.slice(0, 10).map((slot) => `${slot.starts_at.slice(0, 10)} ${slot.starts_at.slice(11, 16)}`);
+            const more = overlapping.length > shown.length ? `, and ${overlapping.length - shown.length} more` : "";
+            summary += ` Skipped because they overlap an existing slot: ${shown.join(", ")}${more}.`;
+        }
+
+        const locations = [...new Set(result.slots.map((slot) => slot.location || "Location not specified"))];
+        if (locations.length > 0) {
+            summary += ` Locations: ${locations.join(", ")}.`;
+        }
+
+        slotPreviewOutput.textContent = summary;
     } catch (error) {
         slotPreviewOutput.textContent = error.message;
     }
@@ -220,13 +248,32 @@ document.querySelectorAll("form[data-disable-on-submit]").forEach((form) => {
             return;
         }
 
-        form.querySelectorAll("button[type='submit']").forEach((button) => {
+        form.querySelectorAll("button[type='submit']:not(:disabled)").forEach((button) => {
+            button.dataset.originalHtml = button.innerHTML;
+            button.dataset.disabledBySubmit = "true";
             button.disabled = true;
             button.setAttribute("aria-busy", "true");
             if (button.dataset.loadingText) {
                 button.textContent = button.dataset.loadingText;
             }
         });
+    });
+});
+
+// When the browser restores a page from its back/forward cache, buttons disabled by a submit would stay in their
+// "Sending…" state. Restore only the buttons this script disabled; buttons rendered disabled by the server stay so.
+window.addEventListener("pageshow", (event) => {
+    if (!event.persisted) {
+        return;
+    }
+
+    document.querySelectorAll("button[data-disabled-by-submit]").forEach((button) => {
+        button.disabled = false;
+        button.removeAttribute("aria-busy");
+        if (button.dataset.originalHtml !== undefined) {
+            button.innerHTML = button.dataset.originalHtml;
+        }
+        delete button.dataset.disabledBySubmit;
     });
 });
 

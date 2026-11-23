@@ -9,8 +9,13 @@
     <input class="form-control" id="license_number" name="license_number" value="{{ old('license_number', $doctor?->license_number) }}" required maxlength="255">
 </div>
 <div class="col-md-6">
-    <label class="form-label" for="consultation_fee">Consultation fee</label>
+    <label class="form-label" for="consultation_fee">Consultation fee ({{ App\Services\ConsultationFee::CURRENCY }})</label>
     <input class="form-control" id="consultation_fee" name="consultation_fee" type="number" step="0.01" min="0" value="{{ old('consultation_fee', $doctor?->consultation_fee) }}" required>
+</div>
+<div class="col-md-6">
+    <label class="form-label" for="follow_up_fee">Follow-up fee ({{ App\Services\ConsultationFee::CURRENCY }})</label>
+    <input class="form-control" id="follow_up_fee" name="follow_up_fee" type="number" step="0.01" min="0" value="{{ old('follow_up_fee', $doctor?->follow_up_fee) }}" aria-describedby="follow_up_fee_help">
+    <div class="form-text" id="follow_up_fee_help">Optional. Empty means follow-ups cost the consultation fee.</div>
 </div>
 <div class="col-md-6">
     <label class="form-label" for="years_of_experience">Years of experience</label>

@@ -18,11 +18,12 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use RuntimeException;
+use Tests\Concerns\AssertsUnavailableSlotRedirect;
 use Tests\TestCase;
 
 class StaffAppointmentCancellationTest extends TestCase
 {
-    use RefreshDatabase;
+    use AssertsUnavailableSlotRedirect, RefreshDatabase;
 
     private const REASON = 'Doctor called away for an emergency surgery';
 
@@ -221,7 +222,7 @@ class StaffAppointmentCancellationTest extends TestCase
         $this->assertSame('booked', $appointment->slot->fresh()->status);
         $this->assertSame(2, Appointment::where('appointment_slot_id', $appointment->appointment_slot_id)->count());
         $this->assertSame(1, Appointment::where('appointment_slot_id', $appointment->appointment_slot_id)->whereIn('status', ['booked', 'confirmed'])->count());
-        $this->actingAs(User::factory()->create(['role' => 'patient']))->post(route('appointment-slots.book', $appointment->slot), ['consultation_type' => 'physical'])->assertSessionHasErrors('slot');
+        $this->assertSentToChooseAnotherTime($this->actingAs(User::factory()->create(['role' => 'patient']))->post(route('appointment-slots.book', $appointment->slot), ['consultation_type' => 'physical']), $appointment->slot);
     }
 
     public function test_a_failure_rolls_back_the_cancellation_its_event_and_its_notifications(): void
@@ -290,8 +291,8 @@ class StaffAppointmentCancellationTest extends TestCase
         $this->assertSame('booked', $soon->fresh()->status);
         $this->assertSame('cancelled', $later->fresh()->status);
         $this->assertNull($later->fresh()->cancellation_reason);
-        $this->assertSame(['cancelled'], AppointmentNotification::where('channel', 'email')->pluck('type')->all(), 'Patient cancellations keep their own notice to the doctor.');
-        $this->assertSame([$this->doctorA->email], $this->sentEmails()->map(fn ($email) => $email->getTo()[0]->getAddress())->all());
+        $this->assertSame(['cancelled', 'cancelled:patient'], AppointmentNotification::where('channel', 'email')->orderBy('id')->pluck('transition_key')->all(), 'Patient cancellations keep their own notice to the doctor, plus a receipt for the patient.');
+        $this->assertEqualsCanonicalizing([$this->doctorA->email, $this->patient->email], $this->sentEmails()->map(fn ($email) => $email->getTo()[0]->getAddress())->all());
         $this->assertSame('patient', DoctorWorkspaceEvent::sole()->actor_role);
     }
 

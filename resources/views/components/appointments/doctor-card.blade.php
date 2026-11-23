@@ -32,6 +32,12 @@
                 <i class="fa-regular fa-clock" aria-hidden="true"></i>
                 {{ $appointment->slot->starts_at->format('g:i A') }}
             </span>
+
+            <x-appointments.location :location="$appointment->slot->location" compact />
+
+            @if ($appointment->follow_up_of_id)
+                <span><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Follow-up to <a href="{{ $workspace->url('doctor.appointments.show', $appointment->follow_up_of_id) }}">{{ App\Models\Appointment::referenceFor($appointment->follow_up_of_id) }}</a></span>
+            @endif
         </div>
 
         <p class="appointment-management-card__type">

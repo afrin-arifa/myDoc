@@ -12,6 +12,7 @@ use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
 use PHPUnit\Framework\Attributes\DataProvider;
+use Tests\Concerns\CreatesDoctorLocations;
 use Tests\TestCase;
 
 /**
@@ -19,7 +20,7 @@ use Tests\TestCase;
  */
 class DoctorDataIsolationTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesDoctorLocations, RefreshDatabase;
 
     /**
      * @var array<string, array{doctor: User, profile: DoctorProfile, patient: User, booked: Appointment, confirmed: Appointment, freeSlot: AppointmentSlot, availability: DoctorAvailability}>
@@ -140,7 +141,7 @@ class DoctorDataIsolationTest extends TestCase
 
         // A forged doctor_profile_id is ignored: the availability is created for the signed-in doctor.
         $this->actingAs($doctor)->post(route('doctor.availability.store'), [
-            'doctor_profile_id' => $them['profile']->id, 'day_of_week' => 5, 'start_time' => '08:00', 'end_time' => '09:00', 'is_active' => 1,
+            'doctor_profile_id' => $them['profile']->id, 'doctor_location_id' => $this->locationFor($me['profile'])->id, 'day_of_week' => 5, 'start_time' => '08:00', 'end_time' => '09:00', 'is_active' => 1,
         ])->assertRedirect();
         $this->assertSame(1, $them['profile']->availabilities()->count());
         $this->assertSame(2, $me['profile']->availabilities()->count());

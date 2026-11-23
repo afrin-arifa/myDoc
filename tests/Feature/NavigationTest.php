@@ -36,6 +36,7 @@ class NavigationTest extends TestCase
         $this->assertSame([
             'Doctors' => route('doctors.index'),
             'My appointments' => route('patient.appointments.index'),
+            'Waiting list' => route('patient.waitlist.index'),
             'Medical records' => route('patient.documents.index'),
             'Profile' => route('patient.profile'),
             'Dashboard' => route('patient.dashboard'),

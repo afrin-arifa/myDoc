@@ -47,7 +47,7 @@ class ResetPasswordNotification extends AccountMailNotification
 
     protected function actionUrl(object $notifiable): string
     {
-        return route('password.reset', ['token' => $this->token, 'email' => $notifiable->getEmailForPasswordReset()]);
+        return $this->trustedUrl('password.reset', ['token' => $this->token, 'email' => $notifiable->getEmailForPasswordReset()]);
     }
 
     protected function actionLabel(): string

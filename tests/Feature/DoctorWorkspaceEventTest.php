@@ -27,11 +27,12 @@ use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use LogicException;
 use RuntimeException;
+use Tests\Concerns\CreatesDoctorLocations;
 use Tests\TestCase;
 
 class DoctorWorkspaceEventTest extends TestCase
 {
-    use RefreshDatabase;
+    use CreatesDoctorLocations, RefreshDatabase;
 
     private User $doctor;
 
@@ -62,6 +63,8 @@ class DoctorWorkspaceEventTest extends TestCase
 
     public function test_patient_booking_and_cancellation_record_the_patient_as_actor(): void
     {
+        config(['booking.remote_consultations_enabled' => true]);
+
         $slot = $this->slot($this->profile, daysAhead: 3);
 
         $this->actingAs($this->patient)->post(route('appointment-slots.book', $slot), ['consultation_type' => 'video'])->assertRedirect();
@@ -121,7 +124,7 @@ class DoctorWorkspaceEventTest extends TestCase
         app(AppointmentBookingService::class)->bookForDoctor($this->assistant, $this->patient, $free->id, 'physical', 'Bring earlier X-rays', $this->profile);
         app(SlotBlockingService::class)->block($this->assistant, $toBlock, $this->profile);
         app(SlotBlockingService::class)->unblock($this->assistant, $toBlock, $this->profile);
-        $availability = app(DoctorAvailabilityService::class)->create($this->assistant, $this->profile, ['day_of_week' => 2, 'start_time' => '09:00', 'end_time' => '11:00'], true);
+        $availability = app(DoctorAvailabilityService::class)->create($this->assistant, $this->profile, ['doctor_location_id' => $this->locationFor($this->profile)->id, 'day_of_week' => 2, 'start_time' => '09:00', 'end_time' => '11:00'], true);
         app(DoctorAvailabilityService::class)->update($this->assistant, $availability, ['day_of_week' => 2, 'start_time' => '10:00', 'end_time' => '11:00'], false, $this->profile);
         app(DoctorAvailabilityService::class)->delete($this->assistant, $availability, $this->profile);
         $this->weeklyAvailability($this->profile);
@@ -151,7 +154,7 @@ class DoctorWorkspaceEventTest extends TestCase
         $this->assertGreaterThan(0, $created);
         DB::table('doctor_availabilities')->delete(); // Clear the setup rows so the availability created below is the only one.
         $this->actingAs($this->doctor)->post(route('doctor.slots.generate'), ['start_date' => now()->addDays(10)->toDateString(), 'end_date' => now()->addDays(16)->toDateString(), 'weekdays' => [1, 2]])->assertSessionHasNoErrors();
-        $this->actingAs($this->doctor)->post(route('doctor.availability.store'), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => '1'])->assertSessionHasNoErrors();
+        $this->actingAs($this->doctor)->post(route('doctor.availability.store'), ['doctor_location_id' => $this->locationFor($this->profile)->id, 'day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => '1'])->assertSessionHasNoErrors();
         $availability = DoctorAvailability::sole();
         $this->actingAs($this->doctor)->patch(route('doctor.availability.update', $availability), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '11:00', 'is_active' => '1'])->assertSessionHasNoErrors();
         $this->actingAs($this->doctor)->delete(route('doctor.availability.destroy', $availability))->assertSessionHasNoErrors();
@@ -201,7 +204,7 @@ class DoctorWorkspaceEventTest extends TestCase
             }
         }
 
-        $this->actingAs($this->doctor)->post(route('doctor.availability.store'), ['day_of_week' => 1, 'start_time' => '11:00', 'end_time' => '10:00'])->assertSessionHasErrors();
+        $this->actingAs($this->doctor)->post(route('doctor.availability.store'), ['doctor_location_id' => $this->locationFor($this->profile)->id, 'day_of_week' => 1, 'start_time' => '11:00', 'end_time' => '10:00'])->assertSessionHasErrors();
         $this->assertSame(0, DoctorWorkspaceEvent::count());
     }
 

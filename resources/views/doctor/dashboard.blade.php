@@ -22,9 +22,9 @@
                     <div class="row g-3 mb-4">
                         @foreach ([
                             ['label' => 'Total appointments', 'value' => $appointmentCounts['total'], 'tone' => 'blue'],
-                            ['label' => 'Pending approval', 'value' => $appointmentCounts['booked'], 'tone' => 'amber'],
+                            ['label' => App\Models\Appointment::statusLabel('booked'), 'value' => $appointmentCounts['booked'], 'tone' => 'amber'],
                             ['label' => 'Confirmed', 'value' => $appointmentCounts['confirmed'], 'tone' => 'green'],
-                            ['label' => 'Cancelled / rejected', 'value' => $appointmentCounts['cancelled'], 'tone' => 'rose'],
+                            ['label' => 'Cancelled, rejected or expired', 'value' => $appointmentCounts['cancelled'], 'tone' => 'rose'],
                         ] as $stat)
                             <div class="col-sm-6 col-xxl-3">
                                 <div class="doctor-stat-card doctor-stat-card--{{ $stat['tone'] }}">

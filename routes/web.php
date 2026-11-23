@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminMedicalDocumentController;
 use App\Http\Controllers\Admin\AdminSmsIssueController;
 use App\Http\Controllers\Admin\AdminSpecialtyController;
 use App\Http\Controllers\Admin\AdminUserController;
+use App\Http\Controllers\Admin\AdminWaitlistController;
 use App\Http\Controllers\AppointmentController;
 use App\Http\Controllers\Assistant\AssistantAccountController;
 use App\Http\Controllers\Assistant\AssistantDashboardController;
@@ -19,16 +20,19 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Doctor\DoctorAppointmentController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
 use App\Http\Controllers\Doctor\DoctorInvitationController;
+use App\Http\Controllers\Doctor\DoctorLocationController;
 use App\Http\Controllers\Doctor\DoctorMedicalRecordController;
 use App\Http\Controllers\Doctor\DoctorPatientController;
 use App\Http\Controllers\Doctor\DoctorProfileController;
 use App\Http\Controllers\Doctor\DoctorScheduleController;
 use App\Http\Controllers\Doctor\DoctorSlotController;
+use App\Http\Controllers\Doctor\DoctorWaitlistController;
 use App\Http\Controllers\Doctor\GoogleCalendarController;
 use App\Http\Controllers\DoctorDirectoryController;
 use App\Http\Controllers\DoctorPhotoController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MedicalDocumentController;
+use App\Http\Controllers\PatientWaitlistController;
 use App\Http\Controllers\ProfileController;
 use Illuminate\Support\Facades\Route;
 
@@ -47,7 +51,7 @@ Route::get('/doctors/{doctor}/photo', [DoctorPhotoController::class, 'show'])->m
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
-    Route::post('/register', [RegisteredUserController::class, 'store']);
+    Route::post('/register', [RegisteredUserController::class, 'store'])->middleware('throttle:registration');
     Route::get('/login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('/login', [AuthenticatedSessionController::class, 'store']);
 
@@ -119,6 +123,15 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
         ->name('appointment-slots.book');
     Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel'])
         ->name('appointments.cancel');
+    Route::post('/doctors/{doctor}/waitlist', [PatientWaitlistController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('patient.waitlist.store');
+    Route::get('/patient/waitlist', [PatientWaitlistController::class, 'index'])->name('patient.waitlist.index');
+    Route::delete('/patient/waitlist/{entry}', [PatientWaitlistController::class, 'destroy'])->name('patient.waitlist.destroy');
+    Route::patch('/patient/waitlist/{entry}/resume', [PatientWaitlistController::class, 'resume'])->name('patient.waitlist.resume');
+    Route::get('/patient/waitlist/offers/{offer}', [PatientWaitlistController::class, 'showOffer'])->name('patient.waitlist.offers.show');
+    Route::post('/patient/waitlist/offers/{offer}/accept', [PatientWaitlistController::class, 'accept'])->name('patient.waitlist.offers.accept');
+    Route::post('/patient/waitlist/offers/{offer}/decline', [PatientWaitlistController::class, 'decline'])->name('patient.waitlist.offers.decline');
 });
 
 Route::middleware(['auth', 'role:doctor'])->group(function () {
@@ -139,6 +152,13 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
         ->name('doctor.availability.update');
     Route::delete('/doctor/availability/{availability}', [DoctorAvailabilityController::class, 'destroy'])
         ->name('doctor.availability.destroy');
+    Route::post('/doctor/locations', [DoctorLocationController::class, 'store'])->name('doctor.locations.store');
+    Route::patch('/doctor/locations/{location}', [DoctorLocationController::class, 'update'])->name('doctor.locations.update');
+    Route::patch('/doctor/locations/{location}/status', [DoctorLocationController::class, 'updateStatus'])->name('doctor.locations.status');
+    Route::delete('/doctor/locations/{location}', [DoctorLocationController::class, 'destroy'])->name('doctor.locations.destroy');
+    Route::patch('/doctor/waitlist/settings', [DoctorWaitlistController::class, 'updateSettings'])->name('doctor.waitlist.settings');
+    Route::post('/doctor/waitlist/entries/{entry}/offer', [DoctorWaitlistController::class, 'offer'])->name('doctor.waitlist.offer');
+    Route::post('/doctor/waitlist/offers/{offer}/withdraw', [DoctorWaitlistController::class, 'withdraw'])->name('doctor.waitlist.withdraw');
     Route::post('/doctor/slots/preview', [DoctorSlotController::class, 'preview'])->name('doctor.slots.preview');
     Route::post('/doctor/slots/generate', [DoctorSlotController::class, 'store'])->name('doctor.slots.generate');
     Route::post('/doctor/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('doctor.slots.block');
@@ -200,6 +220,13 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
         Route::post('/availability', [DoctorAvailabilityController::class, 'store'])->name('availability.store');
         Route::patch('/availability/{availability}', [DoctorAvailabilityController::class, 'update'])->name('availability.update');
         Route::delete('/availability/{availability}', [DoctorAvailabilityController::class, 'destroy'])->name('availability.destroy');
+        Route::post('/locations', [DoctorLocationController::class, 'store'])->name('locations.store');
+        Route::patch('/locations/{location}', [DoctorLocationController::class, 'update'])->name('locations.update');
+        Route::patch('/locations/{location}/status', [DoctorLocationController::class, 'updateStatus'])->name('locations.status');
+        Route::delete('/locations/{location}', [DoctorLocationController::class, 'destroy'])->name('locations.destroy');
+        Route::patch('/waitlist/settings', [DoctorWaitlistController::class, 'updateSettings'])->name('waitlist.settings');
+        Route::post('/waitlist/entries/{entry}/offer', [DoctorWaitlistController::class, 'offer'])->name('waitlist.offer');
+        Route::post('/waitlist/offers/{offer}/withdraw', [DoctorWaitlistController::class, 'withdraw'])->name('waitlist.withdraw');
         Route::post('/slots/preview', [DoctorSlotController::class, 'preview'])->name('slots.preview');
         Route::post('/slots/generate', [DoctorSlotController::class, 'store'])->name('slots.generate');
         Route::post('/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('slots.block');
@@ -237,6 +264,10 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/medical-documents/{document}', [AdminMedicalDocumentController::class, 'show'])->name('admin.medical-documents.show');
     Route::get('/admin/appointments/{appointment}', [AdminAppointmentController::class, 'show'])->name('admin.appointments.show');
     Route::get('/admin/sms-issues', [AdminSmsIssueController::class, 'index'])->name('admin.sms-issues.index');
+    Route::get('/admin/waitlist', [AdminWaitlistController::class, 'index'])->name('admin.waitlist.index');
+    Route::post('/admin/sms-issues/{notification}/retry', [AdminSmsIssueController::class, 'retry'])
+        ->middleware('throttle:30,1')
+        ->name('admin.sms-issues.retry');
     Route::get('/admin/assistants', [AdminAssistantController::class, 'index'])->name('admin.assistants.index');
     Route::get('/admin/assistants/create', [AdminAssistantController::class, 'create'])->name('admin.assistants.create');
     Route::post('/admin/assistants', [AdminAssistantController::class, 'store'])->name('admin.assistants.store');

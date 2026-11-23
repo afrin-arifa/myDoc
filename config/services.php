@@ -39,6 +39,9 @@ return [
             'client_id' => env('GOOGLE_CALENDAR_CLIENT_ID'),
             'client_secret' => env('GOOGLE_CALENDAR_CLIENT_SECRET'),
             'redirect_uri' => env('GOOGLE_CALENDAR_REDIRECT_URI'),
+            // Seconds per Google API request. Keep well below the sync job timeout (60 s).
+            'timeout' => (float) env('GOOGLE_CALENDAR_TIMEOUT', 10),
+            'connect_timeout' => (float) env('GOOGLE_CALENDAR_CONNECT_TIMEOUT', 5),
         ],
     ],
 

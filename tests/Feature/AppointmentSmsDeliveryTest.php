@@ -74,7 +74,9 @@ class AppointmentSmsDeliveryTest extends TestCase
             $this->work();
         }
 
-        $this->assertSame('failed', $row->fresh()->status);
+        $this->assertSame('exhausted', $row->fresh()->status, 'The provider certainly did not accept it, so an admin may retry it.');
+        $this->assertNull($row->fresh()->provider_requested_at);
+        $this->assertTrue($row->fresh()->isRetryable());
         $this->assertSame(5, $row->fresh()->attempts);
         $this->assertSame(0, $this->jobCount());
         $this->assertSame(1, DB::table('failed_jobs')->count());

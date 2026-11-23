@@ -57,13 +57,13 @@
                                         <td class="schedule-cell" width="50%" valign="top" style="padding:0 6px 12px 0;">
                                             <div style="border:1px solid #e1e7ec; border-radius:8px; padding:14px 16px; background-color:#f8fafb;">
                                                 <p style="margin:0 0 6px; font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:0.6px; color:#6b7c87;">Previous time</p>
-                                                <p style="margin:0; font-size:15px; line-height:22px; color:#6b7c87; text-decoration:line-through;">{{ $scheduleChange['previous']['date'] }}<br>{{ $scheduleChange['previous']['time'] }}</p>
+                                                <p style="margin:0; font-size:15px; line-height:22px; color:#6b7c87; text-decoration:line-through;">{{ $scheduleChange['previous']['date'] }}<br>{{ $scheduleChange['previous']['time'] }}@isset($scheduleChange['previous']['location'])<br>{{ $scheduleChange['previous']['location'] }}@endisset</p>
                                             </div>
                                         </td>
                                         <td class="schedule-cell" width="50%" valign="top" style="padding:0 0 12px 6px;">
                                             <div style="border:1px solid {{ $palette['accent'] }}; border-radius:8px; padding:14px 16px; background-color:{{ $palette['soft'] }};">
                                                 <p style="margin:0 0 6px; font-size:12px; font-weight:bold; text-transform:uppercase; letter-spacing:0.6px; color:{{ $palette['accent'] }};">New time</p>
-                                                <p style="margin:0; font-size:15px; line-height:22px; font-weight:bold; color:#102a33;">{{ $scheduleChange['current']['date'] }}<br>{{ $scheduleChange['current']['time'] }}</p>
+                                                <p style="margin:0; font-size:15px; line-height:22px; font-weight:bold; color:#102a33;">{{ $scheduleChange['current']['date'] }}<br>{{ $scheduleChange['current']['time'] }}@isset($scheduleChange['current']['location'])<br>{{ $scheduleChange['current']['location'] }}@endisset</p>
                                             </div>
                                         </td>
                                     </tr>

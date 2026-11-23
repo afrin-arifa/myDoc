@@ -56,8 +56,8 @@
                                 <label class="form-label" for="status">Status</label>
                                 <select class="form-select" id="status" name="status">
                                     <option value="">All statuses</option>
-                                    @foreach (['booked', 'confirmed', 'completed', 'cancelled', 'rejected'] as $status)
-                                        <option value="{{ $status }}" @selected(request('status') === $status)>{{ ucfirst($status) }}</option>
+                                    @foreach (App\Models\Appointment::STATUS_LABELS as $status => $statusLabel)
+                                        <option value="{{ $status }}" @selected(request('status') === $status)>{{ $statusLabel }}</option>
                                     @endforeach
                                 </select>
                             </div>

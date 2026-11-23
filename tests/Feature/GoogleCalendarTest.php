@@ -238,7 +238,7 @@ class GoogleCalendarTest extends TestCase
 
         $newConnection = GoogleCalendarConnection::query()->firstOrFail();
         $this->assertSame($newConnection->id, $event->fresh()->google_calendar_connection_id);
-        $this->assertNull($event->fresh()->google_event_id);
+        $this->assertSame('old-event-id', $event->fresh()->google_event_id, 'Kept so the existing event is updated, not duplicated.');
         $this->assertSame('pending', $event->fresh()->status);
         Queue::assertPushed(
             SyncAppointmentToGoogleCalendar::class,

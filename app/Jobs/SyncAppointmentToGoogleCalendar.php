@@ -4,6 +4,8 @@ namespace App\Jobs;
 
 use App\Models\Appointment;
 use App\Models\AppointmentGoogleCalendarEvent;
+use App\Models\GoogleCalendarConnection;
+use App\Services\GoogleCalendarAuthorizationException;
 use App\Services\GoogleCalendarService;
 use Google\Service\Exception as GoogleServiceException;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -15,13 +17,33 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use RuntimeException;
 
+/**
+ * Mirrors one appointment into its doctor's own Google Calendar: confirmed appointments have an event, other statuses
+ * do not (completed appointments keep theirs as history). A per-appointment lock serializes jobs, and the job always
+ * acts on the appointment's current state, so jobs running out of order still converge.
+ *
+ * Event record statuses: pending, synced, failed (retried, then picked up by mydoc:reconcile-google-calendar),
+ * deleted, and delete_pending (the event still exists in Google but the calendar was disconnected; it is removed
+ * after the doctor reconnects). When Google authorization is lost, the connection is marked as needing reconnection
+ * and the job stops instead of retrying.
+ */
 class SyncAppointmentToGoogleCalendar implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
+    public const STATUS_DELETE_PENDING = 'delete_pending';
+
+    public const RECONNECT_ERROR = 'Google Calendar needs to be reconnected.';
+
     public int $tries = 4;
 
     public array $backoff = [30, 120, 600];
+
+    /**
+     * Up to three Google requests (token refresh, insert, update on conflict) at the configured request timeout,
+     * plus the lock wait. Kept below the database queue's retry_after (90 s).
+     */
+    public int $timeout = 60;
 
     public function __construct(
         public int $appointmentId,
@@ -98,6 +120,9 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
 
             $event->update(['status' => 'synced', 'last_error' => null, 'synced_at' => now()]);
             $connection->update(['last_synced_at' => now()]);
+        } catch (GoogleCalendarAuthorizationException) {
+            $event->update(['status' => 'failed', 'last_error' => self::RECONNECT_ERROR]);
+            $this->markNeedsReconnection($connection);
         } catch (GoogleServiceException|RuntimeException $exception) {
             $event->update(['status' => 'failed', 'last_error' => 'Google Calendar synchronization failed.']);
 
@@ -115,7 +140,8 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
         ?AppointmentGoogleCalendarEvent $event,
         GoogleCalendarService $service
     ): void {
-        if (! $event?->google_event_id || ! $event->connection?->is_connected) {
+        if (! $event?->google_event_id) {
+            // Never created in Google, so there is nothing to remove.
             $event?->update([
                 'status' => 'deleted',
                 'last_error' => null,
@@ -125,13 +151,29 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
             return;
         }
 
+        if ($event->status === 'deleted') {
+            return;
+        }
+
+        $connection = $event->connection;
+
+        if (! $connection?->is_connected) {
+            // The event is still in the doctor's Google Calendar; remove it once they reconnect.
+            $event->update(['status' => self::STATUS_DELETE_PENDING, 'last_error' => self::RECONNECT_ERROR]);
+
+            return;
+        }
+
         try {
-            $service->deleteEvent($event->connection, $event->google_event_id);
+            $service->deleteEvent($connection, $event->google_event_id);
             $event->update([
                 'status' => 'deleted',
                 'last_error' => null,
                 'synced_at' => now(),
             ]);
+        } catch (GoogleCalendarAuthorizationException) {
+            $event->update(['status' => self::STATUS_DELETE_PENDING, 'last_error' => self::RECONNECT_ERROR]);
+            $this->markNeedsReconnection($connection);
         } catch (GoogleServiceException|RuntimeException $exception) {
             $event->update([
                 'status' => 'failed',
@@ -144,6 +186,25 @@ class SyncAppointmentToGoogleCalendar implements ShouldQueue
             ]);
 
             throw $exception;
+        }
+    }
+
+    /**
+     * Keep the connection (so the doctor sees that it needs reconnecting) but stop using it. Logged once, without
+     * tokens or the Google account address.
+     */
+    private function markNeedsReconnection(GoogleCalendarConnection $connection): void
+    {
+        $changed = GoogleCalendarConnection::query()
+            ->whereKey($connection->id)
+            ->where('is_connected', true)
+            ->update(['is_connected' => false, 'updated_at' => now()]);
+
+        if ($changed === 1) {
+            Log::warning('Google Calendar authorization was lost; the doctor must reconnect.', [
+                'doctor_profile_id' => $connection->doctor_profile_id,
+                'appointment_id' => $this->appointmentId,
+            ]);
         }
     }
 }

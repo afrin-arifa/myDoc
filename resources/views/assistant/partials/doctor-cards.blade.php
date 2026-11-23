@@ -11,7 +11,7 @@
                     </div>
                 </div>
                 <dl class="row small mb-3">
-                    <dt class="col-8 text-secondary fw-normal">Awaiting confirmation</dt><dd class="col-4 text-end mb-1" data-pending-count>{{ $doctor->pending_count }}</dd>
+                    <dt class="col-8 text-secondary fw-normal">{{ App\Models\Appointment::statusLabel('booked') }}</dt><dd class="col-4 text-end mb-1" data-pending-count>{{ $doctor->pending_count }}</dd>
                     <dt class="col-8 text-secondary fw-normal">Upcoming appointments</dt><dd class="col-4 text-end mb-0" data-upcoming-count>{{ $doctor->upcoming_count }}</dd>
                 </dl>
                 <div class="d-flex flex-wrap gap-2 mt-auto">

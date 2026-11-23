@@ -78,6 +78,18 @@ abstract class AccountMailNotification extends Notification
             );
     }
 
+    /**
+     * An absolute link for the email, always on APP_URL. These emails are sent during a web request (password reset,
+     * invitations), where route() would use the request's Host header: an attacker could then make a genuine email
+     * carry a reset or invitation token to a host they control. Only the path comes from the router.
+     *
+     * @param  array<string, mixed>  $parameters
+     */
+    protected function trustedUrl(string $routeName, array $parameters = []): string
+    {
+        return rtrim((string) config('app.url'), '/').route($routeName, $parameters, absolute: false);
+    }
+
     protected function expiryText(int $minutes): string
     {
         if ($minutes % 60 !== 0) {

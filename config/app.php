@@ -65,7 +65,9 @@ return [
     |
     */
 
-    'timezone' => 'UTC',
+    // myDoc serves clinics in Bangladesh. Appointment slots and availability are stored as Dhaka wall-clock times,
+    // and every other timestamp is written in this timezone too (see the MySQL connection timezone below).
+    'timezone' => 'Asia/Dhaka',
 
     /*
     |--------------------------------------------------------------------------

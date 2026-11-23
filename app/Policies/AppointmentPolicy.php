@@ -48,8 +48,9 @@ class AppointmentPolicy
     }
 
     /**
-     * Patients cancel their own appointments. Assistants hold the cancellation capability for their doctors'
-     * appointments; the staff cancellation rules are implemented in a later phase.
+     * Patients cancel their own appointments; the doctor and their assigned assistants cancel the doctor's
+     * appointments. The cancellation rules themselves (the patient's 24-hour notice, the staff reason) live in
+     * AppointmentBookingService and DoctorAppointmentService.
      */
     public function cancel(User $user, Appointment $appointment): bool
     {

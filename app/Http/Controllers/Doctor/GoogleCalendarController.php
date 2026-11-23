@@ -34,7 +34,7 @@ class GoogleCalendarController extends Controller
 
         if ($request->filled('error') || ! $request->filled('code')) {
             return redirect()->route('doctor.dashboard')
-                ->with('error', 'Google Calendar connection was cancelled.');
+                ->with('warning', 'Google Calendar connection was cancelled.');
         }
 
         $profile = $request->user()->doctorProfile;
@@ -51,7 +51,7 @@ class GoogleCalendarController extends Controller
             ]);
 
             return redirect()->route('doctor.dashboard')
-                ->with('error', 'Google Calendar could not be connected. Please try again.');
+                ->with('warning', 'Google Calendar could not be connected. Please try again.');
         }
 
         $connection = GoogleCalendarConnection::query()->updateOrCreate(
@@ -63,15 +63,13 @@ class GoogleCalendarController extends Controller
                 'is_connected' => true,
             ]
         );
-        AppointmentGoogleCalendarEvent::query()
-            ->whereHas('appointment.slot', fn ($query) => $query->where('doctor_profile_id', $profile->id))
-            ->update([
-                'google_calendar_connection_id' => $connection->id,
-                'google_event_id' => null,
-                'status' => 'pending',
-                'last_error' => null,
-                'synced_at' => null,
-            ]);
+        // Event ids are deterministic per appointment, so keeping them lets a reconnection to the same Google account
+        // update or remove the existing events instead of duplicating them. Removed events stay "deleted".
+        $doctorEvents = AppointmentGoogleCalendarEvent::query()
+            ->whereHas('appointment.slot', fn ($query) => $query->where('doctor_profile_id', $profile->id));
+        (clone $doctorEvents)->update(['google_calendar_connection_id' => $connection->id]);
+        (clone $doctorEvents)->where('status', '!=', 'deleted')->update(['status' => 'pending', 'last_error' => null]);
+
         Appointment::query()
             ->where('status', 'confirmed')
             ->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $profile->id))
@@ -79,6 +77,17 @@ class GoogleCalendarController extends Controller
             ->each(fn (int $appointmentId): mixed => SyncAppointmentToGoogleCalendar::dispatch(
                 $appointmentId,
                 'sync'
+            )->afterCommit());
+
+        // Events left behind while disconnected (for example appointments cancelled meanwhile) are removed now.
+        (clone $doctorEvents)
+            ->where('status', '!=', 'deleted')
+            ->whereNotNull('google_event_id')
+            ->whereHas('appointment', fn ($query) => $query->whereIn('status', Appointment::CLOSED_STATUSES))
+            ->pluck('appointment_id')
+            ->each(fn (int $appointmentId): mixed => SyncAppointmentToGoogleCalendar::dispatch(
+                $appointmentId,
+                'delete'
             )->afterCommit());
 
         return redirect()->route('doctor.dashboard')

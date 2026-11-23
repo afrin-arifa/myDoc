@@ -9,8 +9,8 @@
         <div class="row g-3 mb-4">
             @foreach ([
                 'patients' => 'Patients', 'doctors' => 'Doctors', 'appointments' => 'Appointments',
-                'upcoming' => 'Upcoming', 'booked' => 'Booked', 'confirmed' => 'Confirmed',
-                'completed' => 'Completed', 'cancelled_or_rejected' => 'Cancelled / rejected'
+                'upcoming' => 'Upcoming', 'booked' => App\Models\Appointment::statusLabel('booked'), 'confirmed' => 'Confirmed',
+                'completed' => 'Completed', 'cancelled_or_rejected' => 'Cancelled, rejected or expired'
             ] as $key => $label)
                 <div class="col-6 col-lg-3"><div class="card border-0 shadow-sm h-100"><div class="card-body">
                     <p class="text-secondary mb-1">{{ $label }}</p><p class="h3 mb-0">{{ $counts[$key] }}</p>
@@ -22,7 +22,8 @@
             <a class="btn btn-outline-primary" href="{{ route('admin.doctors.index') }}">Review doctors</a>
             <a class="btn btn-outline-primary" href="{{ route('admin.specialties.index') }}">Manage specialties</a>
             <a class="btn btn-outline-primary" href="{{ route('admin.appointments.index') }}">Appointment oversight</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.sms-issues.index') }}">SMS delivery issues</a>
+            <a class="btn btn-outline-primary" href="{{ route('admin.sms-issues.index') }}">Notification delivery issues</a>
+            <a class="btn btn-outline-primary" href="{{ route('admin.waitlist.index') }}">Waiting lists</a>
             <a class="btn btn-outline-primary" href="{{ route('admin.assistants.index') }}">Doctor assistants</a>
         </div>
     </div>

@@ -9,7 +9,7 @@
         @forelse ($appointments as $appointment)
             <x-appointments.appointment-card
                 :appointment="$appointment"
-                :cancelable="in_array($appointment->status, ['booked', 'confirmed'], true)"
+                :cancelable="$appointment->isCancellableByPatient()"
             />
         @empty
             <p class="text-secondary">You do not have any appointments yet.</p>

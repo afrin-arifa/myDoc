@@ -6,6 +6,7 @@ use App\Jobs\SendAppointmentNotification;
 use App\Models\Appointment;
 use App\Models\AppointmentNotification;
 use App\Models\User;
+use App\Models\WaitlistOffer;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
@@ -25,7 +26,16 @@ class AppointmentNotificationService
         AppointmentNotification::TYPE_RESCHEDULED => [AppointmentNotification::AUDIENCE_PATIENT],
         AppointmentNotification::TYPE_REMINDER => [AppointmentNotification::AUDIENCE_PATIENT],
         AppointmentNotification::TYPE_STAFF_CANCELLED => [AppointmentNotification::AUDIENCE_PATIENT, AppointmentNotification::AUDIENCE_DOCTOR],
+        AppointmentNotification::TYPE_EXPIRED => [AppointmentNotification::AUDIENCE_PATIENT],
     ];
+
+    /**
+     * Appointment statuses that receive reminders. Pending ("booked") requests are not reminded: the doctor has not
+     * accepted them yet, and they expire at their start time if never confirmed.
+     *
+     * @var list<string>
+     */
+    public const REMINDER_STATUSES = ['confirmed'];
 
     /**
      * Events whose email goes to several audiences, one ledger row each (keyed "{type}:{audience}"). Every other
@@ -35,6 +45,19 @@ class AppointmentNotificationService
      */
     public const EMAIL_AUDIENCES = [
         AppointmentNotification::TYPE_STAFF_CANCELLED => [AppointmentNotification::AUDIENCE_PATIENT, AppointmentNotification::AUDIENCE_DOCTOR],
+        AppointmentNotification::TYPE_EXPIRED => [AppointmentNotification::AUDIENCE_PATIENT],
+    ];
+
+    /**
+     * Events that keep their single P1.2 email (doctor, ledger key "{type}") and also send the patient their own
+     * receipt email (ledger key "{type}:patient"). Keeping the original row unchanged means rows recorded before
+     * the patient receipts existed are still delivered to the doctor.
+     *
+     * @var list<string>
+     */
+    public const PATIENT_RECEIPT_EMAILS = [
+        AppointmentNotification::TYPE_BOOKED,
+        AppointmentNotification::TYPE_CANCELLED,
     ];
 
     /**
@@ -60,7 +83,24 @@ class AppointmentNotificationService
             $this->recordOne($appointment, AppointmentNotification::CHANNEL_EMAIL, $type, $transitionKey ?? $type, $context);
         }
 
+        if (in_array($type, self::PATIENT_RECEIPT_EMAILS, true)) {
+            $this->recordPatientEmail($appointment, $type, $transitionKey, $context);
+        }
+
         $this->recordSms($appointment, $type, $transitionKey, $context);
+    }
+
+    /**
+     * Notify the patient of a booking a doctor or Doctor Assistant made for them: one email and, if the patient
+     * opted in, one SMS. The doctor's side made the booking, so the doctor is not notified.
+     */
+    public function recordStaffBooking(Appointment $appointment): void
+    {
+        $this->ensureInsideTransaction();
+
+        $context = ['source' => 'staff'];
+        $this->recordPatientEmail($appointment, AppointmentNotification::TYPE_BOOKED, null, $context);
+        $this->recordSms($appointment, AppointmentNotification::TYPE_BOOKED, context: $context, audiences: [AppointmentNotification::AUDIENCE_PATIENT]);
     }
 
     /**
@@ -96,6 +136,43 @@ class AppointmentNotificationService
     }
 
     /**
+     * Record the email (and SMS, if the patient opted in) offering a held slot to a waiting-list patient. Call inside
+     * the transaction that creates the offer; delivery re-checks that the offer is still open.
+     */
+    public function recordWaitlistOffer(WaitlistOffer $offer): void
+    {
+        $this->ensureInsideTransaction();
+
+        $offer->loadMissing('entry.patient');
+        $patient = $offer->entry->patient;
+        $channels = [AppointmentNotification::CHANNEL_EMAIL];
+
+        if ($patient?->wantsAppointmentSms() === true) {
+            $channels[] = AppointmentNotification::CHANNEL_SMS;
+        }
+
+        foreach ($channels as $channel) {
+            $notification = AppointmentNotification::query()->firstOrCreate(
+                [
+                    'waitlist_offer_id' => $offer->id,
+                    'channel' => $channel,
+                    'type' => AppointmentNotification::TYPE_WAITLIST_OFFER,
+                    'transition_key' => 'waitlist_offer:'.AppointmentNotification::AUDIENCE_PATIENT,
+                ],
+                [
+                    'status' => AppointmentNotification::STATUS_PENDING,
+                    'recipient_id' => $channel === AppointmentNotification::CHANNEL_SMS ? $patient->id : null,
+                    'context' => ['audience' => AppointmentNotification::AUDIENCE_PATIENT],
+                ]
+            );
+
+            if ($notification->wasRecentlyCreated) {
+                SendAppointmentNotification::dispatch($notification->id)->afterCommit();
+            }
+        }
+    }
+
+    /**
      * Queue the patient's reminder SMS for the appointment's current slot. The key contains the slot and its start
      * time, so a rescheduled appointment gets fresh reminders and the old ones become irrelevant.
      */
@@ -122,6 +199,16 @@ class AppointmentNotificationService
             AppointmentNotification::AUDIENCE_DOCTOR => $appointment->slot?->doctorProfile?->user,
             default => null,
         };
+    }
+
+    /**
+     * @param  array<string, int|string>  $context
+     */
+    private function recordPatientEmail(Appointment $appointment, string $type, ?string $transitionKey, array $context): void
+    {
+        $audience = AppointmentNotification::AUDIENCE_PATIENT;
+
+        $this->recordOne($appointment, AppointmentNotification::CHANNEL_EMAIL, $type, ($transitionKey ?? $type).':'.$audience, [...$context, 'audience' => $audience]);
     }
 
     /**

@@ -45,6 +45,7 @@ class AppointmentRescheduledNotification extends AppointmentMailNotification
             ...parent::details(),
             'Date' => $this->date($this->reschedule->newSlot),
             'Time' => $this->timeRange($this->reschedule->newSlot),
+            'Location' => $this->locationLabel($this->reschedule->newSlot),
         ];
     }
 
@@ -54,10 +55,12 @@ class AppointmentRescheduledNotification extends AppointmentMailNotification
             'previous' => [
                 'date' => $this->date($this->reschedule->previousSlot),
                 'time' => $this->timeRange($this->reschedule->previousSlot),
+                'location' => $this->locationLabel($this->reschedule->previousSlot),
             ],
             'current' => [
                 'date' => $this->date($this->reschedule->newSlot),
                 'time' => $this->timeRange($this->reschedule->newSlot),
+                'location' => $this->locationLabel($this->reschedule->newSlot),
             ],
         ];
     }

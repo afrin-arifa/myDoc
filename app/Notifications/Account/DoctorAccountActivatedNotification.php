@@ -53,7 +53,7 @@ class DoctorAccountActivatedNotification extends AccountMailNotification impleme
 
     protected function actionUrl(object $notifiable): string
     {
-        return route('login');
+        return $this->trustedUrl('login');
     }
 
     protected function actionLabel(): string

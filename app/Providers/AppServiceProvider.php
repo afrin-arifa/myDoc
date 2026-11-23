@@ -10,6 +10,7 @@ use App\Services\Sms\LogSmsGateway;
 use App\Services\Sms\NullSmsGateway;
 use App\Services\Sms\SmsGateway;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Foundation\DevCommands;
 use Illuminate\Http\Client\Factory as HttpFactory;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\Paginator;
@@ -56,6 +57,9 @@ class AppServiceProvider extends ServiceProvider
     {
         Paginator::useBootstrapFive();
 
+        // `composer run dev` also runs the scheduler, so expiry, reminders and notification recovery work locally.
+        DevCommands::artisan('schedule:work', 'scheduler');
+
         // Shared doctor workspace views build their links through DoctorWorkspace::url(), which points to the
         // doctor's own routes or to the assistant workspace of the selected doctor.
         View::share('workspace', $this->app->make(DoctorWorkspace::class));
@@ -63,6 +67,12 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('password-reset', fn (Request $request): array => [
             Limit::perMinute(5)->by('password-reset:'.Str::lower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(20)->by('password-reset-ip:'.$request->ip()),
+        ]);
+
+        // Patient self-registration: enough for a family sharing one connection, not for scripted sign-ups.
+        RateLimiter::for('registration', fn (Request $request): array => [
+            Limit::perMinute(5)->by('registration:'.$request->ip()),
+            Limit::perHour(20)->by('registration-hour:'.$request->ip()),
         ]);
 
         RateLimiter::for('doctor-invitations', fn (Request $request): Limit => Limit::perMinute(10)->by('doctor-invitations:'.$request->ip()));
