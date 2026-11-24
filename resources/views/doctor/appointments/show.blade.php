@@ -9,7 +9,7 @@
         <p class="hero__eyebrow mb-2">{{ $workspace->inAssistantWorkspace() ? 'Doctor Assistant' : 'Doctor space' }}</p>
         <h1 class="h2 mb-4">Appointment details</h1>
         <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-body p-4 detail-list">
                 @if ($workspace->inAssistantWorkspace())
                     <p><strong>Doctor:</strong> {{ $appointment->slot->doctorProfile->user->name }}</p>
                 @endif

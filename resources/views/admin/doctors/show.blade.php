@@ -4,7 +4,7 @@
 <div class="container py-5">
     <a href="{{ route('admin.doctors.index') }}">&larr; Doctors</a>
     <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 my-4">
-        <img class="rounded-circle object-fit-cover" src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="{{ $doctor->user->name }} profile photo" width="72" height="72">
+        <x-ui.avatar :name="$doctor->user->name" :src="$doctor->photoUrl() ?? asset('images/doctor.png')" size="xl" />
         <div>
             <h1 class="h2 mb-1">{{ $doctor->user->name }}</h1>
             <x-admin.account-status :status="$status" :labels="$statusLabels" />

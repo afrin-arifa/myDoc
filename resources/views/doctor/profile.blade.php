@@ -4,8 +4,7 @@
 
 @section('content')
     <div class="doctor-workspace"><div class="container-fluid doctor-workspace__container"><div class="row g-4">
-        <div class="col-xl-3 col-xxl-2"><x-doctors.profile-summary :profile="$profile" active="profile" :pending-count="$pendingCount" /></div>
-        <div class="col-xl-9 col-xxl-10">
+        <div class="col-12">
             <div class="doctor-page-header"><div><p class="doctor-eyebrow">Professional profile</p><h1 class="doctor-page-title">Your clinical profile</h1><p class="text-secondary mb-0">Keep the information patients see when choosing their care.</p></div></div>
             @php($missingSections = $profile->missingProfileSections())
             @if ($missingSections !== [])

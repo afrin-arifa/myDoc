@@ -97,7 +97,7 @@ class ConsultationFeeSnapshotTest extends TestCase
         $this->actingAs($this->patient)->post(route('appointment-slots.book', $regular), ['consultation_type' => 'physical', 'consultation_fee' => 1, 'fee_type' => 'follow_up'])->assertSessionHasNoErrors();
         $this->assertSame(['1500.00', ConsultationFee::TYPE_STANDARD], Appointment::where('appointment_slot_id', $regular->id)->get(['consultation_fee', 'fee_type'])->map(fn ($a) => [$a->consultation_fee, $a->fee_type])->sole());
 
-        $this->actingAs($this->patient)->get(route('doctors.show', $this->profile))->assertSee('Follow-up fee:')->assertSee('BDT 800.00');
+        $this->actingAs($this->patient)->get(route('doctors.show', $this->profile))->assertSee('Follow-up fee</dt>', false)->assertSee('BDT 800.00');
     }
 
     public function test_appointments_without_a_stored_fee_show_not_recorded_instead_of_the_current_fee(): void

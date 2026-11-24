@@ -3,12 +3,7 @@
 
 <div class="appointment-management-card">
     <div class="appointment-management-card__patient">
-        <div class="appointment-management-card__avatar">
-            <img
-                src="{{ asset('images/patient.png') }}"
-                alt="{{ $appointment->patient->name }} profile image"
-            >
-        </div>
+        <x-ui.avatar :name="$appointment->patient->name" />
 
         <div class="appointment-management-card__patient-info">
             <span class="appointment-management-card__id">

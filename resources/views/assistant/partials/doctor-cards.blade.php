@@ -4,7 +4,7 @@
         <div class="col">
             <article class="card border-0 shadow-sm h-100 p-4" aria-labelledby="doctor-{{ $doctor->id }}-name">
                 <div class="d-flex align-items-center gap-3 mb-3">
-                    <img class="rounded-circle object-fit-cover" src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="" width="56" height="56">
+                    <x-ui.avatar :name="$doctor->user->name" :src="$doctor->photoUrl() ?? asset('images/doctor.png')" size="lg" />
                     <div class="min-w-0">
                         <h3 class="h6 mb-0 text-truncate" id="doctor-{{ $doctor->id }}-name">{{ $doctor->user->name }}</h3>
                         <p class="small text-secondary mb-0 text-truncate">{{ $doctor->professional_title }}</p>

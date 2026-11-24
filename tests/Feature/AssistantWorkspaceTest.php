@@ -333,7 +333,7 @@ class AssistantWorkspaceTest extends TestCase
 
         $this->actingAs($this->doctorA)->get(route('doctor.appointments.show', $appointment))->assertOk()
             ->assertSee(route('doctor.appointments.complete', $appointment), false)->assertDontSee('/assistant/', false);
-        $this->actingAs($this->doctorA)->get(route('doctor.schedule'))->assertOk()->assertSee('Account settings')->assertDontSee('/assistant/', false);
+        $this->actingAs($this->doctorA)->get(route('doctor.schedule'))->assertOk()->assertSee(route('doctor.settings'), false)->assertDontSee('/assistant/', false);
         $this->actingAs($this->doctorA)->get(route('doctor.appointments.index'))->assertOk()->assertSee(route('doctor.dashboard'), false);
     }
 

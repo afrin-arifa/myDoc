@@ -34,12 +34,12 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($patient)->get(route('patient.documents.index'))->assertOk();
 
         $this->assertSame([
+            'Dashboard' => route('patient.dashboard'),
             'Doctors' => route('doctors.index'),
             'My appointments' => route('patient.appointments.index'),
             'Waiting list' => route('patient.waitlist.index'),
             'Medical records' => route('patient.documents.index'),
             'Profile' => route('patient.profile'),
-            'Dashboard' => route('patient.dashboard'),
         ], $this->navLinks($response));
         $this->assertSame(['Medical records'], $this->activeLinks($response));
         $this->assertLogoutButton($response);
@@ -54,12 +54,13 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($doctor)->get(route('doctor.medical-records.index'))->assertOk();
 
         $this->assertSame([
+            'Dashboard' => route('doctor.dashboard'),
             'Appointments' => route('doctor.appointments.index'),
             'Schedule' => route('doctor.schedule'),
             'Patients' => route('doctor.patients.index'),
             'Medical records' => route('doctor.medical-records.index'),
             'Profile' => route('doctor.profile'),
-            'Dashboard' => route('doctor.dashboard'),
+            'Settings' => route('doctor.settings'),
         ], $this->navLinks($response));
         $this->assertSame(['Medical records'], $this->activeLinks($response));
         $this->assertLogoutButton($response);
@@ -73,11 +74,16 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($admin)->get(route('admin.appointments.index'))->assertOk();
 
         $this->assertSame([
+            'Dashboard' => route('admin.dashboard'),
+            'Appointments' => route('admin.appointments.index'),
             'Doctors' => route('admin.doctors.index'),
             'Patients' => route('admin.users.index', ['role' => 'patient']),
-            'Appointments' => route('admin.appointments.index'),
+            'All users' => route('admin.users.index'),
+            'Assistants' => route('admin.assistants.index'),
+            'Waiting lists' => route('admin.waitlist.index'),
             'Medical records' => route('admin.medical-documents.index'),
-            'Dashboard' => route('admin.dashboard'),
+            'Specialties' => route('admin.specialties.index'),
+            'Delivery issues' => route('admin.sms-issues.index'),
         ], $this->navLinks($response));
         $this->assertSame(['Appointments'], $this->activeLinks($response));
         $this->assertLogoutButton($response);
@@ -95,9 +101,9 @@ class NavigationTest extends TestCase
         $response = $this->actingAs($assistant)->get(route('assistant.account'))->assertOk();
 
         $this->assertSame([
+            'Dashboard' => route('assistant.dashboard'),
             'My doctors' => route('assistant.doctors.index'),
             'Account' => route('assistant.account'),
-            'Dashboard' => route('assistant.dashboard'),
         ], $this->navLinks($response));
         $this->assertSame(['Account'], $this->activeLinks($response));
         $this->assertLogoutButton($response);

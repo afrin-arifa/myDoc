@@ -10,7 +10,7 @@
         <a class="btn btn-primary" href="{{ route('admin.doctors.create') }}"><i class="fa-solid fa-user-plus me-2" aria-hidden="true"></i>Add doctor</a>
     </div>
 
-    <form class="row g-3 align-items-end mb-4" method="GET" action="{{ route('admin.doctors.index') }}">
+    <form class="filter-bar row g-3 align-items-end mb-4" method="GET" action="{{ route('admin.doctors.index') }}">
         <div class="col-md-6">
             <label class="form-label" for="search">Search</label>
             <input class="form-control" id="search" name="search" value="{{ request('search') }}" placeholder="Name, email, title or license" maxlength="100">

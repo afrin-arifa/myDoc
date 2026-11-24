@@ -6,9 +6,9 @@
     <div class="container py-5">
         <div class="row g-5">
             <div class="col-lg-6 col-xl-7">
-                <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="profile-hero">
                     {{-- Decorative: the doctor's name is the heading beside it. --}}
-                    <img class="rounded-circle object-fit-cover flex-shrink-0" src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="" width="96" height="96">
+                    <x-ui.avatar :name="$doctor->user->name" :src="$doctor->photoUrl() ?? asset('images/doctor.png')" size="xl" />
                     <div>
                         <p class="hero__eyebrow mb-2">{{ $doctor->professional_title }}</p>
                         <h1 class="h2 mb-0">{{ $doctor->user->name }}</h1>
@@ -18,11 +18,13 @@
                 @if ($doctor->qualifications)
                     <p><strong>Qualifications:</strong> {{ $doctor->qualifications }}</p>
                 @endif
-                <p><strong>Experience:</strong> {{ $doctor->years_of_experience !== null ? $doctor->years_of_experience.' years' : 'Not specified' }}</p>
-                <p><strong>Consultation fee:</strong> {{ App\Services\ConsultationFee::format($doctor->consultation_fee) }}</p>
-                @if ($doctor->follow_up_fee !== null)
-                    <p><strong>Follow-up fee:</strong> {{ App\Services\ConsultationFee::format($doctor->follow_up_fee) }}</p>
-                @endif
+                <dl class="fact-grid">
+                    <div><dt>Experience</dt><dd>{{ $doctor->years_of_experience !== null ? $doctor->years_of_experience.' years' : 'Not specified' }}</dd></div>
+                    <div><dt>Consultation fee</dt><dd>{{ App\Services\ConsultationFee::format($doctor->consultation_fee) }}</dd></div>
+                    @if ($doctor->follow_up_fee !== null)
+                        <div><dt>Follow-up fee</dt><dd>{{ App\Services\ConsultationFee::format($doctor->follow_up_fee) }}</dd></div>
+                    @endif
+                </dl>
                 <div class="d-flex flex-wrap gap-2">
                     @foreach ($doctor->specialties as $specialty)
                         <span class="badge text-bg-light">{{ $specialty->name }}</span>

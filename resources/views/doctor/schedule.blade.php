@@ -2,9 +2,6 @@
 
 @section('title', ($workspace->inAssistantWorkspace() ? 'Schedule for '.$profile->user->name : 'Schedule Timing').' | myDoc')
 
-@section('doctor_workspace')
-@endsection
-
 @section('content')
     @php
         $weekStart = $selectedDate->startOfWeek(Carbon\Carbon::MONDAY);
@@ -12,10 +9,9 @@
         $monthOffset = $monthStart->dayOfWeekIso - 1;
         $calendarStart = $view === 'day' ? $selectedDate : $weekStart;
         $calendarDayCount = $view === 'day' ? 1 : 7;
-        $timelineStartHour = 8;
-        $timelineEndHour = 18;
+        [$timelineStartHour, $timelineEndHour] = $timelineHours;
         $timelineMinutes = ($timelineEndHour - $timelineStartHour) * 60;
-        $timelinePixelsPerMinute = 1;
+        $timelinePixelsPerMinute = 2;
         $activeFilters = $activeFilters ?? ['available', 'held', 'blocked', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
         $scheduleQuery = ['view' => $view, 'filters' => $activeFilters];
         $statusFilters = [
@@ -31,11 +27,8 @@
     <div class="doctor-workspace doctor-schedule-page">
         <div class="container-fluid doctor-workspace__container">
             <div class="row g-4">
-                <div class="col-xl-3 col-xxl-2">
-                    <x-doctors.profile-summary :profile="$profile" active="schedule" :pending-count="$pendingCount" />
-                </div>
 
-                <div class="col-xl-9 col-xxl-10">
+                <div class="col-12">
                     <header class="doctor-page-header doctor-schedule-header">
                         <div>
                             @if ($workspace->inAssistantWorkspace())
@@ -52,14 +45,6 @@
                             <a class="btn btn-primary" href="{{ $workspace->url('doctor.appointments.create', ['date' => $selectedDate->toDateString()]) }}">
                                 <i class="fa-solid fa-plus me-1"></i> New Appointment
                             </a>
-                            <button class="doctor-icon-button" type="button" aria-label="Notifications">
-                                <i class="fa-regular fa-bell"></i>
-                            </button>
-                            @if ($workspace->routeAvailable('doctor.settings'))
-                                <a class="doctor-icon-button" href="{{ route('doctor.settings') }}" aria-label="Account settings">
-                                    <i class="fa-regular fa-user"></i>
-                                </a>
-                            @endif
                         </div>
                     </header>
 
@@ -132,6 +117,8 @@
                                     <strong>
                                         @if ($view === 'day')
                                             {{ $selectedDate->format('D, M j, Y') }}
+                                        @elseif ($view === 'month')
+                                            {{ $selectedDate->format('F Y') }}
                                         @else
                                             {{ $weekStart->format('M j') }} – {{ $selectedDate->endOfWeek()->format('M j, Y') }}
                                         @endif
@@ -145,7 +132,7 @@
 
                                 @if ($view === 'month')
                                     <div class="doctor-month-calendar">
-                                        @foreach (['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as $dayName)
+                                        @foreach (['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as $dayName)
                                             <strong>{{ $dayName }}</strong>
                                         @endforeach
                                         @foreach (range(0, 41) as $monthDayOffset)
@@ -162,11 +149,11 @@
                                         @endforeach
                                     </div>
                                 @else
-                                <div class="doctor-calendar-grid">
+                                <div class="doctor-calendar-grid" data-timeline="{{ $timelineStartHour }}-{{ $timelineEndHour }}" style="--hour-height: {{ 60 * $timelinePixelsPerMinute }}px; --timeline-height: {{ $timelineMinutes * $timelinePixelsPerMinute }}px;">
                                     <div class="doctor-calendar-grid__times">
                                         <span></span>
                                         @foreach (range($timelineStartHour, $timelineEndHour) as $hour)
-                                            <span>{{ Carbon\Carbon::createFromTime($hour)->format('g:i A') }}</span>
+                                            <span>{{ Carbon\Carbon::createFromTime($hour % 24)->format('g:i A') }}</span>
                                         @endforeach
                                     </div>
                                     <div class="doctor-calendar-grid__days">

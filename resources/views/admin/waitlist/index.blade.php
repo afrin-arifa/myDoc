@@ -5,7 +5,7 @@
     <h1 class="h2 mb-1">Waiting lists</h1>
     <p class="text-secondary mb-4">Patients waiting for a time with each doctor. Offers are made automatically or from the doctor's workspace; this page is read only.</p>
 
-    <form class="d-flex flex-wrap align-items-end gap-2 mb-4" method="GET" action="{{ route('admin.waitlist.index') }}">
+    <form class="filter-bar d-flex flex-wrap align-items-end gap-2 mb-4" method="GET" action="{{ route('admin.waitlist.index') }}">
         <div>
             <label class="form-label" for="doctor">Doctor</label>
             <select class="form-select" id="doctor" name="doctor">

@@ -6,20 +6,20 @@
 <div class="doctor-card">
     <div class="doctor-card__media">
         {{-- Decorative: the doctor's name is the card heading right below. --}}
-        <img src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="" width="320" height="184" loading="lazy" decoding="async">
+        <img src="{{ $doctor->photoUrl() ?? asset('images/doctor.png') }}" alt="" width="320" height="224" decoding="async">
     </div>
     <div class="doctor-card__body">
-        <p class="hero__eyebrow mb-2">{{ $doctor->professional_title }}</p>
         <h2 class="h5 mb-1">{{ $doctor->user->name }}</h2>
-        <p class="small text-secondary mb-3">{{ $doctor->specialties->pluck('name')->join(', ') ?: 'General care' }}</p>
+        <p class="small text-secondary mb-3">{{ $doctor->professional_title }}</p>
+        <p class="mb-3"><span class="doctor-card__specialty">{{ $doctor->specialties->pluck('name')->join(', ') ?: 'General care' }}</span></p>
         <div class="doctor-card__meta small text-secondary">
             <span>{{ $doctor->years_of_experience !== null ? $doctor->years_of_experience.' years experience' : 'Experience not listed' }}</span>
             <strong>Fee {{ App\Services\ConsultationFee::format($doctor->consultation_fee) }}</strong>
         </div>
         @if ($nextAvailableAt)
-            <p class="small text-secondary mb-3">Next available <time datetime="{{ $nextAvailableAt->toIso8601String() }}">{{ $nextAvailableAt->format('D, M j, g:i A') }}</time></p>
+            <p class="doctor-card__next is-open">Next available <time datetime="{{ $nextAvailableAt->toIso8601String() }}">{{ $nextAvailableAt->format('D, M j, g:i A') }}</time></p>
         @else
-            <p class="small text-secondary mb-3">No upcoming times listed</p>
+            <p class="doctor-card__next">No upcoming times listed</p>
         @endif
         <div class="doctor-card__actions">
             @if ($canBook && $nextAvailableAt)

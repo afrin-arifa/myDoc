@@ -35,6 +35,27 @@ class ScheduleIntegrityTest extends TestCase
         $this->travelTo(CarbonImmutable::create(2026, 11, 2, 8, 0, 0, config('app.timezone')));
     }
 
+    public function test_the_timeline_covers_the_hours_the_shown_days_use(): void
+    {
+        $doctor = $this->doctor();
+        $this->slot($doctor->doctorProfile, '2026-11-09 22:15');
+        $this->slot($doctor->doctorProfile, '2026-11-17 06:30');
+        $this->slot($doctor->doctorProfile, '2026-11-18 20:50');
+        $this->slot($doctor->doctorProfile, '2026-11-24 23:50');
+
+        // An evening slot is shown (it was hidden when the timeline always ended at 6 PM).
+        $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-09', 'view' => 'day']))->assertOk()
+            ->assertSee('data-timeline="16-24"', false)->assertSee('10:15 PM - 10:25 PM')->assertSee('--event-top: 750px', false);
+        // A week covers its earliest and latest slot; a slot ending at midnight still fits.
+        $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-16', 'view' => 'week']))->assertOk()
+            ->assertSee('data-timeline="6-21"', false)->assertSee('6:30 AM - 6:40 AM')->assertSee('8:50 PM - 9:00 PM');
+        $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-24', 'view' => 'day']))->assertOk()
+            ->assertSee('data-timeline="16-24"', false)->assertSee('11:50 PM - 12:00 AM');
+        // Days without slots keep the usual 8 AM to 6 PM.
+        $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-12-07', 'view' => 'day']))->assertOk()
+            ->assertSee('data-timeline="8-18"', false);
+    }
+
     public function test_generation_skips_times_that_overlap_slots_left_by_a_moved_window(): void
     {
         $doctor = $this->doctor();

@@ -16,31 +16,18 @@
             </div>
         </div>
 
-        <div class="row g-3 mb-5">
+        <div class="row g-3 mb-4">
             @foreach ([
-                'total' => 'Total appointments',
-                'upcoming' => 'Upcoming',
-                'booked' => App\Models\Appointment::statusLabel('booked'),
-                'confirmed' => 'Confirmed',
-            ] as $key => $label)
+                'total' => ['Total appointments', 'fa-regular fa-calendar', 'primary'],
+                'upcoming' => ['Upcoming', 'fa-regular fa-clock', 'info'],
+                'booked' => [App\Models\Appointment::statusLabel('booked'), 'fa-regular fa-hourglass-half', 'warning'],
+                'confirmed' => ['Confirmed', 'fa-regular fa-circle-check', 'success'],
+            ] as $key => [$label, $icon, $tone])
                 <div class="col-6 col-lg-3">
-                    <div class="card border-0 shadow-sm h-100">
-                        <div class="card-body">
-                            <p class="text-secondary mb-1">{{ $label }}</p>
-                            <p class="h3 mb-0">{{ $appointmentCounts[$key] }}</p>
-                        </div>
-                    </div>
+                    <x-ui.stat :label="$label" :value="$appointmentCounts[$key]" :icon="$icon" :tone="$tone" />
                 </div>
             @endforeach
         </div>
-
-        <section class="card border-0 shadow-sm p-4 mb-5" aria-labelledby="dashboard-upload-heading">
-            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                <h2 class="h5 mb-0" id="dashboard-upload-heading">Add a medical document</h2>
-                <a href="{{ route('patient.documents.index') }}">View all medical records</a>
-            </div>
-            <x-medical-documents.upload-form compact />
-        </section>
 
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h2 class="h4 mb-0">Upcoming appointments</h2>
@@ -51,9 +38,14 @@
                 <div class="col-lg-4">
                     <article class="card border-0 shadow-sm h-100">
                         <div class="card-body">
-                            <p class="hero__eyebrow mb-2">{{ $appointment->slot->starts_at->format('D, M j') }}</p>
-                            <h3 class="h5">{{ $appointment->slot->doctorProfile->user->name }}</h3>
-                            <p class="text-secondary mb-3">{{ $appointment->slot->starts_at->format('g:i A') }} · {{ $appointment->slot->doctorProfile->professional_title }}</p>
+                            <p class="hero__eyebrow mb-3"><i class="fa-regular fa-calendar me-2" aria-hidden="true"></i>{{ $appointment->slot->starts_at->format('D, M j') }} · {{ $appointment->slot->starts_at->format('g:i A') }}</p>
+                            <div class="d-flex align-items-center gap-3 mb-3">
+                                <x-ui.avatar :name="$appointment->slot->doctorProfile->user->name" :src="$appointment->slot->doctorProfile->photoUrl() ?? asset('images/doctor.png')" />
+                                <div class="min-w-0">
+                                    <h3 class="h6 mb-0">{{ $appointment->slot->doctorProfile->user->name }}</h3>
+                                    <p class="small text-secondary mb-0">{{ $appointment->slot->doctorProfile->professional_title }}</p>
+                                </div>
+                            </div>
                             <x-appointments.consultation-type :type="$appointment->consultation_type" />
                             <div class="mt-2">
                                 <x-ui.status-badge :status="$appointment->status" />
@@ -72,5 +64,13 @@
                 </div>
             @endforelse
         </div>
+
+        <section class="card border-0 shadow-sm p-4 mt-5" aria-labelledby="dashboard-upload-heading">
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h2 class="h5 mb-0" id="dashboard-upload-heading">Add a medical document</h2>
+                <a href="{{ route('patient.documents.index') }}">View all medical records</a>
+            </div>
+            <x-medical-documents.upload-form compact />
+        </section>
     </div>
 @endsection

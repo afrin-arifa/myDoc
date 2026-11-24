@@ -1,14 +1,19 @@
 @props(['appointment', 'cancelable' => false])
 
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-body d-flex flex-column flex-md-row justify-content-between gap-3">
-        <div>
+<div class="card appointment-card border-0 shadow-sm mb-3">
+    <div class="card-body d-flex flex-column flex-md-row gap-3">
+        <div class="date-tile" aria-hidden="true">
+            <span class="date-tile__month">{{ $appointment->slot->starts_at->format('M') }}</span>
+            <span class="date-tile__day">{{ $appointment->slot->starts_at->format('j') }}</span>
+            <span class="date-tile__weekday">{{ $appointment->slot->starts_at->format('D') }}</span>
+        </div>
+        <div class="flex-grow-1 min-w-0">
             <h2 class="h5 mb-1">
                 <a class="link-body-emphasis text-decoration-none" href="{{ route('patient.appointments.show', $appointment) }}">
                     {{ $appointment->slot->doctorProfile->user->name }}
                 </a>
             </h2>
-            <p class="text-secondary mb-1">{{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
+            <p class="text-secondary mb-1"><i class="fa-regular fa-clock me-1" aria-hidden="true"></i>{{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
             <p class="small mb-1"><x-appointments.location :location="$appointment->slot->location" compact /></p>
             @if ($appointment->follow_up_of_id)
                 <p class="small mb-1"><i class="fa-solid fa-rotate-left text-secondary me-1" aria-hidden="true"></i>Follow-up to <a href="{{ route('patient.appointments.show', $appointment->follow_up_of_id) }}">{{ App\Models\Appointment::referenceFor($appointment->follow_up_of_id) }}</a></p>

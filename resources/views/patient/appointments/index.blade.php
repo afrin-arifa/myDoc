@@ -12,7 +12,8 @@
                 :cancelable="$appointment->isCancellableByPatient()"
             />
         @empty
-            <p class="text-secondary">You do not have any appointments yet.</p>
+            <x-ui.empty-state class="text-center py-5" icon="fa-regular fa-calendar" title="You do not have any appointments yet." message="Find a doctor and choose a time that suits you."
+                action-label="Find a doctor" :action-url="route('doctors.index')" />
         @endforelse
         {{ $appointments->links() }}
     </div>

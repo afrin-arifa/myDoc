@@ -10,7 +10,7 @@
         <p class="hero__eyebrow mb-2">Appointment details</p>
         <h1 class="h2 mb-4">{{ $appointment->slot->doctorProfile->user->name }}</h1>
         <div class="card border-0 shadow-sm">
-            <div class="card-body p-4">
+            <div class="card-body p-4 detail-list">
                 <p><strong>Date and time:</strong> {{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
                 <div class="mb-3"><strong>Location:</strong> <x-appointments.location :location="$appointment->slot->location" /></div>
                 <p><strong>Professional title:</strong> {{ $appointment->slot->doctorProfile->professional_title }}</p>

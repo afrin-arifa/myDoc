@@ -5,26 +5,44 @@
 @section('content')
     <div class="container py-5">
         <p class="hero__eyebrow mb-2">Administration</p>
-        <h1 class="h2 mb-3">Welcome, {{ auth()->user()->name }}.</h1>
-        <div class="row g-3 mb-4">
+        <h1 class="h2 mb-1">Welcome, {{ auth()->user()->name }}.</h1>
+        <p class="text-secondary mb-4">A quick look at the platform today.</p>
+        <div class="row g-3 mb-5">
             @foreach ([
-                'patients' => 'Patients', 'doctors' => 'Doctors', 'appointments' => 'Appointments',
-                'upcoming' => 'Upcoming', 'booked' => App\Models\Appointment::statusLabel('booked'), 'confirmed' => 'Confirmed',
-                'completed' => 'Completed', 'cancelled_or_rejected' => 'Cancelled, rejected or expired'
-            ] as $key => $label)
-                <div class="col-6 col-lg-3"><div class="card border-0 shadow-sm h-100"><div class="card-body">
-                    <p class="text-secondary mb-1">{{ $label }}</p><p class="h3 mb-0">{{ $counts[$key] }}</p>
-                </div></div></div>
+                'patients' => ['Patients', 'fa-solid fa-user-group', 'primary'],
+                'doctors' => ['Doctors', 'fa-solid fa-user-doctor', 'primary'],
+                'appointments' => ['Appointments', 'fa-regular fa-calendar', 'primary'],
+                'upcoming' => ['Upcoming', 'fa-regular fa-clock', 'info'],
+                'booked' => [App\Models\Appointment::statusLabel('booked'), 'fa-regular fa-hourglass-half', 'warning'],
+                'confirmed' => ['Confirmed', 'fa-regular fa-circle-check', 'success'],
+                'completed' => ['Completed', 'fa-solid fa-check-double', 'success'],
+                'cancelled_or_rejected' => ['Cancelled, rejected or expired', 'fa-regular fa-circle-xmark', 'danger'],
+            ] as $key => [$label, $icon, $tone])
+                <div class="col-sm-6 col-xxl-3">
+                    <x-ui.stat :label="$label" :value="$counts[$key]" :icon="$icon" :tone="$tone" />
+                </div>
             @endforeach
         </div>
-        <div class="d-flex flex-wrap gap-2">
-            <a class="btn btn-primary" href="{{ route('admin.users.index') }}">Manage users</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.doctors.index') }}">Review doctors</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.specialties.index') }}">Manage specialties</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.appointments.index') }}">Appointment oversight</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.sms-issues.index') }}">Notification delivery issues</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.waitlist.index') }}">Waiting lists</a>
-            <a class="btn btn-outline-primary" href="{{ route('admin.assistants.index') }}">Doctor assistants</a>
+
+        <h2 class="h5 mb-3">Manage</h2>
+        <div class="row g-3">
+            @foreach ([
+                ['Manage users', 'Accounts, roles and access', 'fa-solid fa-users-gear', route('admin.users.index')],
+                ['Review doctors', 'Invitations, profiles and status', 'fa-solid fa-user-doctor', route('admin.doctors.index')],
+                ['Doctor assistants', 'Invitations and assignments', 'fa-solid fa-user-nurse', route('admin.assistants.index')],
+                ['Appointment oversight', 'Search every appointment', 'fa-regular fa-calendar-check', route('admin.appointments.index')],
+                ['Waiting lists', 'Who is waiting for each doctor', 'fa-regular fa-hourglass-half', route('admin.waitlist.index')],
+                ['Notification delivery issues', 'Emails and SMS that need attention', 'fa-regular fa-bell', route('admin.sms-issues.index')],
+                ['Manage specialties', 'The list patients search by', 'fa-solid fa-stethoscope', route('admin.specialties.index')],
+            ] as [$label, $hint, $icon, $url])
+                <div class="col-md-6 col-xxl-4">
+                    <a class="action-tile" href="{{ $url }}">
+                        <span class="ui-stat__icon ui-stat__icon--primary" aria-hidden="true"><i class="{{ $icon }}"></i></span>
+                        <span class="min-w-0"><span class="action-tile__label">{{ $label }}</span><span class="action-tile__hint">{{ $hint }}</span></span>
+                        <i class="fa-solid fa-chevron-right action-tile__arrow" aria-hidden="true"></i>
+                    </a>
+                </div>
+            @endforeach
         </div>
     </div>
 @endsection

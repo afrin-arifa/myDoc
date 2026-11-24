@@ -8,7 +8,7 @@
 
         <div class="directory-heading mb-4">
             <p class="hero__eyebrow mb-2">Find care</p>
-            <h1 class="display-6 fw-bold mb-2">Find Your Doctor</h1>
+            <h1 class="page-title mb-2">Find Your Doctor</h1>
             <p class="lead text-secondary mb-0">Connect with a doctor who fits your needs, schedule, and budget.</p>
         </div>
 
@@ -80,7 +80,7 @@
 
         <div class="row g-4">
             @forelse ($doctors as $doctor)
-                <div class="col-sm-6 col-lg-4 col-xl-3">
+                <div class="col-md-6 col-xl-4">
                     <x-doctors.doctor-card :doctor="$doctor" :can-book="$canBook" />
                 </div>
             @empty

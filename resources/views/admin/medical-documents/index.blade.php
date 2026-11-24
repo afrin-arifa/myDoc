@@ -5,7 +5,7 @@
     <h1 class="h2 mb-1">Medical documents</h1>
     <p class="text-secondary mb-4">All patient documents on the platform. Downloads and deletions are recorded in each document's activity log.</p>
 
-    <form class="row g-3 align-items-end mb-4" method="GET" action="{{ route('admin.medical-documents.index') }}" role="search">
+    <form class="filter-bar row g-3 align-items-end mb-4" method="GET" action="{{ route('admin.medical-documents.index') }}" role="search">
         <div class="col-md-4">
             <label class="form-label" for="search">Search</label>
             <input class="form-control" id="search" name="search" type="search" value="{{ $filters['search'] ?? '' }}" maxlength="100" placeholder="Patient, doctor, title or filename">

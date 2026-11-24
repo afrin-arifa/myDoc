@@ -4,8 +4,7 @@
 
 @section('content')
     <div class="doctor-workspace"><div class="container-fluid doctor-workspace__container"><div class="row g-4">
-        <div class="col-xl-3 col-xxl-2"><x-doctors.profile-summary :profile="$profile" active="settings" :pending-count="$pendingCount" /></div>
-        <div class="col-xl-9 col-xxl-10">
+        <div class="col-12">
             <div class="doctor-page-header"><div><p class="doctor-eyebrow">Account settings</p><h1 class="doctor-page-title">Your account</h1><p class="text-secondary mb-0">Manage personal details, security, and connected services.</p></div></div>
             <div class="row g-4">
                 <div class="col-xl-7"><section class="doctor-panel"><h2 class="doctor-panel__title mb-3">Personal information</h2><form method="POST" action="{{ route('doctor.account.update') }}">@csrf @method('PUT')

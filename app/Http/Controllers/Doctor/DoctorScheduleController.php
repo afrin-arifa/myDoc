@@ -11,6 +11,7 @@ use App\Services\DoctorWorkspace;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\View\View;
 
 class DoctorScheduleController extends Controller
@@ -174,11 +175,46 @@ class DoctorScheduleController extends Controller
             'view' => $view,
             'slotsByDate' => $slots->groupBy(fn (AppointmentSlot $slot): string => $slot->starts_at->toDateString()),
             'calendarEventsByDate' => $visibleCalendarEvents->groupBy('date'),
+            'timelineHours' => $this->timelineHours($calendarEvents, $date, $view),
             'selectedAppointments' => $selectedAppointments,
             'summary' => $summary,
             'activeFilters' => $activeFilters,
             'pendingCount' => $this->pendingCount($profile->id),
         ]);
+    }
+
+    /**
+     * First and last hour (0-24) of the day and week timelines: the hours the shown days' slots actually use, widened
+     * to at least eight hours. 8 AM to 6 PM when there are no slots.
+     *
+     * @param  Collection<int, array<string, mixed>>  $events
+     * @return array{0: int, 1: int}
+     */
+    private function timelineHours(Collection $events, CarbonImmutable $date, string $view): array
+    {
+        $firstDay = ($view === 'day' ? $date : $date->startOfWeek(CarbonImmutable::MONDAY))->toDateString();
+        $lastDay = ($view === 'day' ? $date : $date->startOfWeek(CarbonImmutable::MONDAY)->addDays(6))->toDateString();
+        $shown = $events->whereBetween('date', [$firstDay, $lastDay]);
+
+        if ($shown->isEmpty()) {
+            return [8, 18];
+        }
+
+        $start = (int) $shown->min(fn (array $event): int => CarbonImmutable::parse($event['starts_at'])->hour);
+        $end = (int) $shown->max(function (array $event): int {
+            $endsAt = CarbonImmutable::parse($event['ends_at']);
+
+            return $endsAt->toDateString() > $event['date'] ? 24 : (int) ceil(($endsAt->hour * 60 + $endsAt->minute) / 60);
+        });
+
+        while ($end - $start < 8) {
+            $end < 24 ? $end++ : $start--;
+            if ($end - $start < 8 && $start > 0) {
+                $start--;
+            }
+        }
+
+        return [$start, $end];
     }
 
     private function pendingCount(int $profileId): int

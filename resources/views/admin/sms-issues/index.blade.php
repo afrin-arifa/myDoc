@@ -41,7 +41,7 @@
         @endforeach
     </div>
 
-    <form class="d-flex flex-wrap align-items-end gap-2 mb-4" method="GET" action="{{ route('admin.sms-issues.index') }}">
+    <form class="filter-bar d-flex flex-wrap align-items-end gap-2 mb-4" method="GET" action="{{ route('admin.sms-issues.index') }}">
         <div>
             <label class="form-label" for="channel">Channel</label>
             <select class="form-select" id="channel" name="channel">

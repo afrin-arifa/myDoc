@@ -6,10 +6,7 @@
     @php($forAssistant = $workspace->inAssistantWorkspace())
     <div class="container py-5">
         <div class="row g-4">
-            <div class="col-lg-3">
-                <x-doctors.profile-summary :profile="$profile" active="medical-records" :pending-count="$pendingCount" />
-            </div>
-            <div class="col-lg-9">
+            <div class="col-12">
                 <div class="doctor-page-header">
                     <div>
                         <p class="doctor-eyebrow">Patients</p>
@@ -18,7 +15,7 @@
                     </div>
                 </div>
 
-                <form class="row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.medical-records.index') }}" role="search">
+                <form class="filter-bar row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.medical-records.index') }}" role="search">
                     <div class="col-md-6">
                         <label class="form-label" for="search">Search</label>
                         <input class="form-control" id="search" name="search" type="search" value="{{ $filters['search'] ?? '' }}" maxlength="100" placeholder="Patient name or document title">

@@ -7,10 +7,7 @@
     @php($whose = $forAssistant ? $profile->user->name."'s" : 'your')
     <div class="container py-5">
         <div class="row g-4">
-            <div class="col-lg-3">
-                <x-doctors.profile-summary :profile="$profile" active="patients" :pending-count="$pendingCount" />
-            </div>
-            <div class="col-lg-9">
+            <div class="col-12">
                 <div class="doctor-page-header">
                     <div>
                         <p class="doctor-eyebrow">Patients</p>
@@ -19,7 +16,7 @@
                     </div>
                 </div>
 
-                <form class="row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.patients.index') }}" role="search">
+                <form class="filter-bar row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.patients.index') }}" role="search">
                     <div class="col-sm-9">
                         <label class="form-label" for="search">{{ $forAssistant ? 'Search patients' : 'Search your patients' }}</label>
                         <input class="form-control" id="search" name="search" type="search" value="{{ $search }}" maxlength="100" placeholder="Name, email or phone">
@@ -53,7 +50,7 @@
                                 @foreach ($patients as $patient)
                                     <tr>
                                         <td>
-                                            <strong>{{ $patient->name }}</strong>
+                                            <x-ui.avatar :name="$patient->name" size="sm" class="me-2 float-start" /><strong>{{ $patient->name }}</strong>
                                             @if ($patient->deactivated_at)
                                                 <span class="badge text-bg-light ms-1">Inactive account</span>
                                             @endif

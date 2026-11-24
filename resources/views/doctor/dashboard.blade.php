@@ -6,14 +6,11 @@
     <div class="doctor-workspace">
         <div class="container-fluid doctor-workspace__container">
             <div class="row g-4">
-                <div class="col-xl-3 col-xxl-2">
-                    <x-doctors.profile-summary :profile="$profile" active="overview" :pending-count="$pendingCount" />
-                </div>
-                <div class="col-xl-9 col-xxl-10">
+                <div class="col-12">
                     <div class="doctor-page-header">
                         <div>
                             <p class="doctor-eyebrow">Doctor workspace</p>
-                            <h1 class="doctor-page-title">Good morning, {{ auth()->user()->name }}.</h1>
+                            <h1 class="doctor-page-title">{{ now()->hour < 12 ? 'Good morning' : (now()->hour < 17 ? 'Good afternoon' : 'Good evening') }}, {{ auth()->user()->name }}.</h1>
                             <p class="text-secondary mb-0">Here is your clinical day at a glance.</p>
                         </div>
                         <a class="btn btn-primary" href="{{ route('doctor.appointments.index') }}">New appointment</a>
@@ -21,16 +18,13 @@
 
                     <div class="row g-3 mb-4">
                         @foreach ([
-                            ['label' => 'Total appointments', 'value' => $appointmentCounts['total'], 'tone' => 'blue'],
-                            ['label' => App\Models\Appointment::statusLabel('booked'), 'value' => $appointmentCounts['booked'], 'tone' => 'amber'],
-                            ['label' => 'Confirmed', 'value' => $appointmentCounts['confirmed'], 'tone' => 'green'],
-                            ['label' => 'Cancelled, rejected or expired', 'value' => $appointmentCounts['cancelled'], 'tone' => 'rose'],
+                            ['label' => 'Total appointments', 'value' => $appointmentCounts['total'], 'icon' => 'fa-regular fa-calendar', 'tone' => 'primary'],
+                            ['label' => App\Models\Appointment::statusLabel('booked'), 'value' => $appointmentCounts['booked'], 'icon' => 'fa-regular fa-hourglass-half', 'tone' => 'warning'],
+                            ['label' => 'Confirmed', 'value' => $appointmentCounts['confirmed'], 'icon' => 'fa-regular fa-circle-check', 'tone' => 'success'],
+                            ['label' => 'Cancelled, rejected or expired', 'value' => $appointmentCounts['cancelled'], 'icon' => 'fa-regular fa-circle-xmark', 'tone' => 'danger'],
                         ] as $stat)
                             <div class="col-sm-6 col-xxl-3">
-                                <div class="doctor-stat-card doctor-stat-card--{{ $stat['tone'] }}">
-                                    <span class="doctor-stat-card__label">{{ $stat['label'] }}</span>
-                                    <strong>{{ $stat['value'] }}</strong>
-                                </div>
+                                <x-ui.stat :label="$stat['label']" :value="$stat['value']" :icon="$stat['icon']" :tone="$stat['tone']" />
                             </div>
                         @endforeach
                     </div>
@@ -48,7 +42,7 @@
                                 @forelse ($todaySlots as $slot)
                                     @php($appointment = $slot->appointments->first())
                                     @php($status = $appointment?->status ?? ($slot->status === 'available' ? 'available' : $slot->status))
-                                    <div doctor-calendar-paneliv class="doctor-schedule-row">
+                                    <div class="doctor-schedule-row">
                                         <div class="doctor-schedule-row__time">
                                             <strong>{{ $slot->starts_at->format('g:i') }}</strong>
                                             <span>{{ $slot->starts_at->format('A') }}</span>
@@ -113,7 +107,7 @@
                                 <tbody>
                                     @forelse ($appointments as $appointment)
                                         <tr>
-                                            <td><strong>{{ $appointment->patient->name }}</strong></td>
+                                            <td><div class="d-flex align-items-center gap-2"><x-ui.avatar :name="$appointment->patient->name" size="sm" /><strong>{{ $appointment->patient->name }}</strong></div></td>
                                             <td>{{ $appointment->slot->starts_at->format('M j, Y · g:i A') }}</td>
                                             <td>{{ ucfirst($appointment->consultation_type) }}</td>
                                             <td><x-ui.status-badge :status="$appointment->status" /></td>

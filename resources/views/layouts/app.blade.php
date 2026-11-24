@@ -10,14 +10,14 @@
         @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
-    <body class="d-flex min-vh-100 flex-column bg-white">
-        @unless ($__env->hasSection('doctor_workspace'))
-            <header>
-                <x-layout.navbar />
-            </header>
-        @endunless
+    @php($hasSidebar = in_array(auth()->user()?->role, ['doctor', 'admin', App\Models\User::ROLE_ASSISTANT], true))
+    <body @class(['app-body', 'app-body--side' => $hasSidebar, 'app-body--guest' => auth()->guest()])>
+        <a class="skip-link" href="#main-content">Skip to main content</a>
+        <header class="app-header">
+            <x-layout.navbar />
+        </header>
 
-        <main class="flex-grow-1">
+        <main class="app-main" id="main-content" tabindex="-1">
             @if (session('status'))
                 <div class="container pt-4">
                     <x-ui.alert class="mb-0">{{ session('status') }}</x-ui.alert>
@@ -46,7 +46,7 @@
             @yield('content')
         </main>
 
-        @unless ($__env->hasSection('doctor_workspace'))
+        @unless ($hasSidebar)
             <x-layout.footer />
         @endunless
     </body>
