@@ -5,10 +5,10 @@
     dates and statuses are shown.
 --}}
 @php
-    $urlFor = fn (int $id): string => match ($audience) {
-        'admin' => route('admin.appointments.show', $id),
-        'staff' => $workspace->url('doctor.appointments.show', $id),
-        default => route('patient.appointments.show', $id),
+    $urlFor = fn (App\Models\Appointment $linked): string => match ($audience) {
+        'admin' => route('admin.appointments.show', $linked),
+        'staff' => $workspace->url('doctor.appointments.show', $linked),
+        default => route('patient.appointments.show', $linked),
     };
     $original = $appointment->followUpOf;
     $followUps = $appointment->followUps->sortBy('id');
@@ -17,12 +17,12 @@
     <div {{ $attributes->merge(['class' => 'small']) }} data-follow-up-links>
         @if ($original)
             <p class="mb-1"><i class="fa-solid fa-rotate-left text-secondary me-1" aria-hidden="true"></i>Follow-up to
-                <a href="{{ $urlFor($original->id) }}">{{ $original->reference() }}</a>
+                <a href="{{ $urlFor($original) }}">{{ $original->reference() }}</a>
                 ({{ $original->slot?->starts_at?->format('M j, Y') }})</p>
         @endif
         @foreach ($followUps as $followUp)
             <p class="mb-1"><i class="fa-solid fa-rotate-right text-secondary me-1" aria-hidden="true"></i>Follow-up:
-                <a href="{{ $urlFor($followUp->id) }}">{{ $followUp->reference() }}</a>
+                <a href="{{ $urlFor($followUp) }}">{{ $followUp->reference() }}</a>
                 ({{ $followUp->slot?->starts_at?->format('M j, Y') }}, {{ App\Models\Appointment::statusLabel($followUp->status) }})</p>
         @endforeach
     </div>

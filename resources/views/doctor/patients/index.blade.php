@@ -50,18 +50,19 @@
                                 @foreach ($patients as $patient)
                                     <tr>
                                         <td>
-                                            <x-ui.avatar :name="$patient->name" size="sm" class="me-2 float-start" /><strong>{{ $patient->name }}</strong>
+                                            <x-ui.avatar :name="$patient->name" :src="$patient->photoUrl()" size="sm" class="me-2 float-start" /><strong>{{ $patient->name }}</strong>
                                             @if ($patient->deactivated_at)
                                                 <span class="badge text-bg-light ms-1">Inactive account</span>
                                             @endif
-                                            <br><span class="small text-secondary">{{ $patient->email }}</span>
+                                            @if ($patient->is_walk_in)<span class="badge text-bg-light ms-1">Walk-in</span>@endif
+                                            <br><span class="small text-secondary">{{ $patient->email ?? 'No account' }}</span>
                                         </td>
                                         <td>{{ $patient->phone ?: '—' }}</td>
                                         <td class="text-center">{{ $patient->appointment_count }}</td>
                                         <td class="text-center">{{ $patient->upcoming_count }}</td>
                                         <td>{{ $patient->last_appointment_at?->format('M j, Y') ?? '—' }}</td>
                                         <td class="text-end">
-                                            <a class="btn btn-sm btn-outline-primary" href="{{ $workspace->url('doctor.appointments.index', ['tab' => 'all', 'search' => $patient->email]) }}">Appointment history</a>
+                                            <a class="btn btn-sm btn-outline-primary" href="{{ $workspace->url('doctor.appointments.index', ['tab' => 'all', 'search' => $patient->email ?? $patient->name]) }}">Appointment history</a>
                                         </td>
                                     </tr>
                                 @endforeach

@@ -20,11 +20,12 @@ use Illuminate\Validation\ValidationException;
  * same check earlier for quick feedback; this one is authoritative.
  *
  * When an update or deletion leaves future open slots no longer covered by any active window, those slots are
- * blocked (SlotBlockingService::blockUncoveredOpenSlots) and the number blocked is recorded on the event.
+ * removed, or blocked when they have history (SlotBlockingService::closeUncoveredOpenSlots), and both numbers are
+ * recorded on the event.
  *
  * Each window is held at one of the doctor's active locations (DoctorLocationService::usableLocation, checked under
  * the same lock). The window overlap rule still applies across locations: a doctor cannot be in two chambers at once.
- * Moving a window to another location blocks the open slots generated for the old one.
+ * Moving a window to another location closes the open slots generated for the old one.
  */
 class DoctorAvailabilityService
 {
@@ -73,7 +74,7 @@ class DoctorAvailabilityService
     }
 
     /**
-     * Returns the number of future open slots blocked because the old window no longer covers them. Without a
+     * Returns the number of future open slots closed because the old window no longer covers them. Without a
      * doctor_location_id the window keeps its current location.
      *
      * @param  array{day_of_week: int|string, start_time: string, end_time: string, doctor_location_id?: int|string}  $attributes
@@ -106,16 +107,16 @@ class DoctorAvailabilityService
                 }
             }
 
-            $blocked = $this->blockUncoveredSlots($doctorProfile, $before);
+            $closed = $this->closeUncoveredSlots($doctorProfile, $before);
 
-            $this->events->record($actor, $doctorProfile, DoctorWorkspaceEvent::ACTION_AVAILABILITY_UPDATED, subject: $locked, context: [...$after, 'changes' => $changes, ...$this->blockedContext($blocked)]);
+            $this->events->record($actor, $doctorProfile, DoctorWorkspaceEvent::ACTION_AVAILABILITY_UPDATED, subject: $locked, context: [...$after, 'changes' => $changes, ...$this->closedContext($closed)]);
 
-            return count($blocked);
+            return count($closed['removed']) + count($closed['blocked']);
         });
     }
 
     /**
-     * Returns the number of future open slots blocked because the removed window no longer covers them.
+     * Returns the number of future open slots closed because the removed window no longer covers them.
      */
     public function delete(User $actor, DoctorAvailability $availability, ?DoctorProfile $doctorProfile = null): int
     {
@@ -128,11 +129,11 @@ class DoctorAvailabilityService
             $snapshot = $this->snapshot($locked);
             $locked->delete();
 
-            $blocked = $this->blockUncoveredSlots($doctorProfile, $snapshot);
+            $closed = $this->closeUncoveredSlots($doctorProfile, $snapshot);
 
-            $this->events->record($actor, $doctorProfile, DoctorWorkspaceEvent::ACTION_AVAILABILITY_DELETED, subject: $locked, context: [...$snapshot, ...$this->blockedContext($blocked)]);
+            $this->events->record($actor, $doctorProfile, DoctorWorkspaceEvent::ACTION_AVAILABILITY_DELETED, subject: $locked, context: [...$snapshot, ...$this->closedContext($closed)]);
 
-            return count($blocked);
+            return count($closed['removed']) + count($closed['blocked']);
         });
     }
 
@@ -165,11 +166,11 @@ class DoctorAvailabilityService
 
     /**
      * @param  array{day_of_week: int, start_time: string, end_time: string, is_active: bool, doctor_location_id: int|null}  $previousWindow
-     * @return list<int>
+     * @return array{removed: list<int>, blocked: list<int>}
      */
-    private function blockUncoveredSlots(DoctorProfile $doctorProfile, array $previousWindow): array
+    private function closeUncoveredSlots(DoctorProfile $doctorProfile, array $previousWindow): array
     {
-        return $this->slotBlocking->blockUncoveredOpenSlots(
+        return $this->slotBlocking->closeUncoveredOpenSlots(
             $doctorProfile,
             $previousWindow['day_of_week'],
             $previousWindow['start_time'],
@@ -178,14 +179,16 @@ class DoctorAvailabilityService
     }
 
     /**
-     * @param  list<int>  $blocked
-     * @return array{blocked_slot_count: int, blocked_slot_ids?: list<int>}
+     * @param  array{removed: list<int>, blocked: list<int>}  $closed
+     * @return array{removed_slot_count: int, blocked_slot_count: int, removed_slot_ids?: list<int>, blocked_slot_ids?: list<int>}
      */
-    private function blockedContext(array $blocked): array
+    private function closedContext(array $closed): array
     {
-        return $blocked === []
-            ? ['blocked_slot_count' => 0]
-            : ['blocked_slot_count' => count($blocked), 'blocked_slot_ids' => $blocked];
+        return [
+            'removed_slot_count' => count($closed['removed']),
+            'blocked_slot_count' => count($closed['blocked']),
+            ...array_filter(['removed_slot_ids' => $closed['removed'], 'blocked_slot_ids' => $closed['blocked']]),
+        ];
     }
 
     /**

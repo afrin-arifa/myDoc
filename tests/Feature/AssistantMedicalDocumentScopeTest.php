@@ -115,12 +115,15 @@ class AssistantMedicalDocumentScopeTest extends TestCase
         foreach (self::ACTIONS as $action) {
             $route = 'assistant.workspace.medical-documents.'.$action;
 
-            foreach (['doctorProfile', 'doctor_profile_id', 'doctor'] as $key) {
+            foreach (['doctor_profile_id', 'doctor', 'doctor_profile'] as $key) {
                 $this->actingAs($this->assistant)->get(route($route, [$this->profileA, $this->documentTwo, $key => $this->profileB->id]))->assertForbidden();
                 $this->actingAs($this->assistant)->get(route('medical-documents.'.$action, [$this->documentOne, $key => $this->profileA->id]))->assertForbidden();
                 $this->actingAs($this->assistant)->call('GET', route('medical-documents.'.$action, $this->documentOne), [$key => $this->profileA->id])->assertForbidden();
             }
 
+            $query = '?doctorProfile='.$this->profileB->getRouteKey();
+            $this->actingAs($this->assistant)->get(route($route, [$this->profileA, $this->documentTwo]).$query)->assertForbidden();
+            $this->actingAs($this->assistant)->get(route('medical-documents.'.$action, $this->documentOne).$query)->assertForbidden();
             $this->actingAs($this->assistant)->get("/assistant/doctors/{$this->profileA->id}/medical-documents/999999/{$action}")->assertNotFound();
             $this->actingAs($this->assistant)->get("/assistant/doctors/999999/medical-documents/{$this->documentOne->id}/{$action}")->assertNotFound();
         }

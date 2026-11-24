@@ -11,6 +11,6 @@
             Working for <strong data-selected-doctor>{{ $selectedDoctor->user->name }}</strong>
             <span class="text-secondary">· signed in as {{ auth()->user()->name }} (Doctor Assistant)</span>
         </span>
-        <a class="small" href="{{ route('assistant.doctors.index') }}">Switch doctor</a>
+        <a class="section-link" href="{{ route('assistant.doctors.index') }}">Switch doctor<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
     </div>
 @endif

@@ -3,11 +3,13 @@
 namespace App\Services;
 
 use App\Models\Appointment;
+use App\Models\AppointmentRescheduleHistory;
 use App\Models\AppointmentSlot;
 use App\Models\DoctorAvailability;
 use App\Models\DoctorProfile;
 use App\Models\DoctorWorkspaceEvent;
 use App\Models\User;
+use App\Models\WaitlistOffer;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -63,27 +65,29 @@ class SlotBlockingService
     }
 
     /**
-     * Block the doctor's future open slots that a weekly window used to cover and that no active weekly window covers
-     * any more (the window was removed, paused, shortened or moved). Returns the ids of the slots it blocked.
+     * Close the doctor's future open slots that a weekly window used to cover and that no active weekly window covers
+     * any more (the window was removed, paused, shortened or moved). Slots nobody ever used are deleted, so the
+     * timetable shows only the new hours and the times can be generated again later. Slots that a record still refers
+     * to (a closed appointment, a reschedule or a waiting list offer) are blocked instead, so that history is kept.
      *
      * Only slots that are "available", start in the future and have no booked or confirmed appointment are touched:
      * slots of pending, confirmed or completed appointments, already blocked slots and started or past slots are left
-     * exactly as they are, and nothing is deleted. Slots are locked in id order (the order rescheduling uses) and
-     * re-checked under the lock, so a patient booking the same slot at the same moment either books it first (the slot
-     * is then skipped here) or finds it blocked. Nothing is ever unblocked here: blocked slots are only reopened by
-     * an explicit unblock, through AppointmentSlotRelease.
+     * exactly as they are. Slots are locked in id order (the order rescheduling uses) and re-checked under the lock,
+     * so a patient booking the same slot at the same moment either books it first (the slot is then skipped here) or
+     * finds it gone. Nothing is ever unblocked here: blocked slots are only reopened by an explicit unblock, through
+     * AppointmentSlotRelease.
      *
      * Call it inside the transaction that changes the availability, after the change and while holding the doctor's
      * schedule lock (DoctorProfile::lockForScheduling), so the active windows read here are final.
      *
-     * @return list<int>
+     * @return array{removed: list<int>, blocked: list<int>} Slot ids.
      *
      * @throws LogicException When called outside a transaction.
      */
-    public function blockUncoveredOpenSlots(DoctorProfile $doctorProfile, int $dayOfWeek, string $startTime, string $endTime): array
+    public function closeUncoveredOpenSlots(DoctorProfile $doctorProfile, int $dayOfWeek, string $startTime, string $endTime): array
     {
         if (DB::transactionLevel() === 0) {
-            throw new LogicException('Uncovered slots must be blocked inside the transaction that changes the availability.');
+            throw new LogicException('Uncovered slots must be closed inside the transaction that changes the availability.');
         }
 
         $windowStart = DoctorAvailability::minuteOfDay($startTime);
@@ -115,7 +119,7 @@ class SlotBlockingService
             ->values()
             ->all();
 
-        $blocked = [];
+        $closed = ['removed' => [], 'blocked' => []];
 
         foreach (array_chunk($candidateIds, 500) as $chunk) {
             $locked = AppointmentSlot::query()->whereKey($chunk)->orderBy('id')->lockForUpdate()->get(['id', 'status', 'starts_at']);
@@ -126,7 +130,7 @@ class SlotBlockingService
                 ->map(fn ($id): int => (int) $id)
                 ->all();
 
-            $toBlock = $locked
+            $toClose = $locked
                 ->filter(fn (AppointmentSlot $slot): bool => $slot->status === 'available'
                     && $slot->starts_at->isFuture()
                     && ! in_array((int) $slot->id, $held, true))
@@ -134,13 +138,37 @@ class SlotBlockingService
                 ->values()
                 ->all();
 
-            if ($toBlock !== []) {
-                AppointmentSlot::query()->whereKey($toBlock)->where('status', 'available')->update(['status' => 'blocked']);
-                $blocked = [...$blocked, ...$toBlock];
+            if ($toClose === []) {
+                continue;
             }
+
+            $toBlock = $this->slotsWithHistory($toClose);
+            $toRemove = array_values(array_diff($toClose, $toBlock));
+
+            AppointmentSlot::query()->whereKey($toBlock)->where('status', 'available')->update(['status' => 'blocked']);
+            AppointmentSlot::query()->whereKey($toRemove)->where('status', 'available')->delete();
+            $closed = ['removed' => [...$closed['removed'], ...$toRemove], 'blocked' => [...$closed['blocked'], ...$toBlock]];
         }
 
-        return $blocked;
+        return $closed;
+    }
+
+    /**
+     * The slots that any appointment (whatever its status), reschedule or waiting list offer refers to.
+     *
+     * @param  list<int>  $slotIds
+     * @return list<int>
+     */
+    private function slotsWithHistory(array $slotIds): array
+    {
+        return Appointment::query()->whereIn('appointment_slot_id', $slotIds)->pluck('appointment_slot_id')
+            ->concat(AppointmentRescheduleHistory::query()->whereIn('previous_slot_id', $slotIds)->pluck('previous_slot_id'))
+            ->concat(AppointmentRescheduleHistory::query()->whereIn('new_slot_id', $slotIds)->pluck('new_slot_id'))
+            ->concat(WaitlistOffer::query()->whereIn('appointment_slot_id', $slotIds)->pluck('appointment_slot_id'))
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     private function lockOwnedFutureSlot(DoctorProfile $doctorProfile, AppointmentSlot $slot): AppointmentSlot

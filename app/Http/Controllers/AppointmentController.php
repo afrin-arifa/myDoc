@@ -93,11 +93,11 @@ class AppointmentController extends Controller
         abort_unless($slot->doctorProfile->isPubliclyListed(), 404);
 
         if (! $slot->isOpenForBooking()) {
-            return $this->backToDoctorProfile($slot, $request->query('follow_up'));
+            return $this->backToDoctorProfile($slot, Appointment::idFromUrlKey($request->query('follow_up')));
         }
 
         $patient = $request->user();
-        $followUpOf = $rules->followUpOriginalFor($patient, old('follow_up_of_id', $request->query('follow_up')), (int) $slot->doctor_profile_id);
+        $followUpOf = $rules->followUpOriginalFor($patient, old('follow_up_of_id', Appointment::idFromUrlKey($request->query('follow_up'))), (int) $slot->doctor_profile_id);
 
         return view('patient.appointments.confirm', [
             'slot' => $slot,
@@ -133,13 +133,24 @@ class AppointmentController extends Controller
         return back()->with('status', 'Your appointment has been cancelled.');
     }
 
+    /**
+     * The slot no longer exists, for example because the doctor changed their weekly hours while the patient had the
+     * booking page open.
+     */
+    public static function slotRemoved(Request $request): RedirectResponse
+    {
+        abort_if($request->expectsJson(), 404);
+
+        return redirect()->route('doctors.index')->with('warning', self::SLOT_UNAVAILABLE_MESSAGE);
+    }
+
     private function backToDoctorProfile(AppointmentSlot $slot, mixed $followUp = null): RedirectResponse
     {
         return redirect()
             ->route('doctors.show', array_filter([
-                'doctor' => $slot->doctor_profile_id,
+                'doctor' => $slot->doctorProfile,
                 'date' => $slot->starts_at->toDateString(),
-                'follow_up' => is_scalar($followUp) && ctype_digit((string) $followUp) ? (int) $followUp : null,
+                'follow_up' => ($followUpId = Appointment::idFromUrlKey($followUp)) !== null ? Appointment::urlKey($followUpId) : null,
             ]))
             ->with('warning', self::SLOT_UNAVAILABLE_MESSAGE);
     }

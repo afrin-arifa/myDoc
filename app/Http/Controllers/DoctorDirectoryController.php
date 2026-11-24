@@ -2,11 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Appointment;
+use App\Models\DoctorLocation;
 use App\Models\DoctorProfile;
 use App\Models\Specialty;
 use App\Models\WaitlistEntry;
 use App\Services\PatientAppointmentRules;
 use Carbon\CarbonImmutable;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\View\View;
@@ -41,10 +44,15 @@ class DoctorDirectoryController extends Controller
 
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'specialty' => ['nullable', 'integer', 'exists:specialties,id'],
+            'specialty' => ['nullable', 'string', function (string $attribute, mixed $value, Closure $fail): void {
+                if (! Specialty::query()->whereKey(Specialty::idFromUrlKey($value) ?? 0)->exists()) {
+                    $fail('The selected specialty is invalid.');
+                }
+            }],
             'filter' => ['nullable', 'in:all,today,fee,experience'],
             'sort' => ['nullable', 'in:'.implode(',', array_keys(self::SORT_OPTIONS))],
         ]);
+        $selectedSpecialtyId = Specialty::idFromUrlKey($validated['specialty'] ?? null);
         $legacyFilter = $validated['filter'] ?? null;
         $availableToday = $legacyFilter === 'today';
         $sort = $validated['sort'] ?? (in_array($legacyFilter, ['fee', 'experience'], true) ? $legacyFilter : 'name');
@@ -63,7 +71,7 @@ class DoctorDirectoryController extends Controller
                         ->orWhereHas('specialties', fn ($specialties) => $specialties->where('name', 'like', "%{$search}%"));
                 });
             })
-            ->when($validated['specialty'] ?? null, function ($query, $specialty): void {
+            ->when($selectedSpecialtyId, function ($query, $specialty): void {
                 $query->whereHas('specialties', fn ($specialties) => $specialties->whereKey($specialty));
             })
             ->when($availableToday, fn ($query) => $query->whereHas('appointmentSlots', fn ($slots) => $slots
@@ -79,6 +87,7 @@ class DoctorDirectoryController extends Controller
         return view('doctors.index', [
             'doctors' => $doctors,
             'specialties' => Specialty::query()->where('is_active', true)->orderBy('name')->get(),
+            'selectedSpecialtyId' => $selectedSpecialtyId,
             'availableToday' => $availableToday,
             'sort' => $sort,
             'sortOptions' => self::SORT_OPTIONS,
@@ -101,7 +110,7 @@ class DoctorDirectoryController extends Controller
 
         // Patients choose among the doctor's active locations; an unknown or archived id simply shows all locations.
         $locations = $doctor->locations()->active()->orderBy('name')->get(['id', 'doctor_profile_id', 'name', 'address', 'area', 'phone', 'directions']);
-        $selectedLocation = $locations->firstWhere('id', (int) $request->query('location'));
+        $selectedLocation = $locations->firstWhere('id', DoctorLocation::idFromUrlKey($request->query('location')) ?? 0);
         $atSelectedLocation = fn ($slots) => $slots->when($selectedLocation, fn ($query) => $query->where('doctor_location_id', $selectedLocation->id));
 
         $today = CarbonImmutable::today();
@@ -135,7 +144,7 @@ class DoctorDirectoryController extends Controller
 
         $patient = $request->user()->role === 'patient' ? $request->user() : null;
         // Follow-up mode: only the patient's own completed appointment with this doctor; anything else is ignored.
-        $followUpOf = $patient !== null ? $rules->followUpOriginalFor($patient, $request->query('follow_up'), (int) $doctor->id) : null;
+        $followUpOf = $patient !== null ? $rules->followUpOriginalFor($patient, Appointment::idFromUrlKey($request->query('follow_up')), (int) $doctor->id) : null;
 
         $waitlistEntry = $patient !== null
             ? $doctor->waitlistEntries()->where('patient_id', $patient->id)->whereIn('status', WaitlistEntry::OPEN_STATUSES)->first()

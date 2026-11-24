@@ -8,6 +8,8 @@ use App\Http\Requests\Doctor\UpdateDoctorProfileRequest;
 use App\Models\Appointment;
 use App\Models\Specialty;
 use App\Services\DoctorPhotoStorage;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -22,7 +24,7 @@ class DoctorProfileController extends Controller
         $appointments = $profile
             ? Appointment::query()
                 ->whereHas('slot', fn ($slots) => $slots->where('doctor_profile_id', $profile->id))
-                ->with(['slot', 'patient:id,name'])
+                ->with(['slot', 'patient:id,name,photo_path'])
                 ->orderBy('appointment_slots.starts_at')
                 ->join('appointment_slots', 'appointments.appointment_slot_id', '=', 'appointment_slots.id')
                 ->select('appointments.*')
@@ -33,7 +35,7 @@ class DoctorProfileController extends Controller
             ? Appointment::query()
                 ->where('appointments.status', 'booked')
                 ->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $profile->id))
-                ->with(['slot', 'patient:id,name'])
+                ->with(['slot', 'patient:id,name,photo_path'])
                 ->orderBy('appointment_slots.starts_at')
                 ->join('appointment_slots', 'appointments.appointment_slot_id', '=', 'appointment_slots.id')
                 ->select('appointments.*')
@@ -45,10 +47,18 @@ class DoctorProfileController extends Controller
         $todaySlots = $profile
             ? $profile->appointmentSlots()
                 ->whereDate('starts_at', $today)
-                ->with(['appointments.patient:id,name'])
+                ->where(fn (Builder $slots) => $slots
+                    ->where('starts_at', '>', now())
+                    ->orWhereHas('appointments', fn (Builder $appointments) => $appointments->whereNotIn('status', Appointment::CLOSED_STATUSES)))
+                ->with([
+                    'appointments' => fn (HasMany $appointments) => $appointments->whereNotIn('status', Appointment::CLOSED_STATUSES),
+                    'appointments.patient:id,name',
+                ])
                 ->orderBy('starts_at')
                 ->get()
             : collect();
+        $hadSlotsToday = $profile && ($todaySlots->isNotEmpty()
+            || $profile->appointmentSlots()->whereDate('starts_at', $today)->exists());
 
         return view('doctor.dashboard', [
             'profile' => $profile,
@@ -56,6 +66,7 @@ class DoctorProfileController extends Controller
             'appointments' => $appointments,
             'pendingAppointments' => $pendingAppointments,
             'todaySlots' => $todaySlots,
+            'hadSlotsToday' => $hadSlotsToday,
             'appointmentCounts' => [
                 'total' => $profile?->appointmentSlots()->whereHas('appointments')->count() ?? 0,
                 'booked' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'booked'))->count() ?? 0,

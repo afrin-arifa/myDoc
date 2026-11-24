@@ -2,7 +2,7 @@
 <form class="card border-0 shadow-sm p-4" method="POST" action="{{ route('profile.password.update') }}">
     @csrf
     @method('PUT')
-    <h2 class="h5 mb-3">Change password</h2>
+    <div class="doctor-profile-section"><i class="fa-solid fa-lock" aria-hidden="true"></i><div><h2 class="doctor-panel__title">Change password</h2><p>Other devices are signed out when it changes.</p></div></div>
     @foreach (['current_password' => ['Current password', 'current-password'], 'password' => ['New password', 'new-password'], 'password_confirmation' => ['Confirm new password', 'new-password']] as $field => [$label, $autocomplete])
         <div class="mb-3">
             <label class="form-label" for="{{ $field }}">{{ $label }}</label>

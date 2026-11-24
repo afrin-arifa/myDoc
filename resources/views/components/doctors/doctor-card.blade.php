@@ -25,10 +25,8 @@
             @if ($canBook && $nextAvailableAt)
                 <a class="btn btn-primary btn-sm" href="{{ route('doctors.show', ['doctor' => $doctor, 'date' => $nextAvailableAt->toDateString()]) }}#availability"
                     aria-label="See available times for {{ $doctor->user->name }}">See available times</a>
-                <a class="btn btn-link btn-sm" href="{{ route('doctors.show', $doctor) }}" aria-label="View profile of {{ $doctor->user->name }}">View profile</a>
-            @else
-                <a class="btn btn-outline-primary btn-sm" href="{{ route('doctors.show', $doctor) }}" aria-label="View profile of {{ $doctor->user->name }}">View profile</a>
             @endif
+            <a class="btn btn-outline-primary btn-sm" href="{{ route('doctors.show', $doctor) }}" aria-label="View profile of {{ $doctor->user->name }}">View profile</a>
         </div>
     </div>
 </div>

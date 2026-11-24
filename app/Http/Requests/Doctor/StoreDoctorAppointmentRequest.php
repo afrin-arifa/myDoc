@@ -5,8 +5,10 @@ namespace App\Http\Requests\Doctor;
 use App\Models\Appointment;
 use App\Models\DoctorProfile;
 use App\Models\User;
+use App\Rules\BangladeshiMobileNumber;
 use App\Services\DoctorAccess;
 use App\Services\DoctorWorkspace;
+use App\Services\WalkInPatientService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\Validator;
@@ -28,8 +30,12 @@ class StoreDoctorAppointmentRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'patient_id' => ['nullable', 'required_without:patient_email', 'prohibits:patient_email', 'integer'],
-            'patient_email' => ['nullable', 'required_without:patient_id', 'string', 'email', 'max:255'],
+            'patient_id' => ['nullable', 'required_without_all:patient_email,walk_in_name,walk_in_phone', 'prohibits:patient_email,walk_in_name,walk_in_phone', 'integer'],
+            'patient_email' => ['nullable', 'required_without_all:patient_id,walk_in_name,walk_in_phone', 'prohibits:walk_in_name,walk_in_phone', 'string', 'email', 'max:255'],
+            // Somebody without an account; never combined with an existing patient.
+            'walk_in_name' => ['nullable', 'required_with:walk_in_phone', 'prohibits:follow_up_of_id', 'string', 'max:255'],
+            'walk_in_phone' => ['nullable', 'required_with:walk_in_name', 'string', 'max:30', new BangladeshiMobileNumber],
+            'walk_in_sms' => ['sometimes', 'boolean'],
             'patient_label' => ['nullable', 'string', 'max:500'],
             'slot_id' => ['required', 'integer', 'exists:appointment_slots,id'],
             // Eligibility (this patient's completed appointment with this doctor) is decided by the booking service.
@@ -45,9 +51,13 @@ class StoreDoctorAppointmentRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'patient_id.required_without' => 'Select a patient or enter a patient email address.',
-            'patient_email.required_without' => 'Select a patient or enter a patient email address.',
-            'patient_id.prohibits' => 'Select an existing patient or enter an email address, not both.',
+            'patient_id.required_without_all' => 'Select a patient, enter a patient email address or add a walk-in patient.',
+            'patient_email.required_without_all' => 'Select a patient, enter a patient email address or add a walk-in patient.',
+            'patient_id.prohibits' => 'Choose one way to add the patient, not several.',
+            'patient_email.prohibits' => 'Choose one way to add the patient, not several.',
+            'walk_in_name.required_with' => 'Enter the patient\'s name.',
+            'walk_in_name.prohibits' => 'A follow-up is booked for the patient of the first appointment.',
+            'walk_in_phone.required_with' => 'Enter the patient\'s mobile number.',
         ];
     }
 
@@ -63,6 +73,16 @@ class StoreDoctorAppointmentRequest extends FormRequest
         return [
             function (Validator $validator): void {
                 if ($validator->errors()->isNotEmpty()) {
+                    return;
+                }
+
+                if ($this->isWalkIn()) {
+                    $existing = app(WalkInPatientService::class)->existingPatient($this->resolvedDoctorProfile, $this->string('walk_in_name')->toString(), $this->string('walk_in_phone')->toString());
+
+                    if ($existing !== null && ! $existing->is_walk_in) {
+                        $validator->errors()->add('walk_in_name', 'This person is already in the patient list with an account. Choose them under Returning patient.');
+                    }
+
                     return;
                 }
 
@@ -90,9 +110,27 @@ class StoreDoctorAppointmentRequest extends FormRequest
         ];
     }
 
-    public function patient(): User
+    public function isWalkIn(): bool
+    {
+        return $this->filled('walk_in_name');
+    }
+
+    /**
+     * The registered patient, or null for a walk-in.
+     */
+    public function patient(): ?User
     {
         return $this->resolvedPatient;
+    }
+
+    /**
+     * Store recognisable Bangladeshi mobile numbers in the normalized 8801XXXXXXXXX form.
+     */
+    protected function prepareForValidation(): void
+    {
+        if (is_string($this->input('walk_in_phone')) && ($phone = BangladeshiMobileNumber::normalize($this->input('walk_in_phone'))) !== null) {
+            $this->merge(['walk_in_phone' => $phone]);
+        }
     }
 
     /**

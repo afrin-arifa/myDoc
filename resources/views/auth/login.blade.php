@@ -4,7 +4,7 @@
 
 @section('content')
     <x-auth.card eyebrow="Welcome back" title="Log in to myDoc" description="Continue your care journey.">
-            <form method="POST" action="{{ route('login') }}">
+            <form method="POST" action="{{ route('login') }}" data-disable-on-submit>
                 @csrf
 
                 <div class="mb-3">
@@ -27,10 +27,10 @@
                         <input class="form-check-input" id="remember" name="remember" type="checkbox" value="1">
                         <label class="form-check-label" for="remember">Remember me</label>
                     </div>
-                    <a class="small" href="{{ route('password.request') }}">Forgot password?</a>
+                    <a class="small fw-semibold" href="{{ route('password.request') }}">Forgot password?</a>
                 </div>
 
-                <button class="btn btn-primary w-100" type="submit">Log in</button>
+                <button class="btn btn-primary w-100" type="submit" data-loading-text="Logging in…">Log in</button>
             </form>
 
             <p class="text-center text-secondary mt-4 mb-0">

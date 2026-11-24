@@ -241,15 +241,14 @@ class AssistantWorkspaceTest extends TestCase
         $this->assertNotNull($slot);
         $this->actingAs($this->assistant)->post(route('assistant.workspace.slots.block', [$this->profileA, $slot]))->assertSessionHasNoErrors();
         $this->actingAs($this->assistant)->delete(route('assistant.workspace.slots.unblock', [$this->profileA, $slot]))->assertSessionHasNoErrors();
+        $generated = AppointmentSlot::where('doctor_profile_id', $this->profileA->id)->count();
         $this->actingAs($this->assistant)->delete(route('assistant.workspace.availability.destroy', [$this->profileA, $availability]))->assertSessionHasNoErrors();
 
         $events = DoctorWorkspaceEvent::orderBy('id')->get();
         $this->assertSame(['availability_created', 'availability_updated', 'slots_generated', 'slot_blocked', 'slot_unblocked', 'availability_deleted'], $events->pluck('action')->all());
         $this->assertTrue($events->every(fn ($event) => $event->actor_id === $this->assistant->id && $event->actor_role === 'assistant' && $event->doctor_profile_id === $this->profileA->id));
-        $generated = AppointmentSlot::where('doctor_profile_id', $this->profileA->id)->count();
-        $this->assertSame('blocked', $slot->fresh()->status, 'Removing the weekly window blocks the open slots it covered.');
-        $this->assertSame($generated, AppointmentSlot::where('doctor_profile_id', $this->profileA->id)->where('status', 'blocked')->count());
-        $this->assertSame($generated, $events[5]->context['blocked_slot_count']);
+        $this->assertSame(0, AppointmentSlot::where('doctor_profile_id', $this->profileA->id)->count(), 'Removing the weekly window removes the open slots it covered.');
+        $this->assertSame($generated, $events[5]->context['removed_slot_count']);
     }
 
     public function test_other_doctors_slots_and_availability_cannot_be_changed(): void

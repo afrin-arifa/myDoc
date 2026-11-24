@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable(['doctor_profile_id', 'doctor_location_id', 'starts_at', 'ends_at', 'status'])]
 class AppointmentSlot extends Model
 {
+    use HasUrlKey;
+
     /**
      * Every page that shows a slot also shows where it is held, so the location is always eager loaded (one extra
      * query per slot query instead of one per slot).

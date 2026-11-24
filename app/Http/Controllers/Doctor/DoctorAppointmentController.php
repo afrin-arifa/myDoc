@@ -15,11 +15,13 @@ use App\Services\DoctorAccess;
 use App\Services\DoctorAppointmentService;
 use App\Services\DoctorWorkspace;
 use App\Services\PatientAppointmentRules;
+use App\Services\WalkInPatientService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -78,7 +80,7 @@ class DoctorAppointmentController extends Controller
                 ->orWhere('email', 'like', "%{$search}%")))
             ->when($validated['date_from'] ?? null, fn ($query, $date) => $query->whereHas('slot', fn ($slots) => $slots->whereDate('starts_at', '>=', $date)))
             ->when($validated['date_to'] ?? null, fn ($query, $date) => $query->whereHas('slot', fn ($slots) => $slots->whereDate('starts_at', '<=', $date)))
-            ->with(['slot.doctorProfile.specialties', 'patient:id,name,email'])
+            ->with(['slot.doctorProfile.specialties', 'patient:id,name,email,phone,photo_path'])
             ->join('appointment_slots', 'appointments.appointment_slot_id', '=', 'appointment_slots.id')
             ->orderBy('appointment_slots.starts_at')
             ->orderBy('appointments.id')
@@ -108,7 +110,7 @@ class DoctorAppointmentController extends Controller
 
         return view('doctor.appointments.create', [
             'profile' => $profile,
-            'followUpOf' => $this->followUpOriginal($profile, old('follow_up_of_id', $request->query('follow_up'))),
+            'followUpOf' => $this->followUpOriginal($profile, old('follow_up_of_id', Appointment::idFromUrlKey($request->query('follow_up')))),
             'slots' => AppointmentSlot::query()
                 ->where('doctor_profile_id', $profile->id)
                 ->where('status', 'available')
@@ -117,6 +119,7 @@ class DoctorAppointmentController extends Controller
                 ->orderBy('starts_at')
                 ->get(),
             'selectedDate' => $date,
+            'selectedSlotId' => AppointmentSlot::idFromUrlKey($request->query('slot')),
         ]);
     }
 
@@ -141,28 +144,34 @@ class DoctorAppointmentController extends Controller
                 ->orWhere('phone', 'like', "%{$search}%"))
             ->orderBy('name')
             ->limit(self::PATIENT_SEARCH_LIMIT)
-            ->get(['id', 'name', 'email']);
+            ->get(['id', 'name', 'email', 'phone']);
 
         return response()->json([
             'data' => $patients->map(fn (User $patient): array => [
                 'id' => $patient->id,
                 'name' => $patient->name,
-                'email' => $patient->email,
+                'email' => $patient->contactLabel(),
             ])->all(),
         ]);
     }
 
-    public function store(StoreDoctorAppointmentRequest $request, AppointmentBookingService $booking): RedirectResponse
+    public function store(StoreDoctorAppointmentRequest $request, AppointmentBookingService $booking, WalkInPatientService $walkIns): RedirectResponse
     {
-        $booking->bookForDoctor(
+        // A walk-in patient is created together with the appointment: if the booking is refused, neither is kept.
+        DB::transaction(fn () => $booking->bookForDoctor(
             $request->user(),
-            $request->patient(),
+            $request->patient() ?? $walkIns->findOrCreate(
+                $request->doctorProfile(),
+                $request->string('walk_in_name')->toString(),
+                $request->string('walk_in_phone')->toString(),
+                $request->boolean('walk_in_sms'),
+            ),
             $request->integer('slot_id'),
             $request->string('consultation_type')->toString(),
             $request->input('provider_notes'),
             $request->doctorProfile(),
             $request->filled('follow_up_of_id') ? $request->integer('follow_up_of_id') : null,
-        );
+        ));
 
         return redirect()->to($this->workspace->url('doctor.schedule'))->with('status', 'Appointment created. It is pending approval until it is confirmed.');
     }
@@ -171,7 +180,7 @@ class DoctorAppointmentController extends Controller
     {
         Gate::authorize('view', $appointment);
         $this->contextFor($request, DoctorAccess::VIEW_APPOINTMENTS, $appointment);
-        $appointment->load(['slot.doctorProfile.specialties', 'patient:id,name,email', 'followUpOf.slot', 'followUps.slot']);
+        $appointment->load(['slot.doctorProfile.specialties', 'patient:id,name,email,phone,photo_path', 'followUpOf.slot', 'followUps.slot']);
         $canStart = $appointment->canStartConsultation();
         $canBookFollowUp = $this->workspace->routeAvailable('doctor.appointments.create')
             && $this->access->canActFor($request->user(), $appointment->slot->doctorProfile, DoctorAccess::BOOK_APPOINTMENTS)
@@ -303,7 +312,7 @@ class DoctorAppointmentController extends Controller
         }
 
         $original = Appointment::query()
-            ->with(['patient:id,name,email,role,deactivated_at', 'slot'])
+            ->with(['patient:id,name,email,phone,role,deactivated_at', 'slot'])
             ->whereKey((int) $appointmentId)
             ->whereHas('slot', fn ($slots) => $slots->where('doctor_profile_id', $profile->id))
             ->first();

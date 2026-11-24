@@ -30,7 +30,14 @@ class DoctorSlotController extends Controller
         [$startDate, $endDate] = $request->dateRange();
         $created = $generator->generateRange($profile, $startDate, $endDate, $request->weekdays(), $request->user());
 
-        return back()->with('status', "{$created} new appointment slot(s) generated.");
+        if ($created === 0) {
+            return back()
+                ->withInput()
+                ->withFragment('generate-panel')
+                ->with('warning', $this->nothingGeneratedMessage($profile, $generator->preview($profile, $startDate, $endDate, $request->weekdays())));
+        }
+
+        return back()->withFragment('schedule-panel')->with('status', "{$created} new appointment slot(s) generated.");
     }
 
     public function block(Request $request, AppointmentSlot $slot, SlotBlockingService $slots): RedirectResponse
@@ -56,6 +63,20 @@ class DoctorSlotController extends Controller
         [$startDate, $endDate] = $request->dateRange();
 
         return response()->json($generator->preview($profile, $startDate, $endDate, $request->weekdays()));
+    }
+
+    /**
+     * Why a generation created nothing, so staff know what to change.
+     *
+     * @param  array{total: int}  $preview
+     */
+    private function nothingGeneratedMessage(DoctorProfile $profile, array $preview): string
+    {
+        return match (true) {
+            $profile->availabilities()->where('is_active', true)->doesntExist() => 'No slots were generated because no weekly availability is turned on. Add or turn on hours in the Availability tab first.',
+            $preview['total'] === 0 => 'No slots were generated because the weekly availability has no hours on the chosen dates and weekdays.',
+            default => 'No new slots were generated: every time in this range already has a slot, overlaps one or is in the past.',
+        };
     }
 
     /**

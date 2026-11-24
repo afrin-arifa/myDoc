@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\Doctor\GoogleCalendarController;
 use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentGoogleCalendarEvent;
@@ -107,6 +108,42 @@ class GoogleCalendarHardeningTest extends TestCase
 
         $this->assertFalse($connection->fresh()->is_connected);
         $this->assertSame(SyncAppointmentToGoogleCalendar::RECONNECT_ERROR, $appointment->googleCalendarEvent()->sole()->last_error);
+    }
+
+    public function test_a_missing_calendar_permission_needs_reconnection_but_a_rate_limit_is_retried(): void
+    {
+        foreach (['insufficientPermissions' => false, 'rateLimitExceeded' => true] as $reason => $staysConnected) {
+            [$appointment, $connection] = $this->confirmedAppointment();
+            $events = \Mockery::mock();
+            $events->shouldReceive('insert')->once()->andThrow(new GoogleServiceException('refused', 403, null, [['reason' => $reason]]));
+            $calendar = \Mockery::mock(Calendar::class);
+            $calendar->events = $events;
+
+            try {
+                (new SyncAppointmentToGoogleCalendar($appointment->id, 'sync'))->handle(new GoogleCalendarService($calendar));
+                $this->assertFalse($staysConnected);
+            } catch (GoogleServiceException) {
+                $this->assertTrue($staysConnected);
+            }
+
+            $this->assertSame($staysConnected, (bool) $connection->fresh()->is_connected);
+        }
+    }
+
+    public function test_connecting_without_ticking_the_calendar_permission_is_refused_with_an_explanation(): void
+    {
+        $tokens = fn (string $scope): Response => new Response(200, ['Content-Type' => 'application/json'], json_encode([
+            'access_token' => 'token', 'refresh_token' => 'refresh', 'expires_in' => 3600, 'scope' => $scope,
+        ]));
+        $email = 'openid https://www.googleapis.com/auth/userinfo.email';
+        $this->assertSame('token', $this->serviceWithHttp([$tokens($email.' '.Calendar::CALENDAR_EVENTS)])->exchangeCode('code')['access_token']);
+
+        $this->app->instance(GoogleCalendarService::class, $this->serviceWithHttp([$tokens($email)]));
+        $doctor = $this->doctor();
+        $this->actingAs($doctor)->withSession(['google_calendar_oauth_state' => 'state'])
+            ->get(route('doctor.google-calendar.callback', ['state' => 'state', 'code' => 'code']))
+            ->assertRedirect(route('doctor.settings'))->assertSessionHas('warning', GoogleCalendarController::PERMISSION_MISSING_MESSAGE);
+        $this->assertDatabaseCount('google_calendar_connections', 0);
     }
 
     public function test_temporary_refresh_failures_are_retried_and_keep_the_connection(): void

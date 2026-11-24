@@ -15,7 +15,7 @@ trait AssertsUnavailableSlotRedirect
     protected function assertSentToChooseAnotherTime(TestResponse $response, AppointmentSlot $slot): TestResponse
     {
         return $response
-            ->assertRedirect(route('doctors.show', ['doctor' => $slot->doctor_profile_id, 'date' => $slot->starts_at->toDateString()]))
+            ->assertRedirect(route('doctors.show', ['doctor' => $slot->doctorProfile, 'date' => $slot->starts_at->toDateString()]))
             ->assertSessionHas('warning', AppointmentController::SLOT_UNAVAILABLE_MESSAGE)
             ->assertSessionHasNoErrors();
     }

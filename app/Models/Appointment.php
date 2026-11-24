@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -26,6 +27,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 ])]
 class Appointment extends Model
 {
+    use HasUrlKey;
+
     /**
      * Statuses that still hold a slot and may take place in the future.
      *

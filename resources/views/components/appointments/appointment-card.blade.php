@@ -16,7 +16,7 @@
             <p class="text-secondary mb-1"><i class="fa-regular fa-clock me-1" aria-hidden="true"></i>{{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
             <p class="small mb-1"><x-appointments.location :location="$appointment->slot->location" compact /></p>
             @if ($appointment->follow_up_of_id)
-                <p class="small mb-1"><i class="fa-solid fa-rotate-left text-secondary me-1" aria-hidden="true"></i>Follow-up to <a href="{{ route('patient.appointments.show', $appointment->follow_up_of_id) }}">{{ App\Models\Appointment::referenceFor($appointment->follow_up_of_id) }}</a></p>
+                <p class="small mb-1"><i class="fa-solid fa-rotate-left text-secondary me-1" aria-hidden="true"></i>Follow-up to <a href="{{ route('patient.appointments.show', App\Models\Appointment::urlKey($appointment->follow_up_of_id)) }}">{{ App\Models\Appointment::referenceFor($appointment->follow_up_of_id) }}</a></p>
             @endif
             <x-appointments.consultation-type :type="$appointment->consultation_type" />
             <div class="mt-2">

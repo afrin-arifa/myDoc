@@ -37,7 +37,7 @@
                                         <p class="doctor-eyebrow mb-1">Today · {{ today()->format('D, M j') }}</p>
                                         <h2 class="doctor-panel__title">Today's schedule</h2>
                                     </div>
-                                    <a href="{{ route('doctor.schedule') }}">View schedule</a>
+                                    <a class="section-link" href="{{ route('doctor.schedule') }}">View schedule<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
                                 </div>
                                 @forelse ($todaySlots as $slot)
                                     @php($appointment = $slot->appointments->first())
@@ -49,13 +49,17 @@
                                             <small>{{ $slot->ends_at->format('g:i A') }}</small>
                                         </div>
                                         <div class="doctor-schedule-row__details">
-                                            <strong>{{ $appointment?->patient?->name ?? 'Available slot' }}</strong>
-                                            <span>{{ $appointment ? ucfirst($appointment->consultation_type) . ' consultation' : 'Open for booking' }}</span>
+                                            <strong>{{ $appointment?->patient?->name ?? ($slot->status === 'available' ? 'Available slot' : 'Blocked time') }}</strong>
+                                            <span>{{ $appointment ? ucfirst($appointment->consultation_type) . ' consultation' : ($slot->status === 'available' ? 'Open for booking' : 'Not open for booking') }}</span>
                                         </div>
                                         <x-ui.status-badge :status="$status" />
                                     </div>
                                 @empty
-                                    <x-ui.empty-state title="Your day is clear" message="Generate slots or update your weekly availability to build your schedule." action-label="Manage schedule" :action-url="route('doctor.schedule')" />
+                                    @if ($hadSlotsToday)
+                                        <x-ui.empty-state title="Nothing left today" message="Today's remaining times have passed and no appointments were booked." action-label="View schedule" :action-url="route('doctor.schedule')" />
+                                    @else
+                                        <x-ui.empty-state title="Your day is clear" message="Generate slots or update your weekly availability to build your schedule." action-label="Manage schedule" :action-url="route('doctor.schedule')" />
+                                    @endif
                                 @endforelse
                             </section>
                         </div>
@@ -99,7 +103,7 @@
                                 <p class="doctor-eyebrow mb-1">Activity</p>
                                 <h2 class="doctor-panel__title">Recent appointments</h2>
                             </div>
-                            <a href="{{ route('doctor.appointments.index') }}">Open appointment manager</a>
+                            <a class="section-link" href="{{ route('doctor.appointments.index') }}">Open appointment manager<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
                         </div>
                         <div class="table-responsive">
                             <table class="table doctor-table align-middle mb-0">
@@ -107,11 +111,11 @@
                                 <tbody>
                                     @forelse ($appointments as $appointment)
                                         <tr>
-                                            <td><div class="d-flex align-items-center gap-2"><x-ui.avatar :name="$appointment->patient->name" size="sm" /><strong>{{ $appointment->patient->name }}</strong></div></td>
+                                            <td><div class="d-flex align-items-center gap-2"><x-ui.avatar :name="$appointment->patient->name" :src="$appointment->patient->photoUrl()" size="sm" /><strong>{{ $appointment->patient->name }}</strong></div></td>
                                             <td>{{ $appointment->slot->starts_at->format('M j, Y · g:i A') }}</td>
                                             <td>{{ ucfirst($appointment->consultation_type) }}</td>
                                             <td><x-ui.status-badge :status="$appointment->status" /></td>
-                                            <td class="text-end"><a href="{{ route('doctor.appointments.show', $appointment) }}">View details</a></td>
+                                            <td class="text-end"><a class="btn btn-sm btn-outline-primary" href="{{ route('doctor.appointments.show', $appointment) }}">View details</a></td>
                                         </tr>
                                     @empty
                                         <tr><td class="text-secondary" colspan="5">Appointments will appear here after patients book your slots.</td></tr>

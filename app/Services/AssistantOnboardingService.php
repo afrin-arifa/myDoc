@@ -16,9 +16,10 @@ use Throwable;
 /**
  * Provisioning of Doctor Assistant accounts by administrators.
  *
- * An assistant account is created inactive with an unknown random password and the assistant role (never from
- * request input). The assistant activates it by setting their own password through a single-use, expiring
- * invitation (separate from doctor invitations). Deactivation revokes any outstanding invitation and removes every
+ * An assistant account gets the assistant role from this service, never from request input. Normally it is created
+ * inactive with an unknown random password, and the assistant activates it by setting their own password through a
+ * single-use, expiring invitation (separate from doctor invitations). Alternatively the administrator sets the first
+ * password, which activates the account at once without an invitation. Deactivation revokes any outstanding invitation and removes every
  * doctor assignment (recorded in the assignment history), so reactivation never restores earlier access.
  */
 class AssistantOnboardingService
@@ -30,6 +31,8 @@ class AssistantOnboardingService
     public const INVITATION_SENT = 'sent';
 
     public const INVITATION_THROTTLED = 'throttled';
+
+    public const INVITATION_NOT_NEEDED = 'not_needed';
 
     public const INVITATION_FAILED = 'failed';
 
@@ -43,31 +46,43 @@ class AssistantOnboardingService
     }
 
     /**
-     * Create an inactive assistant account and send its invitation once the transaction commits.
+     * Create an assistant account. Without a password it is inactive and its invitation is sent once the transaction
+     * commits; with a password it is active immediately, no invitation exists and it can be assigned to doctors in
+     * the same step.
      *
-     * @param  array{name: string, email: string, phone?: string|null}  $account
+     * @param  array{name: string, email: string, phone?: string|null, password?: string|null, doctor_profile_ids?: list<int>}  $account
      * @return array{assistant: User, invitation: string}
      */
-    public function createAssistant(User $admin, array $account): array
+    public function createAssistant(User $admin, #[\SensitiveParameter] array $account): array
     {
         $this->ensureAdmin($admin);
-        $invitation = self::INVITATION_FAILED;
+        $password = $account['password'] ?? null;
+        $invitation = $password === null ? self::INVITATION_FAILED : self::INVITATION_NOT_NEEDED;
 
-        $assistant = DB::transaction(function () use ($account, &$invitation): User {
+        $assistant = DB::transaction(function () use ($admin, $account, $password, &$invitation): User {
             $assistant = new User;
             $assistant->fill([
                 'name' => $account['name'],
                 'email' => $account['email'],
                 'phone' => $account['phone'] ?? null,
             ]);
-            // Role, status and password are set explicitly. The password is a random unknown value (hashed by the
-            // model cast) that is replaced when the assistant accepts the invitation.
+            // Role, status and password are set explicitly. Without a chosen password it is a random unknown value
+            // (hashed by the model cast) that is replaced when the assistant accepts the invitation.
+            // email_verified_at marks an account whose password has been set.
             $assistant->forceFill([
                 'role' => User::ROLE_ASSISTANT,
-                'password' => Str::password(64),
-                'deactivated_at' => now(),
-                'email_verified_at' => null,
+                'password' => $password ?? Str::password(64),
+                'deactivated_at' => $password === null ? now() : null,
+                'email_verified_at' => $password === null ? null : now(),
             ])->save();
+
+            if ($password !== null) {
+                if (($account['doctor_profile_ids'] ?? []) !== []) {
+                    $this->assignments->assign($admin, $assistant, $account['doctor_profile_ids']);
+                }
+
+                return $assistant;
+            }
 
             $token = $this->invitations()->issue($assistant);
             DB::afterCommit(function () use ($assistant, $token, &$invitation): void {
@@ -154,6 +169,45 @@ class AssistantOnboardingService
 
             return $locked;
         });
+    }
+
+    /**
+     * An administrator sets the assistant's password. An account still waiting for its invitation becomes active and
+     * the invitation stops working; an active assistant is signed out everywhere. A deactivated account that had
+     * access before is refused, so a new password can never bring back removed access.
+     *
+     * @return bool Whether the password was set.
+     */
+    public function setPassword(User $admin, User $assistant, #[\SensitiveParameter] string $password): bool
+    {
+        $this->ensureAdmin($admin);
+
+        return DB::transaction(function () use ($admin, $assistant, $password): bool {
+            $locked = $this->lock($assistant);
+
+            if (! $this->canSetPassword($locked)) {
+                return false;
+            }
+
+            $locked->forceFill([
+                'password' => $password,
+                'deactivated_at' => null,
+                'email_verified_at' => $locked->email_verified_at ?? now(),
+                'remember_token' => Str::random(60),
+            ])->save();
+            $this->invitations()->revoke($locked);
+            Log::info('An administrator set a Doctor Assistant password.', ['assistant_id' => $locked->id, 'admin_id' => $admin->id]);
+
+            return true;
+        });
+    }
+
+    /**
+     * Active assistants, and accounts that never had a password of their own.
+     */
+    public function canSetPassword(User $assistant): bool
+    {
+        return $assistant->deactivated_at === null || $this->awaitsInvitation($assistant);
     }
 
     /**

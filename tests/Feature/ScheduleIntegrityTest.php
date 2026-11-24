@@ -43,17 +43,130 @@ class ScheduleIntegrityTest extends TestCase
         $this->slot($doctor->doctorProfile, '2026-11-18 20:50');
         $this->slot($doctor->doctorProfile, '2026-11-24 23:50');
 
-        // An evening slot is shown (it was hidden when the timeline always ended at 6 PM).
+        // The timeline always covers 8 AM to 11 PM, so evening slots are shown.
         $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-09', 'view' => 'day']))->assertOk()
-            ->assertSee('data-timeline="16-24"', false)->assertSee('10:15 PM - 10:25 PM')->assertSee('--event-top: 750px', false);
-        // A week covers its earliest and latest slot; a slot ending at midnight still fits.
+            ->assertSee('data-timeline="8-23"', false)->assertSee('10:15 PM - 10:25 PM')->assertSee('--event-top: 1710px', false);
+        // Earlier and later slots widen it; a slot ending at midnight still fits.
         $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-16', 'view' => 'week']))->assertOk()
-            ->assertSee('data-timeline="6-21"', false)->assertSee('6:30 AM - 6:40 AM')->assertSee('8:50 PM - 9:00 PM');
+            ->assertSee('data-timeline="6-23"', false)->assertSee('6:30 AM - 6:40 AM')->assertSee('8:50 PM - 9:00 PM');
         $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-24', 'view' => 'day']))->assertOk()
-            ->assertSee('data-timeline="16-24"', false)->assertSee('11:50 PM - 12:00 AM');
-        // Days without slots keep the usual 8 AM to 6 PM.
+            ->assertSee('data-timeline="8-24"', false)->assertSee('11:50 PM - 12:00 AM');
+        // Days without slots show the same hours.
         $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-12-07', 'view' => 'day']))->assertOk()
-            ->assertSee('data-timeline="8-18"', false);
+            ->assertSee('data-timeline="8-23"', false);
+    }
+
+    public function test_past_available_slots_cannot_be_booked_from_the_calendar(): void
+    {
+        $doctor = $this->doctor();
+        $this->slot($doctor->doctorProfile, '2026-11-02 07:00');
+        $url = route('doctor.schedule', ['date' => '2026-11-02', 'view' => 'day']);
+
+        $this->actingAs($doctor)->get($url)->assertOk()
+            ->assertSee('data-event-type="available"', false)
+            ->assertDontSee('Book this available slot');
+
+        $this->slot($doctor->doctorProfile, '2026-11-02 22:50');
+
+        $this->get($url)->assertOk()->assertSee('Book this available slot');
+    }
+
+    public function test_the_dashboard_drops_open_times_that_have_passed_but_keeps_appointments(): void
+    {
+        $doctor = $this->doctor();
+        $profile = $doctor->doctorProfile;
+        $this->slot($profile, '2026-11-02 07:00');
+        $this->slot($profile, '2026-11-02 08:00');
+        $this->slot($profile, '2026-11-02 07:10', 'blocked');
+        $this->slot($profile, '2026-11-02 09:00');
+        $this->slot($profile, '2026-11-02 09:10', 'blocked');
+        $seen = $this->appointment($profile, '2026-11-02 07:20', 'completed');
+        $unmarked = $this->appointment($profile, '2026-11-02 07:30', 'confirmed');
+        $cancelled = $this->appointment($profile, '2026-11-02 07:40', 'cancelled');
+
+        $response = $this->actingAs($doctor)->get(route('doctor.dashboard'))->assertOk()
+            ->assertSeeInOrder(['Open for booking', 'Blocked time', 'Not open for booking']);
+
+        $this->assertSame(
+            [$seen->appointment_slot_id, $unmarked->appointment_slot_id],
+            $response->viewData('todaySlots')->take(2)->pluck('id')->all(),
+        );
+        $this->assertSame(
+            ['07:20', '07:30', '09:00', '09:10'],
+            $response->viewData('todaySlots')->map(fn (AppointmentSlot $slot): string => $slot->starts_at->format('H:i'))->all(),
+        );
+        $this->assertNotContains($cancelled->appointment_slot_id, $response->viewData('todaySlots')->pluck('id'));
+    }
+
+    public function test_the_dashboard_says_when_nothing_is_left_today(): void
+    {
+        $doctor = $this->doctor();
+
+        $this->actingAs($doctor)->get(route('doctor.dashboard'))->assertOk()->assertSee('Your day is clear');
+
+        $this->slot($doctor->doctorProfile, '2026-11-02 07:00');
+
+        $this->get(route('doctor.dashboard'))->assertOk()->assertSee('Nothing left today')->assertDontSee('Your day is clear');
+    }
+
+    public function test_availability_can_be_edited_from_its_row_and_reopens_with_errors(): void
+    {
+        $doctor = $this->doctor();
+        $location = $this->locationFor($doctor->doctorProfile);
+        $sunday = $this->window($doctor->doctorProfile, 0, '09:00', '22:00');
+        $this->window($doctor->doctorProfile, 4, '09:00', '22:00');
+        $url = route('doctor.schedule');
+        $payload = ['availability_form' => $sunday->id, 'doctor_location_id' => $location->id, 'day_of_week' => 0, 'start_time' => '17:00', 'end_time' => '23:00', 'is_active' => '1'];
+
+        $this->actingAs($doctor)->get($url)->assertOk()->assertSee('id="edit-availability-'.$sunday->id.'"', false);
+        $this->from($url)->patch(route('doctor.availability.update', $sunday), $payload)
+            ->assertRedirect($url.'#availability-panel')->assertSessionHasNoErrors();
+        $this->assertSame(['17:00', '23:00'], [substr($sunday->fresh()->start_time, 0, 5), substr($sunday->fresh()->end_time, 0, 5)]);
+
+        // Moving it onto Thursday overlaps that window: only the edited row reopens, with the entered times.
+        $html = $this->from($url)->followingRedirects()
+            ->patch(route('doctor.availability.update', $sunday), [...$payload, 'day_of_week' => 4, 'start_time' => '20:15'])
+            ->assertOk()->assertSee('data-initial-schedule-tab="availability"', false)->getContent();
+
+        $this->assertMatchesRegularExpression('/class="collapse show" id="edit-availability-'.$sunday->id.'"/', $html);
+        $this->assertSame(1, substr_count($html, 'class="collapse show"'));
+        $this->assertSame(1, substr_count($html, 'value="20:15"'));
+    }
+
+    public function test_previous_and_next_move_by_the_shown_view(): void
+    {
+        $doctor = $this->doctor();
+        $expected = [
+            'day' => ['2027-01-30', '2027-02-01'],
+            'week' => ['2027-01-24', '2027-02-07'],
+            'month' => ['2026-12-31', '2027-02-28'],
+        ];
+
+        foreach ($expected as $view => [$previous, $next]) {
+            $html = $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2027-01-31', 'view' => $view]))->assertOk()->getContent();
+
+            $this->assertMatchesRegularExpression('/date='.$previous.'"[^>]*aria-label="Previous '.$view.'"/', $html);
+            $this->assertMatchesRegularExpression('/date='.$next.'"[^>]*aria-label="Next '.$view.'"/', $html);
+        }
+    }
+
+    public function test_month_view_counts_slots_and_shows_only_loaded_weeks(): void
+    {
+        $doctor = $this->doctor();
+        $this->slot($doctor->doctorProfile, '2026-11-09 09:00');
+        $this->slot($doctor->doctorProfile, '2026-11-09 09:10', 'blocked');
+
+        $this->actingAs($doctor)->get(route('doctor.schedule', ['date' => '2026-11-09', 'view' => 'month']))->assertOk()
+            ->assertSee('doctor-month-calendar__count--available', false)
+            ->assertSee('doctor-month-calendar__count--blocked', false)
+            ->assertSee('data-calendar-date="2026-12-06"', false)
+            ->assertDontSee('No slots for this month');
+
+        // February 2027 fits exactly four weeks.
+        $this->get(route('doctor.schedule', ['date' => '2027-02-10', 'view' => 'month']))->assertOk()
+            ->assertSee('data-calendar-date="2027-02-28"', false)
+            ->assertDontSee('data-calendar-date="2027-03-01"', false)
+            ->assertSee('No slots for this month');
     }
 
     public function test_generation_skips_times_that_overlap_slots_left_by_a_moved_window(): void
@@ -165,7 +278,7 @@ class ScheduleIntegrityTest extends TestCase
         }
     }
 
-    public function test_removing_a_window_blocks_only_future_open_slots_it_covered(): void
+    public function test_removing_a_window_removes_only_future_open_slots_it_covered(): void
     {
         // Monday 9 November at 09:25: 09:00 has passed and 09:20 has started.
         $this->travelTo(CarbonImmutable::create(2026, 11, 9, 9, 25, 0, config('app.timezone')));
@@ -189,14 +302,18 @@ class ScheduleIntegrityTest extends TestCase
         // Inconsistent legacy data: an "available" slot that a confirmed appointment still uses. It must not be blocked.
         $inconsistent = $this->slot($profile, '2026-11-16 09:40');
         $heldAppointment = Appointment::create(['appointment_slot_id' => $inconsistent->id, 'patient_id' => User::factory()->create(['role' => 'patient'])->id, 'status' => 'confirmed', 'consultation_type' => 'physical']);
+        // An open slot with a cancelled appointment: kept (blocked) so the appointment keeps its time.
+        $withHistory = $this->appointment($profile, '2026-11-16 09:50', 'cancelled');
+        $withHistory->slot->update(['status' => 'available']);
         $slotCount = AppointmentSlot::count();
 
         $this->actingAs($doctor)->delete(route('doctor.availability.destroy', $window))
             ->assertSessionHasNoErrors()
-            ->assertSessionHas('status', 'Availability removed. 2 open future slots no longer covered by your weekly schedule were blocked so patients cannot book them. Existing appointments are unchanged, and you can unblock individual slots from the timetable.');
+            ->assertSessionHas('status', 'Availability removed. 3 open future slots outside your weekly schedule were removed. Existing appointments are unchanged.');
 
-        $this->assertSame('blocked', $laterToday->fresh()->status);
-        $this->assertSame('blocked', $nextWeek->fresh()->status);
+        $this->assertNull($laterToday->fresh());
+        $this->assertNull($nextWeek->fresh());
+        $this->assertSame('blocked', $withHistory->slot->fresh()->status);
         foreach ([$past, $started, $coveredByAdjacentWindow, $outsideTheWindow, $tuesday, $inconsistent] as $untouched) {
             $this->assertSame('available', $untouched->fresh()->status);
         }
@@ -205,16 +322,17 @@ class ScheduleIntegrityTest extends TestCase
             $this->assertSame($status, $appointment->fresh()->status);
             $this->assertSame('booked', $appointment->slot->fresh()->status);
         }
-        $this->assertSame($slotCount, AppointmentSlot::count(), 'Nothing is deleted.');
-        $this->assertSame(4, Appointment::count());
+        $this->assertSame($slotCount - 2, AppointmentSlot::count(), 'Only unused slots are removed.');
+        $this->assertSame(5, Appointment::count());
         $this->assertSame('confirmed', $heldAppointment->fresh()->status);
 
         $event = DoctorWorkspaceEvent::where('action', DoctorWorkspaceEvent::ACTION_AVAILABILITY_DELETED)->sole();
-        $this->assertSame(2, $event->context['blocked_slot_count']);
-        $this->assertEqualsCanonicalizing([$laterToday->id, $nextWeek->id], $event->context['blocked_slot_ids']);
+        $this->assertSame(2, $event->context['removed_slot_count']);
+        $this->assertEqualsCanonicalizing([$laterToday->id, $nextWeek->id], $event->context['removed_slot_ids']);
+        $this->assertSame([$withHistory->appointment_slot_id], $event->context['blocked_slot_ids']);
     }
 
-    public function test_pausing_blocks_open_slots_and_reactivating_does_not_unblock_them(): void
+    public function test_pausing_removes_open_slots_and_reactivated_hours_can_be_generated_again(): void
     {
         $doctor = $this->doctor();
         $profile = $doctor->doctorProfile;
@@ -225,21 +343,21 @@ class ScheduleIntegrityTest extends TestCase
         $this->actingAs($doctor)->patch(route('doctor.availability.update', $window), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => '0'])
             ->assertSessionHasNoErrors()
             ->assertSessionHas('status', fn (string $status): bool => str_starts_with($status, 'Availability updated. 12 open future slots'));
-        $this->assertSame(12, AppointmentSlot::where('status', 'blocked')->count());
+        $this->assertSame(0, AppointmentSlot::count());
 
         $this->actingAs($doctor)->patch(route('doctor.availability.update', $window), ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '10:00', 'is_active' => '1'])
             ->assertSessionHas('status', 'Availability updated.');
-        $this->assertSame(12, AppointmentSlot::where('status', 'blocked')->count(), 'Reactivating never reopens blocked slots automatically.');
-        $this->assertSame(0, DoctorWorkspaceEvent::where('action', DoctorWorkspaceEvent::ACTION_AVAILABILITY_UPDATED)->latest('id')->first()->context['blocked_slot_count']);
+        $this->assertSame(0, AppointmentSlot::count(), 'Reactivating never creates slots automatically.');
+        $this->assertSame(0, DoctorWorkspaceEvent::where('action', DoctorWorkspaceEvent::ACTION_AVAILABILITY_UPDATED)->latest('id')->first()->context['removed_slot_count']);
 
+        $this->assertSame(12, app(DoctorSlotGenerator::class)->generateRange($profile, CarbonImmutable::parse('2026-11-09'), CarbonImmutable::parse('2026-11-16'), [1], $doctor));
         $patient = User::factory()->create(['role' => 'patient']);
-        $slot = AppointmentSlot::orderBy('starts_at')->first();
-        $this->actingAs($patient)->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])
-            ->assertSessionHas('warning', AppointmentController::SLOT_UNAVAILABLE_MESSAGE);
-        $this->assertSame(0, Appointment::count(), 'A blocked slot cannot be booked.');
+        $this->actingAs($patient)->post(route('appointment-slots.book', AppointmentSlot::orderBy('starts_at')->first()), ['consultation_type' => 'physical'])
+            ->assertSessionHasNoErrors();
+        $this->assertSame(1, Appointment::count());
     }
 
-    public function test_shortening_or_moving_a_window_blocks_only_the_times_no_longer_covered(): void
+    public function test_shortening_or_moving_a_window_removes_only_the_times_no_longer_covered(): void
     {
         $doctor = $this->doctor();
         $profile = $doctor->doctorProfile;
@@ -248,13 +366,29 @@ class ScheduleIntegrityTest extends TestCase
         $service = app(DoctorAvailabilityService::class);
 
         $this->assertSame(3, $service->update($doctor, $window, ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '09:30'], true, $profile));
-        $this->assertSame(['09:30', '09:40', '09:50'], $this->startTimes($profile, 'blocked'));
+        $this->assertSame(['09:00', '09:10', '09:20'], $this->startTimes($profile));
 
         $this->assertSame(3, $service->update($doctor, $window->fresh(), ['day_of_week' => 2, 'start_time' => '09:00', 'end_time' => '09:30'], true, $profile));
-        $this->assertSame(6, AppointmentSlot::where('status', 'blocked')->count());
+        $this->assertSame(0, AppointmentSlot::count());
     }
 
-    public function test_a_slot_booked_before_the_schedule_change_is_never_blocked(): void
+    public function test_a_patient_with_a_removed_time_open_is_asked_to_choose_another(): void
+    {
+        $doctor = $this->doctor();
+        $window = $this->window($doctor->doctorProfile, 1, '09:00', '10:00');
+        $slot = $this->slot($doctor->doctorProfile, '2026-11-09 09:00');
+        app(DoctorAvailabilityService::class)->delete($doctor, $window, $doctor->doctorProfile);
+        $this->assertNull($slot->fresh());
+
+        $this->actingAs(User::factory()->create(['role' => 'patient']));
+        $this->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical'])
+            ->assertRedirect(route('doctors.index'))->assertSessionHas('warning', AppointmentController::SLOT_UNAVAILABLE_MESSAGE);
+        $this->get(route('appointment-slots.confirm', $slot))
+            ->assertRedirect(route('doctors.index'))->assertSessionHas('warning', AppointmentController::SLOT_UNAVAILABLE_MESSAGE);
+        $this->assertSame(0, Appointment::count());
+    }
+
+    public function test_a_slot_booked_before_the_schedule_change_is_never_closed(): void
     {
         $doctor = $this->doctor();
         $profile = $doctor->doctorProfile;

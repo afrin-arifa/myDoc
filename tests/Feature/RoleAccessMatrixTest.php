@@ -109,10 +109,10 @@ class RoleAccessMatrixTest extends TestCase
         return [
             'patient' => [route('patient.dashboard'), route('patient.appointments.index'), route('patient.documents.index'), route('patient.profile')],
             'doctor' => [route('doctor.dashboard'), route('doctor.appointments.index'), route('doctor.schedule'), route('doctor.patients.index'),
-                route('doctor.medical-records.index'), route('doctor.profile'), route('doctor.settings')],
+                route('doctor.medical-records.index'), route('doctor.assistants.index'), route('doctor.profile'), route('doctor.settings')],
             'assistant' => [route('assistant.dashboard'), route('assistant.doctors.index'), route('assistant.account'),
                 route('assistant.workspace.appointments.index', $this->assignedProfile), route('assistant.workspace.schedule', $this->assignedProfile)],
-            'admin' => [route('admin.dashboard'), route('admin.doctors.index'), route('admin.users.index'), route('admin.assistants.index'),
+            'admin' => [route('admin.dashboard'), route('admin.profile'), route('admin.doctors.index'), route('admin.users.index'), route('admin.assistants.index'),
                 route('admin.appointments.index'), route('admin.medical-documents.index')],
         ];
     }

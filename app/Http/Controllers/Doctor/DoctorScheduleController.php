@@ -21,10 +21,22 @@ class DoctorScheduleController extends Controller
      */
     public const MAX_RANGE_DAYS = 42;
 
+    /**
+     * Hours the timelines always show: doctors see patients until 11 PM.
+     */
+    private const TIMELINE_START_HOUR = 8;
+
+    private const TIMELINE_END_HOUR = 23;
+
     public function index(Request $request, DoctorWorkspace $workspace): View
     {
         $profile = $workspace->forRequest($request, DoctorAccess::MANAGE_SCHEDULE)?->load(['user', 'specialties', 'availabilities.location', 'locations' => fn ($query) => $query->orderByDesc('is_active')->orderBy('name')]);
         abort_unless($profile, 403);
+
+        // Links carry the chosen filters as one short value (filters=available,booked); the filter form sends a list.
+        if (is_string($request->query('filters'))) {
+            $request->merge(['filters' => explode(',', $request->query('filters'))]);
+        }
 
         $validated = $request->validate([
             'date' => ['nullable', 'date'],
@@ -129,6 +141,7 @@ class DoctorScheduleController extends Controller
                 'filter_status' => $slot->status,
                 'can_confirm' => false,
                 'can_start' => false,
+                'can_book' => $isFuture && $slot->status === 'available',
                 'can_block' => $isFuture && $slot->status === 'available',
                 'can_unblock' => $isFuture && $slot->status === 'blocked',
             ]];
@@ -150,7 +163,7 @@ class DoctorScheduleController extends Controller
         // Waiting list tab: open entries in first-come order, and the open times staff could offer them.
         $waitlistEntries = $profile->waitlistEntries()
             ->whereIn('status', WaitlistEntry::OPEN_STATUSES)
-            ->with(['patient:id,name,email', 'location:id,name', 'pendingOffer.slot'])
+            ->with(['patient:id,name,email,phone', 'location:id,name', 'pendingOffer.slot'])
             ->orderBy('created_at')
             ->orderBy('id')
             ->limit(100)
@@ -184,8 +197,8 @@ class DoctorScheduleController extends Controller
     }
 
     /**
-     * First and last hour (0-24) of the day and week timelines: the hours the shown days' slots actually use, widened
-     * to at least eight hours. 8 AM to 6 PM when there are no slots.
+     * First and last hour (0-24) of the day and week timelines: 8 AM to 11 PM, widened when the shown days have
+     * earlier or later slots.
      *
      * @param  Collection<int, array<string, mixed>>  $events
      * @return array{0: int, 1: int}
@@ -197,7 +210,7 @@ class DoctorScheduleController extends Controller
         $shown = $events->whereBetween('date', [$firstDay, $lastDay]);
 
         if ($shown->isEmpty()) {
-            return [8, 18];
+            return [self::TIMELINE_START_HOUR, self::TIMELINE_END_HOUR];
         }
 
         $start = (int) $shown->min(fn (array $event): int => CarbonImmutable::parse($event['starts_at'])->hour);
@@ -207,14 +220,7 @@ class DoctorScheduleController extends Controller
             return $endsAt->toDateString() > $event['date'] ? 24 : (int) ceil(($endsAt->hour * 60 + $endsAt->minute) / 60);
         });
 
-        while ($end - $start < 8) {
-            $end < 24 ? $end++ : $start--;
-            if ($end - $start < 8 && $start > 0) {
-                $start--;
-            }
-        }
-
-        return [$start, $end];
+        return [min($start, self::TIMELINE_START_HOUR), max($end, self::TIMELINE_END_HOUR)];
     }
 
     private function pendingCount(int $profileId): int

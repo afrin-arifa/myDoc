@@ -3,6 +3,7 @@
 namespace App\Http\Requests\Profile;
 
 use App\Rules\BangladeshiMobileNumber;
+use App\Services\UserPhotoStorage;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -24,6 +25,8 @@ class UpdatePatientProfileRequest extends FormRequest
             'phone' => ['nullable', 'required_if_accepted:sms_notifications_enabled', 'string', 'max:30', new BangladeshiMobileNumber],
             'sms_notifications_enabled' => ['sometimes', 'boolean'],
             'address' => ['nullable', 'string', 'max:1000'],
+            'photo' => UserPhotoStorage::rules(),
+            'remove_photo' => ['sometimes', 'boolean'],
         ];
     }
 

@@ -29,9 +29,9 @@
             @endforeach
         </div>
 
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
             <h2 class="h4 mb-0">Upcoming appointments</h2>
-            <a href="{{ route('patient.appointments.index') }}">View appointment history</a>
+            <a class="section-link" href="{{ route('patient.appointments.index') }}">View appointment history<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
         </div>
         <div class="row g-3">
             @forelse ($upcomingAppointments as $appointment)
@@ -68,7 +68,7 @@
         <section class="card border-0 shadow-sm p-4 mt-5" aria-labelledby="dashboard-upload-heading">
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
                 <h2 class="h5 mb-0" id="dashboard-upload-heading">Add a medical document</h2>
-                <a href="{{ route('patient.documents.index') }}">View all medical records</a>
+                <a class="section-link" href="{{ route('patient.documents.index') }}">View all medical records<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a>
             </div>
             <x-medical-documents.upload-form compact />
         </section>

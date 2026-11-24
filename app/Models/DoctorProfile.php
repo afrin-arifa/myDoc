@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use LogicException;
 
 #[Fillable([
@@ -27,6 +29,52 @@ use LogicException;
 ])]
 class DoctorProfile extends Model
 {
+    use HasUrlKey {
+        getRouteKey as private codeRouteKey;
+        idFromUrlKey as private idFromCode;
+    }
+
+    protected static function booted(): void
+    {
+        static::creating(function (DoctorProfile $profile): void {
+            $profile->slug ??= static::availableSlug((string) User::query()->whereKey($profile->user_id)->value('name'));
+        });
+    }
+
+    /**
+     * A free readable name for a doctor's URLs: letters only, without the title ("Dr. Maya Bennett" becomes
+     * "maya-bennett"). A second doctor with the same name gets "maya-bennett-b", and so on. It is kept when the
+     * doctor is renamed, so links already shared keep working.
+     */
+    public static function availableSlug(string $name): string
+    {
+        $base = Str::slug((string) preg_replace('/^\s*(dr|doctor)\b\.?\s*/i', '', $name));
+        $base = trim((string) preg_replace('/-+/', '-', (string) preg_replace('/\d+/', '', $base)), '-');
+        $base = in_array($base, ['', 'create'], true) ? 'doctor' : Str::limit($base, 200, '');
+        $slug = $base;
+
+        for ($suffix = 'b'; DB::table('doctor_profiles')->where('slug', $slug)->exists(); $suffix = str_increment($suffix)) {
+            $slug = $base.'-'.$suffix;
+        }
+
+        return $slug;
+    }
+
+    public function getRouteKey(): mixed
+    {
+        return $this->slug ?? $this->codeRouteKey();
+    }
+
+    /**
+     * The doctor a URL value stands for: the readable name, or an older numeric id.
+     */
+    public static function idFromUrlKey(mixed $value): ?int
+    {
+        $id = is_string($value) ? static::query()->where('slug', $value)->value('id') : null;
+
+        return $id !== null ? (int) $id : static::idFromCode($value);
+    }
+
     /**
      * Lock the doctor's profile row for the rest of the transaction. Every change to a doctor's weekly availability
      * and every slot generation takes this lock first, so they run one at a time per doctor: overlap checks on

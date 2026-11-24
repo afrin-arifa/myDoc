@@ -187,7 +187,7 @@ class DoctorLocationTest extends TestCase
         $this->assertSame([$dhanmondi->id, '09:00'], [$slots->first()->fresh()->doctor_location_id, $slots->first()->fresh()->starts_at->format('H:i')]);
     }
 
-    public function test_moving_a_window_to_another_location_blocks_only_its_open_future_slots(): void
+    public function test_moving_a_window_to_another_location_removes_only_its_open_future_slots(): void
     {
         $old = $this->location($this->profile, 'Old chamber');
         $new = $this->location($this->profile, 'New chamber');
@@ -197,12 +197,12 @@ class DoctorLocationTest extends TestCase
         $appointment = $this->appointmentOn($booked, 'confirmed');
         $legacy = AppointmentSlot::create(['doctor_profile_id' => $this->profile->id, 'starts_at' => '2026-11-16 09:00:00', 'ends_at' => '2026-11-16 09:10:00', 'status' => 'available']);
 
-        $blocked = app(DoctorAvailabilityService::class)->update($this->doctor, $window, ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '09:30', 'doctor_location_id' => $new->id], true, $this->profile);
+        $closed = app(DoctorAvailabilityService::class)->update($this->doctor, $window, ['day_of_week' => 1, 'start_time' => '09:00', 'end_time' => '09:30', 'doctor_location_id' => $new->id], true, $this->profile);
 
-        $this->assertSame(2, $blocked, 'The two open slots generated for the old chamber.');
-        $this->assertSame('blocked', $open->fresh()->status);
+        $this->assertSame(2, $closed, 'The two open slots generated for the old chamber.');
+        $this->assertNull($open->fresh());
         $this->assertSame(['booked', $old->id, 'confirmed'], [$booked->fresh()->status, $booked->fresh()->doctor_location_id, $appointment->fresh()->status], 'Booked appointments keep their slot and location.');
-        $this->assertSame('available', $legacy->fresh()->status, 'Slots without a location are not blocked by linking a location.');
+        $this->assertSame('available', $legacy->fresh()->status, 'Slots without a location are not removed by linking a location.');
         $this->assertSame($new->id, $window->fresh()->doctor_location_id);
         $this->assertSame(['doctor_location_id' => [$old->id, $new->id]], DoctorWorkspaceEvent::where('action', 'availability_updated')->sole()->context['changes']);
 
@@ -229,9 +229,9 @@ class DoctorLocationTest extends TestCase
             ->assertSee('Choose a location')
             ->assertSee('Tuesday, November 10: 1 open time');
 
-        $filtered = $this->actingAs($patient)->get(route('doctors.show', ['doctor' => $this->profile, 'date' => '2026-11-09', 'location' => $dhanmondi->id]))->assertOk();
+        $filtered = $this->actingAs($patient)->get(route('doctors.show', ['doctor' => $this->profile, 'date' => '2026-11-09', 'location' => $dhanmondi->getRouteKey()]))->assertOk();
         $this->assertSame([$morning->id], $filtered->viewData('slots')->pluck('id')->all());
-        $filtered->assertSee('Tuesday, November 10: no open times')->assertSee('location='.$dhanmondi->id, false);
+        $filtered->assertSee('Tuesday, November 10: no open times')->assertSee('location='.$dhanmondi->getRouteKey(), false);
 
         // An archived or foreign location id shows all locations instead of an error.
         $this->actingAs($patient)->get(route('doctors.show', ['doctor' => $this->profile, 'date' => '2026-11-09', 'location' => 999999]))->assertOk()

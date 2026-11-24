@@ -2,12 +2,12 @@
 @section('title', 'Manage assistant | myDoc')
 @section('content')
 <div class="container py-5">
-    <a href="{{ route('admin.assistants.index') }}">&larr; Doctor assistants</a>
+    <a class="back-link" href="{{ route('admin.assistants.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Doctor assistants</a>
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3 my-4">
-        <div>
+        <div class="d-flex align-items-center gap-3"><x-ui.avatar :name="$assistant->name" :src="$assistant->photoUrl()" size="xl" /><div>
             <h1 class="h2 mb-1">{{ $assistant->name }}</h1>
             <p class="text-secondary mb-0">Doctor Assistant · <x-admin.account-status :status="$status" :labels="$statusLabels" /></p>
-        </div>
+        </div></div>
         <a class="btn btn-outline-primary" href="{{ route('admin.assistants.edit', $assistant) }}">Edit details</a>
     </div>
 
@@ -60,6 +60,27 @@
                     </form>
                 @endif
             </section>
+
+            @if ($canSetPassword)
+                @php($passwordErrors = $errors->getBag('assistantPassword'))
+                <section class="doctor-panel mt-4" aria-labelledby="password-heading">
+                    <div class="doctor-profile-section"><i class="fa-solid fa-key" aria-hidden="true"></i><div><h2 class="doctor-panel__title" id="password-heading">{{ $status === 'active' ? 'Set a new password' : 'Set a password now' }}</h2><p>{{ $status === 'active' ? 'For a forgotten password. They are signed out everywhere.' : 'Activates the account without the invitation email.' }}</p></div></div>
+                    <form method="POST" action="{{ route('admin.assistants.password', $assistant) }}" data-disable-on-submit>
+                        @csrf @method('PUT')
+                        <div class="mb-3">
+                            <label class="form-label" for="password">Password</label>
+                            <input @class(['form-control', 'is-invalid' => $passwordErrors->has('password')]) id="password" name="password" type="password" autocomplete="new-password" maxlength="255" required aria-describedby="password_help">
+                            @if ($passwordErrors->has('password'))<div class="invalid-feedback">{{ $passwordErrors->first('password') }}</div>@endif
+                            <div class="form-text" id="password_help">At least 8 characters, with upper- and lower-case letters and a number.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label" for="password_confirmation">Confirm password</label>
+                            <input class="form-control" id="password_confirmation" name="password_confirmation" type="password" autocomplete="new-password" maxlength="255" required>
+                        </div>
+                        <button class="btn btn-outline-primary" type="submit" data-loading-text="Saving…">{{ $status === 'active' ? 'Set new password' : 'Set password and activate' }}</button>
+                    </form>
+                </section>
+            @endif
         </div>
 
         <div class="col-lg-8">

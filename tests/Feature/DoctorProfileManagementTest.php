@@ -67,6 +67,40 @@ class DoctorProfileManagementTest extends TestCase
         Storage::disk(DoctorPhotoStorage::DISK)->assertMissing($secondPhoto);
     }
 
+    public function test_profile_page_shows_the_doctor_photo_or_a_default_image_in_its_header(): void
+    {
+        $doctor = $this->doctor();
+
+        $this->actingAs($doctor)->get(route('doctor.profile'))->assertOk()
+            ->assertSee('Profile photo of '.$doctor->name)
+            ->assertSee('src="'.asset('images/doctor.png').'" alt="Profile photo of', false)
+            ->assertSee('Add photo')
+            ->assertDontSee('Remove current photo');
+
+        $this->put(route('doctor.profile.update'), $this->profilePayload($doctor->doctorProfile, ['photo' => $this->png()]));
+        $profile = $doctor->doctorProfile->fresh();
+
+        $this->actingAs($doctor->fresh())->get(route('doctor.profile'))->assertOk()
+            ->assertSee('src="'.e($profile->photoUrl()).'" alt="Profile photo of', false)
+            ->assertSee('Change photo')
+            ->assertSee('Remove current photo');
+    }
+
+    public function test_profile_page_keeps_entered_choices_after_a_validation_error(): void
+    {
+        $doctor = $this->doctor();
+        $doctor->doctorProfile->update(['is_accepting_patients' => true]);
+        $specialty = Specialty::create(['name' => 'Dermatology', 'is_active' => true]);
+        $payload = $this->profilePayload($doctor->doctorProfile, ['professional_title' => '', 'specialty_ids' => [(string) $specialty->id]]);
+        unset($payload['is_accepting_patients']);
+
+        $html = $this->actingAs($doctor)->from(route('doctor.profile'))->followingRedirects()
+            ->put(route('doctor.profile.update'), $payload)->assertOk()->getContent();
+
+        $this->assertMatchesRegularExpression('/name="specialty_ids\[\]"[^>]*value="'.$specialty->id.'"[^>]*checked/', $html);
+        $this->assertDoesNotMatchRegularExpression('/name="is_accepting_patients"[^>]*checked/', $html);
+    }
+
     public function test_invalid_photo_uploads_are_rejected(): void
     {
         $doctor = $this->doctor();

@@ -32,8 +32,8 @@
                                 </div>
                             @elseif ($entry->status === 'paused')
                                 <p class="small mb-3">Paused because earlier offers were not answered in time.</p>
-                            @elseif ($entry->status === 'booked' && $entry->booked_appointment_id)
-                                <p class="small mb-3"><a href="{{ route('patient.appointments.show', $entry->booked_appointment_id) }}">View the booked appointment</a></p>
+                            @elseif ($entry->status === 'booked' && App\Models\Appointment::urlKey($entry->booked_appointment_id))
+                                <p class="small mb-3"><a href="{{ route('patient.appointments.show', App\Models\Appointment::urlKey($entry->booked_appointment_id)) }}">View the booked appointment</a></p>
                             @endif
 
                             <div class="d-flex flex-wrap gap-2">

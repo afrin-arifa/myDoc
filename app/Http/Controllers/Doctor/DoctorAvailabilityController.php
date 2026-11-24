@@ -27,14 +27,14 @@ class DoctorAvailabilityController extends Controller
 
     public function store(StoreDoctorAvailabilityRequest $request): RedirectResponse
     {
-        $this->availabilities->create($request->user(), $request->doctorProfile(), $request->validated(), $request->boolean('is_active'));
+        $this->availabilities->create($request->user(), $request->doctorProfile(), $request->validated(), $request->boolean('is_active', true));
 
-        return back()->with('status', 'Availability added.');
+        return back()->withFragment('availability-panel')->with('status', 'Availability added. Generate slots so patients can book these hours.');
     }
 
     public function update(UpdateDoctorAvailabilityRequest $request, DoctorAvailability $availability): RedirectResponse
     {
-        $blocked = $this->availabilities->update(
+        $closed = $this->availabilities->update(
             $request->user(),
             $availability,
             $request->validated(),
@@ -42,7 +42,7 @@ class DoctorAvailabilityController extends Controller
             $this->workspace->forRequest($request, DoctorAccess::MANAGE_SCHEDULE),
         );
 
-        return back()->with('status', 'Availability updated.'.$this->blockedNotice($blocked));
+        return back()->withFragment('availability-panel')->with('status', 'Availability updated.'.$this->closedNotice($closed));
     }
 
     public function destroy(Request $request, DoctorAvailability $availability): RedirectResponse
@@ -51,22 +51,21 @@ class DoctorAvailabilityController extends Controller
         $profile = $this->workspace->forRequest($request, DoctorAccess::MANAGE_SCHEDULE);
         abort_unless($profile, 403);
 
-        $blocked = $this->availabilities->delete($request->user(), $availability, $profile);
+        $closed = $this->availabilities->delete($request->user(), $availability, $profile);
 
-        return back()->with('status', 'Availability removed.'.$this->blockedNotice($blocked));
+        return back()->withFragment('availability-panel')->with('status', 'Availability removed.'.$this->closedNotice($closed));
     }
 
     /**
-     * Explains which open times were blocked because the weekly schedule no longer covers them.
+     * Explains which open times were closed because the weekly schedule no longer covers them.
      */
-    private function blockedNotice(int $blocked): string
+    private function closedNotice(int $closed): string
     {
-        if ($blocked === 0) {
+        if ($closed === 0) {
             return '';
         }
 
-        return ' '.$blocked.' open future '.Str::plural('slot', $blocked).' no longer covered by your weekly schedule '
-            .($blocked === 1 ? 'was' : 'were').' blocked so patients cannot book '.($blocked === 1 ? 'it' : 'them')
-            .'. Existing appointments are unchanged, and you can unblock individual slots from the timetable.';
+        return ' '.$closed.' open future '.Str::plural('slot', $closed).' outside your weekly schedule '
+            .($closed === 1 ? 'was' : 'were').' removed. Existing appointments are unchanged.';
     }
 }

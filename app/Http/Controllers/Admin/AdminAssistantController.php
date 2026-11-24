@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\SetAssistantPasswordRequest;
 use App\Http\Requests\Admin\StoreAdminAssistantRequest;
 use App\Http\Requests\Admin\StoreAssistantAssignmentsRequest;
 use App\Http\Requests\Admin\UpdateAdminAssistantRequest;
@@ -14,6 +15,7 @@ use App\Services\AccountInvitations;
 use App\Services\AssistantAssignmentService;
 use App\Services\AssistantOnboardingService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -27,6 +29,11 @@ use Illuminate\View\View;
  */
 class AdminAssistantController extends Controller
 {
+    /**
+     * Active assistants who are not assigned to any doctor yet.
+     */
+    public const FILTER_NEEDS_DOCTOR = 'needs_doctor';
+
     public function __construct(
         private readonly AssistantOnboardingService $onboarding,
         private readonly AssistantAssignmentService $assignments,
@@ -38,7 +45,7 @@ class AdminAssistantController extends Controller
 
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', Rule::in(array_keys(AccountInvitations::STATUS_LABELS))],
+            'status' => ['nullable', Rule::in([...array_keys(AccountInvitations::STATUS_LABELS), self::FILTER_NEEDS_DOCTOR])],
         ]);
 
         $assistants = User::query()
@@ -47,7 +54,7 @@ class AdminAssistantController extends Controller
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")))
             ->when($filters['status'] ?? null, fn (Builder $query, string $status) => $this->filterByStatus($query, $status))
-            ->select(['id', 'name', 'email', 'deactivated_at', 'email_verified_at', 'created_at'])
+            ->select(['id', 'name', 'email', 'deactivated_at', 'email_verified_at', 'photo_path', 'created_at'])
             ->withCount('assistantAssignments')
             ->orderByDesc('created_at')
             ->orderByDesc('id')
@@ -66,7 +73,7 @@ class AdminAssistantController extends Controller
     {
         Gate::authorize('manage', AssistantAssignment::class);
 
-        return view('admin.assistants.create');
+        return view('admin.assistants.create', ['doctors' => $this->activeDoctors()]);
     }
 
     public function store(StoreAdminAssistantRequest $request): RedirectResponse
@@ -75,9 +82,11 @@ class AdminAssistantController extends Controller
 
         $redirect = redirect()->route('admin.assistants.show', $assistant);
 
-        return $invitation === AssistantOnboardingService::INVITATION_SENT
-            ? $redirect->with('status', 'Assistant account created. An invitation has been emailed to '.$assistant->email.'.')
-            : $redirect->with('status', 'Assistant account created, but the invitation email could not be sent. Use "Resend invitation" to try again.');
+        return match ($invitation) {
+            AssistantOnboardingService::INVITATION_NOT_NEEDED => $redirect->with('status', 'Assistant account created and active. They can log in now with '.$assistant->email.' and the password you set.'.($assistant->assistantAssignments()->exists() ? '' : ' Assign a doctor below so they can start.')),
+            AssistantOnboardingService::INVITATION_SENT => $redirect->with('status', 'Assistant account created. An invitation has been emailed to '.$assistant->email.'.'),
+            default => $redirect->with('status', 'Assistant account created, but the invitation email could not be sent. Use "Resend invitation" to try again.'),
+        };
     }
 
     public function show(User $assistant): View
@@ -97,14 +106,9 @@ class AdminAssistantController extends Controller
                 ->with(['doctorProfile.user:id,name,email,deactivated_at', 'assignedBy:id,name'])
                 ->orderBy('created_at')
                 ->get(),
+            'canSetPassword' => $this->onboarding->canSetPassword($assistant),
             'availableDoctors' => $status === AccountInvitations::STATUS_ACTIVE
-                ? DoctorProfile::query()
-                    ->whereHas('user', fn (Builder $doctors) => $doctors->where('role', 'doctor')->whereNull('deactivated_at'))
-                    ->whereNotIn('id', $assignedIds)
-                    ->with('user:id,name,email')
-                    ->get()
-                    ->sortBy('user.name')
-                    ->values()
+                ? $this->activeDoctors()->whereNotIn('id', $assignedIds)->values()
                 : collect(),
             'history' => AssistantAssignmentEvent::query()
                 ->where('assistant_id', $assistant->id)
@@ -165,6 +169,19 @@ class AdminAssistantController extends Controller
         };
     }
 
+    public function updatePassword(SetAssistantPasswordRequest $request, User $assistant): RedirectResponse
+    {
+        $wasActive = $assistant->deactivated_at === null;
+
+        if (! $this->onboarding->setPassword($request->user(), $assistant, $request->validated('password'))) {
+            return back()->withErrors(['password' => 'Reactivate this account before setting a new password.'], 'assistantPassword');
+        }
+
+        return back()->with('status', $wasActive
+            ? 'New password set. The assistant has been signed out everywhere and must use the new password.'
+            : 'Password set and account activated. The invitation link no longer works.');
+    }
+
     public function storeAssignments(StoreAssistantAssignmentsRequest $request, User $assistant): RedirectResponse
     {
         $count = $this->assignments->assign($request->user(), $assistant, $request->doctorProfileIds());
@@ -181,6 +198,21 @@ class AdminAssistantController extends Controller
     }
 
     /**
+     * Doctors an assistant can be assigned to.
+     *
+     * @return Collection<int, DoctorProfile>
+     */
+    private function activeDoctors(): Collection
+    {
+        return DoctorProfile::query()
+            ->whereHas('user', fn (Builder $doctors) => $doctors->where('role', 'doctor')->whereNull('deactivated_at'))
+            ->with('user:id,name,email')
+            ->get()
+            ->sortBy('user.name')
+            ->values();
+    }
+
+    /**
      * @param  Builder<User>  $query
      */
     private function filterByStatus(Builder $query, string $status): void
@@ -191,6 +223,7 @@ class AdminAssistantController extends Controller
 
         match ($status) {
             AccountInvitations::STATUS_ACTIVE => $query->whereNull('deactivated_at'),
+            self::FILTER_NEEDS_DOCTOR => $query->whereNull('deactivated_at')->whereDoesntHave('assistantAssignments'),
             AccountInvitations::STATUS_INVITATION_PENDING => $query->whereNotNull('deactivated_at')
                 ->whereExists(fn ($tokens) => $invitation($tokens)->where('created_at', '>', $cutoff)),
             AccountInvitations::STATUS_INVITATION_EXPIRED => $query->whereNotNull('deactivated_at')

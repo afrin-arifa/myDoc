@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Doctor;
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
 use App\Models\MedicalDocument;
+use App\Models\User;
 use App\Services\DoctorAccess;
 use App\Services\DoctorWorkspace;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,15 +29,15 @@ class DoctorMedicalRecordController extends Controller
         $filters = $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
             'category' => ['nullable', 'in:'.implode(',', array_keys(MedicalDocument::CATEGORIES))],
-            'patient' => ['nullable', 'integer'],
+            'patient' => ['nullable', 'string', 'max:20'],
         ]);
         $search = $filters['search'] ?? null;
 
         $documents = MedicalDocument::query()
             ->visibleToDoctorProfiles($profileIds)
-            ->with(['patient:id,name,email', 'appointment.slot'])
+            ->with(['patient:id,name,email,phone', 'appointment.slot'])
             ->when($filters['category'] ?? null, fn (Builder $query, string $category) => $query->where('category', $category))
-            ->when($filters['patient'] ?? null, fn (Builder $query, int $patientId) => $query->where('patient_id', $patientId))
+            ->when($filters['patient'] ?? null, fn (Builder $query, string $patientKey) => $query->where('patient_id', User::idFromUrlKey($patientKey) ?? 0))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
                 ->where('title', 'like', "%{$search}%")
                 ->orWhereHas('patient', fn (Builder $patients) => $patients->where('name', 'like', "%{$search}%"))))

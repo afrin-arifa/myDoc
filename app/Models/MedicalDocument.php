@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use App\Services\DoctorAccess;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -17,6 +18,8 @@ use Illuminate\Http\UploadedFile;
  */
 class MedicalDocument extends Model
 {
+    use HasUrlKey;
+
     /**
      * @var array<string, string>
      */

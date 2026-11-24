@@ -2,7 +2,7 @@
 @section('title', 'Add doctor | myDoc')
 @section('content')
 <div class="container py-5">
-    <a href="{{ route('admin.doctors.index') }}">&larr; Doctors</a>
+    <a class="back-link" href="{{ route('admin.doctors.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Doctors</a>
     <h1 class="h2 mt-3 mb-1">Add doctor</h1>
     <p class="text-secondary mb-4">The doctor receives an invitation email to set their own password. The link is valid for {{ $invitationHours }} hours and works once. No password is set or shown here.</p>
 

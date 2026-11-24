@@ -33,7 +33,7 @@
                     </select>
                     <button class="btn btn-outline-primary" type="submit">Filter</button>
                     @if ($category)
-                        <a class="btn btn-link text-nowrap" href="{{ route('patient.documents.index') }}">Clear</a>
+                        <a class="btn btn-outline-secondary text-nowrap" href="{{ route('patient.documents.index') }}">Clear</a>
                     @endif
                 </form>
             </div>

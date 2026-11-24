@@ -4,8 +4,7 @@
 
 @section('content')
     <div class="container py-5">
-        <a class="link-secondary d-inline-block mb-4" href="{{ route('patient.appointments.index') }}">
-            &larr; Back to appointments
+        <a class="back-link mb-4" href="{{ route('patient.appointments.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to appointments
         </a>
         <p class="hero__eyebrow mb-2">Appointment details</p>
         <h1 class="h2 mb-4">{{ $appointment->slot->doctorProfile->user->name }}</h1>
@@ -26,7 +25,7 @@
                 <x-appointments.follow-up-links :appointment="$appointment" class="small mb-3" />
                 <x-appointments.status-explanation :appointment="$appointment" link-to-doctor />
                 @if ($canBookFollowUp)
-                    <a class="btn btn-primary mb-3" href="{{ route('doctors.show', ['doctor' => $appointment->slot->doctorProfile, 'follow_up' => $appointment->id]) }}#availability">Book a follow-up</a>
+                    <a class="btn btn-primary mb-3" href="{{ route('doctors.show', ['doctor' => $appointment->slot->doctorProfile, 'follow_up' => $appointment->getRouteKey()]) }}#availability">Book a follow-up</a>
                 @endif
                 @if ($appointment->isCancellableByPatient())
                     <p class="small text-secondary mb-2">You can cancel online until {{ App\Models\Appointment::patientCancellationDeadline($appointment->slot->starts_at)->format('D, M j, Y g:i A') }}.</p>

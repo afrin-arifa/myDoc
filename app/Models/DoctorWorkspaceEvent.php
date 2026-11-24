@@ -112,6 +112,15 @@ class DoctorWorkspaceEvent extends Model
         static::deleting(fn () => throw new LogicException('Doctor workspace audit events cannot be deleted.'));
     }
 
+    public function actionLabel(): string
+    {
+        return match (true) {
+            $this->action === self::ACTION_SLOTS_GENERATED => 'Generated slots',
+            in_array($this->action, self::APPOINTMENT_ACTIONS, true) => ucfirst($this->action).' appointment',
+            default => ucfirst(str_replace('_', ' ', $this->action)),
+        };
+    }
+
     public function doctorProfile(): BelongsTo
     {
         return $this->belongsTo(DoctorProfile::class);

@@ -21,7 +21,7 @@ use RuntimeException;
  * documents.
  *
  * Every Google request has a timeout (config services.google.calendar.timeout), so a slow Google API cannot hold a
- * queue worker or a web request. Lost authorization (revoked or expired refresh token, or a 401) is reported as
+ * queue worker or a web request. Lost authorization (revoked or expired refresh token, a 401, or no calendar permission) is reported as
  * GoogleCalendarAuthorizationException so callers can ask the doctor to reconnect instead of retrying.
  */
 class GoogleCalendarService
@@ -52,6 +52,11 @@ class GoogleCalendarService
 
         if (isset($tokens['error']) || ! isset($tokens['access_token'])) {
             throw new RuntimeException('Google authorization was not completed.');
+        }
+
+        // Google lets people leave the calendar box unticked and still returns tokens. Those tokens cannot create events.
+        if (isset($tokens['scope']) && array_intersect([Calendar::CALENDAR_EVENTS, Calendar::CALENDAR], explode(' ', (string) $tokens['scope'])) === []) {
+            throw new GoogleCalendarAuthorizationException('Google Calendar permission was not granted.');
         }
 
         return $tokens;
@@ -174,8 +179,12 @@ class GoogleCalendarService
 
     private function throwIfUnauthorized(GoogleServiceException $exception): void
     {
-        if ($exception->getCode() === 401) {
-            throw new GoogleCalendarAuthorizationException('Google authorization is no longer valid.', 401, $exception);
+        // A 403 is also used for rate limits, which are retried, so only a missing calendar permission counts.
+        $isMissingPermission = $exception->getCode() === 403
+            && in_array('insufficientPermissions', array_column($exception->getErrors() ?? [], 'reason'), true);
+
+        if ($exception->getCode() === 401 || $isMissingPermission) {
+            throw new GoogleCalendarAuthorizationException('Google authorization is no longer valid.', $exception->getCode(), $exception);
         }
     }
 

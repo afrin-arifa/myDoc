@@ -18,6 +18,7 @@ use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Doctor\DoctorAppointmentController;
+use App\Http\Controllers\Doctor\DoctorAssistantController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
 use App\Http\Controllers\Doctor\DoctorInvitationController;
 use App\Http\Controllers\Doctor\DoctorLocationController;
@@ -34,6 +35,8 @@ use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MedicalDocumentController;
 use App\Http\Controllers\PatientWaitlistController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\UserPhotoController;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 // myDoc has no guest access: apart from the sign-in, registration, password recovery and invitation routes below,
@@ -48,6 +51,9 @@ Route::middleware(['auth', 'role:patient,admin'])->group(function () {
 
 // Photos are shown inside every role's pages; DoctorProfilePolicy::viewPhoto decides per photo.
 Route::get('/doctors/{doctor}/photo', [DoctorPhotoController::class, 'show'])->middleware('auth')->name('doctors.photo');
+
+// Patient, administrator and assistant photos are private: UserPolicy::viewPhoto decides per photo.
+Route::get('/users/{user}/photo', [UserPhotoController::class, 'show'])->middleware('auth')->name('users.photo');
 
 Route::middleware('guest')->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -118,8 +124,10 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
     Route::get('/patient/appointments/{appointment}', [AppointmentController::class, 'show'])
         ->name('patient.appointments.show');
     Route::get('/appointment-slots/{slot}/confirm', [AppointmentController::class, 'confirm'])
+        ->missing(fn (Request $request) => AppointmentController::slotRemoved($request))
         ->name('appointment-slots.confirm');
     Route::post('/appointment-slots/{slot}/book', [AppointmentController::class, 'store'])
+        ->missing(fn (Request $request) => AppointmentController::slotRemoved($request))
         ->name('appointment-slots.book');
     Route::post('/appointments/{appointment}/cancel', [AppointmentController::class, 'cancel'])
         ->name('appointments.cancel');
@@ -136,6 +144,7 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
 
 Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::get('/doctor/dashboard', [DoctorProfileController::class, 'show'])->name('doctor.dashboard');
+    Route::get('/doctor/assistants', [DoctorAssistantController::class, 'index'])->name('doctor.assistants.index');
     Route::get('/doctor/schedule', [DoctorScheduleController::class, 'index'])->name('doctor.schedule');
     Route::get('/doctor/profile', [DoctorProfileController::class, 'profile'])->name('doctor.profile');
     Route::get('/doctor/settings', [DoctorProfileController::class, 'settings'])->name('doctor.settings');
@@ -200,6 +209,7 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
     Route::get('/dashboard', [AssistantDashboardController::class, 'dashboard'])->name('dashboard');
     Route::get('/doctors', [AssistantDashboardController::class, 'doctors'])->name('doctors.index');
     Route::get('/account', [AssistantAccountController::class, 'show'])->name('account');
+    Route::put('/account/photo', [AssistantAccountController::class, 'updatePhoto'])->name('account.photo');
 
     Route::prefix('/doctors/{doctorProfile}')->name('workspace.')->middleware('works-for-doctor')->group(function () {
         Route::get('/', [AssistantDashboardController::class, 'workspace'])->name('show');
@@ -243,6 +253,8 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
 
 Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin/dashboard', [AdminDashboardController::class, 'index'])->name('admin.dashboard');
+    Route::get('/admin/profile', [ProfileController::class, 'admin'])->name('admin.profile');
+    Route::put('/admin/profile', [ProfileController::class, 'updateAdmin'])->name('admin.profile.update');
     Route::get('/admin/users', [AdminUserController::class, 'index'])->name('admin.users.index');
     Route::get('/admin/users/{user}', [AdminUserController::class, 'show'])->name('admin.users.show');
     Route::patch('/admin/users/{user}', [AdminUserController::class, 'update'])->name('admin.users.update');
@@ -278,6 +290,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/admin/assistants/{assistant}/invitation', [AdminAssistantController::class, 'resendInvitation'])
         ->middleware('throttle:10,1')
         ->name('admin.assistants.invitation');
+    Route::put('/admin/assistants/{assistant}/password', [AdminAssistantController::class, 'updatePassword'])->name('admin.assistants.password');
     Route::post('/admin/assistants/{assistant}/assignments', [AdminAssistantController::class, 'storeAssignments'])
         ->name('admin.assistants.assignments.store');
     Route::delete('/admin/assistants/{assistant}/assignments/{doctor}', [AdminAssistantController::class, 'destroyAssignment'])

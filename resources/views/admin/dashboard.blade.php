@@ -4,9 +4,17 @@
 
 @section('content')
     <div class="container py-5">
-        <p class="hero__eyebrow mb-2">Administration</p>
-        <h1 class="h2 mb-1">Welcome, {{ auth()->user()->name }}.</h1>
-        <p class="text-secondary mb-4">A quick look at the platform today.</p>
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+            <div>
+                <p class="hero__eyebrow mb-2">Administration</p>
+                <h1 class="h2 mb-1">Welcome, {{ auth()->user()->name }}.</h1>
+                <p class="text-secondary mb-0">A quick look at the platform today.</p>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                <a class="btn btn-primary" href="{{ route('admin.assistants.create') }}"><i class="fa-solid fa-user-plus me-2" aria-hidden="true"></i>Add assistant</a>
+                <a class="btn btn-outline-primary" href="{{ route('admin.profile') }}">My profile</a>
+            </div>
+        </div>
         <div class="row g-3 mb-5">
             @foreach ([
                 'patients' => ['Patients', 'fa-solid fa-user-group', 'primary'],

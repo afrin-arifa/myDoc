@@ -53,13 +53,13 @@ class FollowUpAppointmentTest extends TestCase
 
         $this->actingAs($this->patient)->get(route('patient.appointments.show', $this->original))->assertOk()
             ->assertSee('Book a follow-up')
-            ->assertSee(route('doctors.show', ['doctor' => $this->profile, 'follow_up' => $this->original->id]), false);
+            ->assertSee(route('doctors.show', ['doctor' => $this->profile, 'follow_up' => $this->original->getRouteKey()]), false);
 
-        $this->actingAs($this->patient)->get(route('doctors.show', ['doctor' => $this->profile, 'date' => '2026-11-09', 'follow_up' => $this->original->id]))->assertOk()
+        $this->actingAs($this->patient)->get(route('doctors.show', ['doctor' => $this->profile, 'date' => '2026-11-09', 'follow_up' => $this->original->getRouteKey()]))->assertOk()
             ->assertSee('Booking a follow-up to your appointment '.$this->original->reference())
-            ->assertSee(route('appointment-slots.confirm', [$slot, 'follow_up' => $this->original->id]), false);
+            ->assertSee(route('appointment-slots.confirm', [$slot, 'follow_up' => $this->original->getRouteKey()]), false);
 
-        $this->actingAs($this->patient)->get(route('appointment-slots.confirm', [$slot, 'follow_up' => $this->original->id]))->assertOk()
+        $this->actingAs($this->patient)->get(route('appointment-slots.confirm', [$slot, 'follow_up' => $this->original->getRouteKey()]))->assertOk()
             ->assertSee('This is a follow-up to your appointment '.$this->original->reference())
             ->assertSee('name="follow_up_of_id" value="'.$this->original->id.'"', false);
 
@@ -152,9 +152,9 @@ class FollowUpAppointmentTest extends TestCase
 
         $this->actingAs($this->doctor)->get(route('doctor.appointments.show', $this->original))->assertOk()
             ->assertSee('Book follow-up')
-            ->assertSee(route('doctor.appointments.create', ['follow_up' => $this->original->id]), false);
+            ->assertSee(route('doctor.appointments.create', ['follow_up' => $this->original->getRouteKey()]), false);
 
-        $this->actingAs($this->doctor)->get(route('doctor.appointments.create', ['follow_up' => $this->original->id, 'date' => '2026-11-09']))->assertOk()
+        $this->actingAs($this->doctor)->get(route('doctor.appointments.create', ['follow_up' => $this->original->getRouteKey(), 'date' => '2026-11-09']))->assertOk()
             ->assertSee('Follow-up for')->assertSee('Sam Patient')->assertSee($this->original->reference())
             ->assertSee('name="patient_id" type="hidden" value="'.$this->patient->id.'"', false)
             ->assertSee('name="follow_up_of_id" type="hidden" value="'.$this->original->id.'"', false)
@@ -202,7 +202,7 @@ class FollowUpAppointmentTest extends TestCase
         $slot = $this->slot($this->profile, '2026-11-09 09:00');
 
         $this->actingAs($assistant)->get(route('assistant.workspace.appointments.show', [$this->profile, $this->original]))->assertOk()
-            ->assertSee(route('assistant.workspace.appointments.create', [$this->profile, 'follow_up' => $this->original->id]), false);
+            ->assertSee(route('assistant.workspace.appointments.create', [$this->profile, 'follow_up' => $this->original->getRouteKey()]), false);
         $this->actingAs($assistant)->post(route('assistant.workspace.appointments.store', $this->profile), [
             'patient_id' => $this->patient->id, 'slot_id' => $slot->id, 'consultation_type' => 'physical', 'follow_up_of_id' => $this->original->id,
         ])->assertSessionHasNoErrors();

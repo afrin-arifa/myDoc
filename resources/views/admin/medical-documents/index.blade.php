@@ -44,7 +44,7 @@
                 <tbody>
                     @foreach ($documents as $document)
                         <tr>
-                            <td><strong>{{ $document->patient->name }}</strong><br><span class="small text-secondary">{{ $document->patient->email }}</span></td>
+                            <td><strong>{{ $document->patient->name }}</strong><br><span class="small text-secondary">{{ $document->patient->contactLabel() }}</span></td>
                             <td>{{ $document->displayTitle() }}<br><span class="small text-secondary">{{ $document->original_name }} · {{ $document->fileTypeLabel() }} · {{ $document->humanSize() }}</span></td>
                             <td><span class="badge text-bg-light">{{ $document->categoryLabel() }}</span></td>
                             <td>{{ $document->appointment?->slot?->doctorProfile?->user?->name ?? '—' }}</td>

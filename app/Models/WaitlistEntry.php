@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use Carbon\CarbonInterface;
 use Database\Factories\WaitlistEntryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 class WaitlistEntry extends Model
 {
     /** @use HasFactory<WaitlistEntryFactory> */
-    use HasFactory;
+    use HasFactory, HasUrlKey;
 
     public const STATUS_WAITING = 'waiting';
 

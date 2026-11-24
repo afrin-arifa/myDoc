@@ -83,6 +83,6 @@ class AppServiceProvider extends ServiceProvider
         Route::model(DoctorWorkspace::ROUTE_PARAMETER, DoctorProfile::class);
 
         // {assistant} route parameters only ever resolve to Doctor Assistant accounts; any other id is not found.
-        Route::bind('assistant', fn (string $value): User => User::query()->where('role', User::ROLE_ASSISTANT)->findOrFail($value));
+        Route::bind('assistant', fn (string $value): User => User::query()->where('role', User::ROLE_ASSISTANT)->findOrFail(User::idFromUrlKey($value) ?? 0));
     }
 }

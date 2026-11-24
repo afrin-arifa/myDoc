@@ -62,7 +62,7 @@
         </div>
         <button class="btn btn-outline-primary" type="submit">Filter</button>
         @if ($filtered)
-            <a class="btn btn-link" href="{{ route('admin.sms-issues.index') }}">Clear</a>
+            <a class="btn btn-outline-secondary" href="{{ route('admin.sms-issues.index') }}">Clear</a>
         @endif
     </form>
 
@@ -92,9 +92,9 @@
                             <td>#{{ $issue->id }} <span class="badge text-bg-light">{{ $channelLabels[$issue->channel] ?? $issue->channel }}</span><br><span class="small text-secondary">{{ $issue->attempts }} {{ Str::plural('attempt', $issue->attempts) }}</span></td>
                             <td>
                                 @if ($issue->appointment_id)
-                                    <a href="{{ route('admin.appointments.show', $issue->appointment_id) }}">{{ App\Models\Appointment::referenceFor($issue->appointment_id) }}</a>
+                                    <a href="{{ route('admin.appointments.show', App\Models\Appointment::urlKey($issue->appointment_id)) }}">{{ App\Models\Appointment::referenceFor($issue->appointment_id) }}</a>
                                 @else
-                                    <a href="{{ route('admin.waitlist.index', ['offer' => $issue->waitlist_offer_id]) }}">Waiting list offer #{{ $issue->waitlist_offer_id }}</a>
+                                    <a href="{{ route('admin.waitlist.index', ['offer' => App\Models\WaitlistOffer::urlKey($issue->waitlist_offer_id)]) }}">Waiting list offer #{{ $issue->waitlist_offer_id }}</a>
                                 @endif
                             </td>
                             <td>{{ $eventLabels[$issue->type] ?? $issue->type }}</td>

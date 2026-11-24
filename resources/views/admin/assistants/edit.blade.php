@@ -2,7 +2,7 @@
 @section('title', 'Edit assistant | myDoc')
 @section('content')
 <div class="container py-5">
-    <a href="{{ route('admin.assistants.show', $assistant) }}">&larr; {{ $assistant->name }}</a>
+    <a class="back-link" href="{{ route('admin.assistants.show', $assistant) }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>{{ $assistant->name }}</a>
     <h1 class="h2 mt-3 mb-1">Edit assistant details</h1>
     <p class="text-secondary mb-4">Only the name, email and mobile number can be changed here. If the email changes while an invitation is outstanding, a new invitation is sent to the new address.</p>
 

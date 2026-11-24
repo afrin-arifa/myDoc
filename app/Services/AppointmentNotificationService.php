@@ -216,6 +216,10 @@ class AppointmentNotificationService
      */
     private function recordOne(Appointment $appointment, string $channel, string $type, string $transitionKey, array $context, ?int $recipientId = null): void
     {
+        if ($channel === AppointmentNotification::CHANNEL_EMAIL && $this->emailsPatient($type, $context) && $appointment->patient?->email === null) {
+            return;
+        }
+
         $notification = AppointmentNotification::query()->firstOrCreate(
             [
                 'appointment_id' => $appointment->id,
@@ -233,6 +237,18 @@ class AppointmentNotificationService
         if ($notification->wasRecentlyCreated) {
             SendAppointmentNotification::dispatch($notification->id)->afterCommit();
         }
+    }
+
+    /**
+     * Whether an email row goes to the patient. Walk-in patients have no email, so nothing is recorded for them.
+     *
+     * @param  array<string, int|string>  $context
+     */
+    private function emailsPatient(string $type, array $context): bool
+    {
+        return isset($context['audience'])
+            ? $context['audience'] === AppointmentNotification::AUDIENCE_PATIENT
+            : in_array($type, [AppointmentNotification::TYPE_CONFIRMED, AppointmentNotification::TYPE_REJECTED, AppointmentNotification::TYPE_RESCHEDULED], true);
     }
 
     private function ensureInsideTransaction(): void

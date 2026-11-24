@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="container py-5">
-        <a class="link-secondary d-inline-block mb-4" href="{{ $workspace->url('doctor.appointments.show', $appointment) }}">&larr; Back to appointment</a>
+        <a class="back-link mb-4" href="{{ $workspace->url('doctor.appointments.show', $appointment) }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to appointment</a>
         <x-assistant.workspace-banner class="mb-4" />
         <h1 class="h3 mb-2">Reschedule appointment</h1>
         <p class="text-secondary">{{ $appointment->patient->name }} · current time: {{ $appointment->slot->starts_at->format('M j, Y g:i A') }} at {{ $appointment->slot->location?->name ?? 'location not specified' }}</p>

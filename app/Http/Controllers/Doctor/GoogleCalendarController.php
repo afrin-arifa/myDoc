@@ -7,6 +7,7 @@ use App\Jobs\SyncAppointmentToGoogleCalendar;
 use App\Models\Appointment;
 use App\Models\AppointmentGoogleCalendarEvent;
 use App\Models\GoogleCalendarConnection;
+use App\Services\GoogleCalendarAuthorizationException;
 use App\Services\GoogleCalendarService;
 use Google\Service\Exception as GoogleServiceException;
 use Illuminate\Http\RedirectResponse;
@@ -17,6 +18,8 @@ use RuntimeException;
 
 class GoogleCalendarController extends Controller
 {
+    public const PERMISSION_MISSING_MESSAGE = 'Google Calendar was not connected because the calendar permission was not granted. Connect again and tick the calendar box on the Google screen before you continue.';
+
     public function connect(Request $request, GoogleCalendarService $service): RedirectResponse
     {
         $state = Str::random(64);
@@ -44,6 +47,8 @@ class GoogleCalendarController extends Controller
             $tokens = $service->exchangeCode($request->string('code')->toString());
             $connection = $profile->googleCalendarConnection()->first();
             $connectionData = $service->connectionData($tokens);
+        } catch (GoogleCalendarAuthorizationException) {
+            return redirect()->route('doctor.settings')->with('warning', self::PERMISSION_MISSING_MESSAGE);
         } catch (GoogleServiceException|RuntimeException $exception) {
             Log::warning('Google Calendar authorization failed.', [
                 'user_id' => $request->user()->id,

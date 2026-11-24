@@ -2,7 +2,7 @@
 @section('title', 'Manage doctor | myDoc')
 @section('content')
 <div class="container py-5">
-    <a href="{{ route('admin.doctors.index') }}">&larr; Doctors</a>
+    <a class="back-link" href="{{ route('admin.doctors.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Doctors</a>
     <div class="d-flex flex-column flex-md-row align-items-md-center gap-3 my-4">
         <x-ui.avatar :name="$doctor->user->name" :src="$doctor->photoUrl() ?? asset('images/doctor.png')" size="xl" />
         <div>
@@ -56,6 +56,20 @@
                         <button class="btn btn-outline-danger w-100" type="submit">Cancel invitation</button>
                     </form>
                 @endif
+            </section>
+
+            <section class="doctor-panel mb-4" aria-labelledby="doctor-assistants-heading">
+                <div class="doctor-profile-section mb-2"><i class="fa-solid fa-user-nurse" aria-hidden="true"></i><div><h2 class="doctor-panel__title" id="doctor-assistants-heading">Assistants</h2><p>{{ $assistants->count() }} assigned</p></div></div>
+                @forelse ($assistants as $assistant)
+                    <div class="admin-profile__assistant">
+                        <x-ui.avatar :name="$assistant->name" :src="$assistant->photoUrl()" size="sm" />
+                        <div class="min-w-0 flex-grow-1"><strong>{{ $assistant->name }}</strong><span>{{ $assistant->email }}</span></div>
+                        <a class="btn btn-sm btn-outline-primary" href="{{ route('admin.assistants.show', $assistant) }}">Manage<span class="visually-hidden"> {{ $assistant->name }}</span></a>
+                    </div>
+                @empty
+                    <p class="small text-secondary">No assistants. Open an assistant to assign them to this doctor.</p>
+                @endforelse
+                <div class="mt-3"><a class="section-link" href="{{ route('admin.assistants.index') }}">All assistants<i class="fa-solid fa-arrow-right" aria-hidden="true"></i></a></div>
             </section>
         </div>
 

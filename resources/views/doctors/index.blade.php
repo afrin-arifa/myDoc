@@ -37,7 +37,7 @@
                 <strong class="text-body">{{ $doctors->total() }}</strong> {{ Str::plural('doctor', $doctors->total()) }} {{ request()->hasAny(['search', 'specialty']) || $availableToday ? 'found' : 'listed' }}
             </p>
             @if (request()->hasAny(['search', 'specialty', 'filter', 'sort']))
-                <a class="small" href="{{ route('doctors.index') }}">Clear all filters</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ route('doctors.index') }}">Clear all filters</a>
             @endif
         </div>
 
@@ -61,7 +61,7 @@
                         <select class="form-select form-select-sm" id="specialty" name="specialty">
                             <option value="">All specialties</option>
                             @foreach ($specialties as $specialty)
-                                <option value="{{ $specialty->id }}" @selected(request('specialty') == $specialty->id)>{{ $specialty->name }}</option>
+                                <option value="{{ $specialty->getRouteKey() }}" @selected($selectedSpecialtyId === $specialty->id)>{{ $specialty->name }}</option>
                             @endforeach
                         </select>
                     </div>

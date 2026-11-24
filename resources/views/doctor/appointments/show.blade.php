@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="container py-5">
-        <a class="link-secondary d-inline-block mb-4" href="{{ $workspace->url('doctor.appointments.index') }}">&larr; Back to appointments</a>
+        <a class="back-link mb-4" href="{{ $workspace->url('doctor.appointments.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to appointments</a>
         <x-assistant.workspace-banner class="mb-4" />
         <p class="hero__eyebrow mb-2">{{ $workspace->inAssistantWorkspace() ? 'Doctor Assistant' : 'Doctor space' }}</p>
         <h1 class="h2 mb-4">Appointment details</h1>
@@ -13,8 +13,8 @@
                 @if ($workspace->inAssistantWorkspace())
                     <p><strong>Doctor:</strong> {{ $appointment->slot->doctorProfile->user->name }}</p>
                 @endif
-                <p><strong>Patient:</strong> {{ $appointment->patient->name }}</p>
-                <p><strong>Contact:</strong> {{ $appointment->patient->email }}</p>
+                <p><strong>Patient:</strong> @if ($appointment->patient->photoUrl())<x-ui.avatar class="me-2" :name="$appointment->patient->name" :src="$appointment->patient->photoUrl()" size="sm" />@endif{{ $appointment->patient->name }}</p>
+                <p><strong>Contact:</strong> {{ $appointment->patient->contactLabel() }}</p>
                 <p><strong>Date and time:</strong> {{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
                 <p><strong>Location:</strong> <x-appointments.location :location="$appointment->slot->location" compact /></p>
                 <x-appointments.fee :appointment="$appointment" />
@@ -22,7 +22,7 @@
                 <p><strong>Status:</strong> <x-ui.status-badge :status="$appointment->status" /></p>
                 <x-appointments.follow-up-links :appointment="$appointment" audience="staff" class="small mb-3" />
                 @if ($canBookFollowUp)
-                    <a class="btn btn-outline-primary mb-3" href="{{ $workspace->url('doctor.appointments.create', ['follow_up' => $appointment->id]) }}">Book follow-up</a>
+                    <a class="btn btn-outline-primary mb-3" href="{{ $workspace->url('doctor.appointments.create', ['follow_up' => $appointment->getRouteKey()]) }}">Book follow-up</a>
                 @endif
                 @if ($appointment->status === 'cancelled' && $appointment->cancellation_reason)
                     <p class="mb-1"><strong>Cancellation reason (staff only):</strong></p>

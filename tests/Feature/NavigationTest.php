@@ -59,6 +59,7 @@ class NavigationTest extends TestCase
             'Schedule' => route('doctor.schedule'),
             'Patients' => route('doctor.patients.index'),
             'Medical records' => route('doctor.medical-records.index'),
+            'Assistants' => route('doctor.assistants.index'),
             'Profile' => route('doctor.profile'),
             'Settings' => route('doctor.settings'),
         ], $this->navLinks($response));
@@ -84,6 +85,7 @@ class NavigationTest extends TestCase
             'Medical records' => route('admin.medical-documents.index'),
             'Specialties' => route('admin.specialties.index'),
             'Delivery issues' => route('admin.sms-issues.index'),
+            'Profile' => route('admin.profile'),
         ], $this->navLinks($response));
         $this->assertSame(['Appointments'], $this->activeLinks($response));
         $this->assertLogoutButton($response);

@@ -3,7 +3,7 @@
 
 <div class="appointment-management-card">
     <div class="appointment-management-card__patient">
-        <x-ui.avatar :name="$appointment->patient->name" />
+        <x-ui.avatar :name="$appointment->patient->name" :src="$appointment->patient->photoUrl()" />
 
         <div class="appointment-management-card__patient-info">
             <span class="appointment-management-card__id">
@@ -31,7 +31,7 @@
             <x-appointments.location :location="$appointment->slot->location" compact />
 
             @if ($appointment->follow_up_of_id)
-                <span><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Follow-up to <a href="{{ $workspace->url('doctor.appointments.show', $appointment->follow_up_of_id) }}">{{ App\Models\Appointment::referenceFor($appointment->follow_up_of_id) }}</a></span>
+                <span><i class="fa-solid fa-rotate-left" aria-hidden="true"></i> Follow-up to <a href="{{ $workspace->url('doctor.appointments.show', App\Models\Appointment::urlKey($appointment->follow_up_of_id)) }}">{{ App\Models\Appointment::referenceFor($appointment->follow_up_of_id) }}</a></span>
             @endif
         </div>
 

@@ -103,6 +103,7 @@ class AdminDoctorController extends Controller
             'statusLabels' => self::STATUS_LABELS,
             'invitationExpiresAt' => $this->onboarding->invitationExpiresAt($doctor->user),
             'appointmentCount' => $doctor->appointmentSlots()->whereHas('appointments')->count(),
+            'assistants' => $doctor->assistants()->orderBy('name')->get(),
         ]);
     }
 

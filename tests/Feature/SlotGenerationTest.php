@@ -384,7 +384,8 @@ class SlotGenerationTest extends TestCase
 
         $this->actingAs($doctor)
             ->post(route('doctor.slots.generate'), $range)
-            ->assertSessionHas('status', '0 new appointment slot(s) generated.');
+            ->assertSessionMissing('status')
+            ->assertSessionHas('warning', 'No new slots were generated: every time in this range already has a slot, overlaps one or is in the past.');
 
         $this->assertSame(12, AppointmentSlot::count());
         $this->assertSame('booked', $slots[0]->fresh()->status);
@@ -425,6 +426,59 @@ class SlotGenerationTest extends TestCase
         $this->actingAs($doctor)->post(route('doctor.slots.generate'), $range);
 
         $this->assertSame(0, AppointmentSlot::count());
+    }
+
+    public function test_generating_nothing_explains_why_and_returns_to_the_generate_tab(): void
+    {
+        $range = ['start_date' => '2026-11-03', 'end_date' => '2026-11-06', 'weekdays' => [2, 3]];
+
+        // Active hours on Mondays only, so nothing matches.
+        $doctor = $this->doctorWithMondayAvailability();
+        $this->actingAs($doctor)->from(route('doctor.schedule'))->post(route('doctor.slots.generate'), $range)
+            ->assertRedirect(route('doctor.schedule').'#generate-panel')
+            ->assertSessionMissing('status')
+            ->assertSessionHas('warning', 'No slots were generated because the weekly availability has no hours on the chosen dates and weekdays.');
+
+        // Only inactive hours: the tab says so and generation is not offered.
+        $doctor = $this->doctorWithMondayAvailability(isActive: false);
+        $this->actingAs($doctor)->from(route('doctor.schedule'))->post(route('doctor.slots.generate'), $range)
+            ->assertSessionHas('warning', 'No slots were generated because no weekly availability is turned on. Add or turn on hours in the Availability tab first.');
+        $this->get(route('doctor.schedule'))->assertOk()->assertSee('Your weekly availability is paused')->assertSee('Turn on');
+        $this->assertSame(0, AppointmentSlot::count());
+    }
+
+    public function test_hours_added_through_the_availability_form_are_active_and_can_be_generated(): void
+    {
+        $doctor = $this->doctorWithMondayAvailability();
+        $location = $doctor->doctorProfile->locations()->create(['name' => 'Chamber', 'address' => 'Dhaka', 'is_active' => true]);
+
+        $this->actingAs($doctor)->get(route('doctor.schedule'))->assertOk()->assertSee('<input type="hidden" name="is_active" value="1">', false);
+
+        // Without an explicit choice, new hours are active too.
+        $this->post(route('doctor.availability.store'), ['doctor_location_id' => $location->id, 'day_of_week' => 4, 'start_time' => '17:00', 'end_time' => '23:00'])
+            ->assertSessionHasNoErrors();
+        $this->assertTrue((bool) $doctor->doctorProfile->availabilities()->where('day_of_week', 4)->sole()->is_active);
+
+        $this->post(route('doctor.slots.generate'), ['start_date' => '2026-11-05', 'end_date' => '2026-11-05', 'weekdays' => [4]])
+            ->assertSessionHas('status', '36 new appointment slot(s) generated.');
+        $this->assertSame('22:50', AppointmentSlot::query()->latest('starts_at')->first()->starts_at->format('H:i'));
+    }
+
+    public function test_the_generate_tab_reopens_with_the_chosen_values_after_an_error(): void
+    {
+        $doctor = $this->doctorWithMondayAvailability();
+
+        $html = $this->actingAs($doctor)->from(route('doctor.schedule'))->followingRedirects()
+            ->post(route('doctor.slots.generate'), ['start_date' => '2026-11-10', 'end_date' => '2027-06-10', 'weekdays' => ['1']])
+            ->assertOk()
+            ->assertSee('data-initial-schedule-tab="generate"', false)
+            ->assertSee('value="2027-06-10"', false)
+            ->assertSee('Slots can be generated for at most 92 days at a time.')
+            ->assertSee('9:00 AM – 10:00 AM')
+            ->getContent();
+
+        $this->assertMatchesRegularExpression('/name="weekdays\[\]"[^>]*value="1"[^>]*checked/', $html);
+        $this->assertDoesNotMatchRegularExpression('/name="weekdays\[\]"[^>]*value="2"[^>]*checked/', $html);
     }
 
     public function test_doctors_only_generate_and_preview_their_own_slots(): void

@@ -26,19 +26,19 @@ class AssistantDashboardController extends Controller
     public function dashboard(Request $request): View
     {
         $doctors = $this->assignedDoctors($request);
+        $appointments = fn () => Appointment::query()
+            ->whereHas('slot', fn (Builder $slots) => $slots->whereIn('doctor_profile_id', $doctors->modelKeys()));
 
         return view('assistant.dashboard', [
+            'stats' => [
+                'today' => $appointments()->whereIn('status', Appointment::ACTIVE_STATUSES)->whereHas('slot', fn (Builder $slots) => $slots->whereDate('starts_at', today()))->count(),
+                'pending' => $doctors->sum('pending_count'),
+                'upcoming' => $doctors->sum('upcoming_count'),
+            ],
+            'pending' => $this->nextAppointments($appointments()->where('appointments.status', 'booked')->upcoming()),
             'assistant' => $request->user(),
             'doctors' => $doctors,
-            'upcoming' => $doctors->isEmpty() ? collect() : Appointment::query()
-                ->upcoming()
-                ->whereHas('slot', fn (Builder $slots) => $slots->whereIn('doctor_profile_id', $doctors->modelKeys()))
-                ->with(['patient:id,name', 'slot.doctorProfile.user:id,name'])
-                ->join('appointment_slots', 'appointments.appointment_slot_id', '=', 'appointment_slots.id')
-                ->orderBy('appointment_slots.starts_at')
-                ->select('appointments.*')
-                ->limit(self::UPCOMING_LIMIT)
-                ->get(),
+            'upcoming' => $this->nextAppointments($appointments()->upcoming()),
         ]);
     }
 
@@ -53,6 +53,21 @@ class AssistantDashboardController extends Controller
     public function workspace(DoctorWorkspace $workspace): RedirectResponse
     {
         return redirect()->to($workspace->url('doctor.appointments.index'));
+    }
+
+    /**
+     * @param  Builder<Appointment>  $appointments
+     * @return Collection<int, Appointment>
+     */
+    private function nextAppointments(Builder $appointments): Collection
+    {
+        return $appointments
+            ->with(['patient:id,name,photo_path', 'slot.doctorProfile.user:id,name'])
+            ->join('appointment_slots', 'appointments.appointment_slot_id', '=', 'appointment_slots.id')
+            ->orderBy('appointment_slots.starts_at')
+            ->select('appointments.*')
+            ->limit(self::UPCOMING_LIMIT)
+            ->get();
     }
 
     /**

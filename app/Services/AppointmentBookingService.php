@@ -226,7 +226,7 @@ class AppointmentBookingService
                 DoctorWorkspaceEvent::ACTION_BOOKED,
                 appointment: $appointment,
                 toStatus: 'booked',
-                context: ['source' => 'staff', 'slot_id' => $slot->id, 'starts_at' => $slot->starts_at->toIso8601String(), 'consultation_type' => $consultationType, ...$this->followUpContext($original)],
+                context: ['source' => 'staff', 'slot_id' => $slot->id, 'starts_at' => $slot->starts_at->toIso8601String(), 'consultation_type' => $consultationType, ...$this->followUpContext($original), ...($patient->is_walk_in ? ['walk_in' => true] : [])],
             );
 
             return $appointment;

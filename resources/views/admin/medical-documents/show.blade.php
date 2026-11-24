@@ -2,14 +2,14 @@
 @section('title', 'Medical document | myDoc')
 @section('content')
 <div class="container py-5">
-    <a href="{{ route('admin.medical-documents.index') }}">&larr; Medical documents</a>
+    <a class="back-link" href="{{ route('admin.medical-documents.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Medical documents</a>
     <h1 class="h2 mt-3 mb-4">{{ $document->displayTitle() }}</h1>
     <div class="row g-4">
         <div class="col-lg-7">
             <section class="card border-0 shadow-sm p-4" aria-labelledby="details-heading">
                 <h2 class="h5" id="details-heading">Details</h2>
                 <dl class="row mb-0">
-                    <dt class="col-sm-4">Patient</dt><dd class="col-sm-8">{{ $document->patient->name }} ({{ $document->patient->email }})</dd>
+                    <dt class="col-sm-4">Patient</dt><dd class="col-sm-8">{{ $document->patient->name }} ({{ $document->patient->contactLabel() }})</dd>
                     <dt class="col-sm-4">Type</dt><dd class="col-sm-8">{{ $document->categoryLabel() }}</dd>
                     <dt class="col-sm-4">Original file name</dt><dd class="col-sm-8">{{ $document->original_name }}</dd>
                     <dt class="col-sm-4">File</dt><dd class="col-sm-8">{{ $document->fileTypeLabel() }} · {{ $document->humanSize() }}</dd>

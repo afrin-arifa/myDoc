@@ -137,6 +137,43 @@ class AdminAssistantManagementTest extends TestCase
         $this->assertSame(4, AssistantAssignmentEvent::count(), 'History is kept.');
     }
 
+    public function test_an_admin_can_set_the_password_so_the_assistant_can_log_in_at_once(): void
+    {
+        $account = ['name' => 'Direct Assistant', 'email' => 'direct@example.com', 'setup' => 'password', 'password' => 'First-pass-1', 'password_confirmation' => 'First-pass-1', 'role' => 'admin'];
+
+        $this->actingAs($this->admin())->post(route('admin.assistants.store'), $account)->assertSessionHasNoErrors()
+            ->assertSessionHas('status', fn (string $status): bool => str_contains($status, 'active') && ! str_contains($status, 'First-pass-1'));
+
+        $assistant = User::where('email', 'direct@example.com')->sole();
+        $this->assertSame(User::ROLE_ASSISTANT, $assistant->role);
+        $this->assertNull($assistant->deactivated_at);
+        $this->assertCount(0, $this->sentEmails(), 'No invitation is sent.');
+        $this->assertNotSame('First-pass-1', $assistant->password);
+
+        auth()->logout();
+        $this->flushSession();
+        $this->post(route('login'), ['email' => 'direct@example.com', 'password' => 'First-pass-1'])->assertRedirect(route('assistant.dashboard'));
+        $this->assertAuthenticatedAs($assistant);
+    }
+
+    public function test_a_password_is_validated_and_ignored_when_an_invitation_is_chosen(): void
+    {
+        $account = ['name' => 'Some Assistant', 'email' => 'some@example.com'];
+        $this->actingAs($this->admin());
+
+        foreach ([[], ['password' => 'weak', 'password_confirmation' => 'weak'], ['password' => 'First-pass-1', 'password_confirmation' => 'Other-pass-1']] as $passwords) {
+            $this->post(route('admin.assistants.store'), [...$account, 'setup' => 'password', ...$passwords])->assertSessionHasErrors('password');
+        }
+        $this->post(route('admin.assistants.store'), [...$account, 'setup' => 'other'])->assertSessionHasErrors('setup');
+        $this->assertSame(0, User::where('email', 'some@example.com')->count());
+
+        $this->post(route('admin.assistants.store'), [...$account, 'setup' => 'invitation', 'password' => 'First-pass-1', 'password_confirmation' => 'First-pass-1'])->assertSessionHasNoErrors();
+        $assistant = User::where('email', 'some@example.com')->sole();
+        $this->assertNotNull($assistant->deactivated_at);
+        $this->assertFalse(password_verify('First-pass-1', $assistant->password));
+        $this->assertCount(1, $this->sentEmails());
+    }
+
     public function test_an_assistant_who_never_set_a_password_must_be_invited_again(): void
     {
         ['assistant' => $assistant, 'admin' => $admin] = $this->invite();

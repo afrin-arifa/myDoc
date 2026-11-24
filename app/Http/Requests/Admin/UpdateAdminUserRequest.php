@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Models\User;
 use App\Rules\BangladeshiMobileNumber;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -17,12 +18,22 @@ class UpdateAdminUserRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->route('user'))],
+            'email' => [Rule::requiredIf(! $this->keepsWalkIn()), 'nullable', 'email', 'max:255', Rule::unique('users', 'email')->ignore($this->route('user'))],
             'phone' => ['nullable', 'string', 'max:30', new BangladeshiMobileNumber],
             'address' => ['nullable', 'string', 'max:1000'],
             'role' => ['required', 'in:patient,doctor,admin'],
             'deactivated' => ['sometimes', 'boolean'],
         ];
+    }
+
+    /**
+     * A walk-in patient may stay without an email as long as they stay a patient.
+     */
+    private function keepsWalkIn(): bool
+    {
+        $user = $this->route('user');
+
+        return $user instanceof User && $user->is_walk_in && $user->email === null && $this->input('role') === 'patient';
     }
 
     /**

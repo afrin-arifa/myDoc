@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="container py-5">
-        <a href="{{ route('assistant.dashboard') }}">&larr; Dashboard</a>
+        <a class="back-link" href="{{ route('assistant.dashboard') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Dashboard</a>
         <h1 class="h2 mt-3 mb-1">My doctors</h1>
         <p class="text-secondary mb-4">Doctors you are currently assigned to. Open a doctor's workspace to manage their appointments,
             schedule, patients and medical records. Inside a workspace, use <strong>Switch doctor</strong> in the sidebar to move to another doctor.</p>

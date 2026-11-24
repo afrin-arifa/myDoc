@@ -5,9 +5,9 @@
 
 @section('content')
     <div class="container py-5">
-        <a class="link-secondary d-inline-block mb-4"
+        <a class="back-link mb-4"
             href="{{ route('doctors.show', $slot->doctorProfile) }}">
-            &larr; Back to doctor profile
+            <i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to doctor profile
         </a>
 
         <div class="row justify-content-center">
@@ -67,7 +67,7 @@
                             <div class="alert alert-warning" role="status" id="booking-overlap-notice">
                                 This time overlaps your appointment on {{ $overlapping->slot->starts_at->format('D, M j, Y \a\t g:i A') }}
                                 with {{ $overlapping->slot->doctorProfile?->user?->name ?? 'another doctor' }}.
-                                <a class="alert-link" href="{{ route('doctors.show', array_filter(['doctor' => $slot->doctorProfile, 'date' => $slot->starts_at->toDateString(), 'follow_up' => $followUpOf?->id])) }}#availability">Choose another time</a>
+                                <a class="alert-link" href="{{ route('doctors.show', array_filter(['doctor' => $slot->doctorProfile, 'date' => $slot->starts_at->toDateString(), 'follow_up' => $followUpOf?->getRouteKey()])) }}#availability">Choose another time</a>
                             </div>
                         @endif
 
@@ -94,7 +94,7 @@
                                 </button>
 
                                 <a class="btn btn-outline-secondary"
-                                    href="{{ route('doctors.show', array_filter(['doctor' => $slot->doctorProfile, 'date' => $slot->starts_at->toDateString(), 'follow_up' => $followUpOf?->id])) }}#availability">
+                                    href="{{ route('doctors.show', array_filter(['doctor' => $slot->doctorProfile, 'date' => $slot->starts_at->toDateString(), 'follow_up' => $followUpOf?->getRouteKey()])) }}#availability">
                                     Choose another time
                                 </a>
                             </div>

@@ -11,7 +11,7 @@
             <select class="form-select" id="doctor" name="doctor">
                 <option value="">All doctors</option>
                 @foreach ($doctors as $doctor)
-                    <option value="{{ $doctor->id }}" @selected((int) ($filters['doctor'] ?? 0) === $doctor->id)>{{ $doctor->user->name }}{{ $doctor->waitlist_enabled ? '' : ' (off)' }}</option>
+                    <option value="{{ $doctor->getRouteKey() }}" @selected($selectedDoctorId === $doctor->id)>{{ $doctor->user->name }}{{ $doctor->waitlist_enabled ? '' : ' (off)' }}</option>
                 @endforeach
             </select>
         </div>
@@ -26,7 +26,7 @@
         </div>
         <button class="btn btn-outline-primary" type="submit">Filter</button>
         @if ($filters !== [])
-            <a class="btn btn-link" href="{{ route('admin.waitlist.index') }}">Clear</a>
+            <a class="btn btn-outline-secondary" href="{{ route('admin.waitlist.index') }}">Clear</a>
         @endif
     </form>
 
@@ -42,7 +42,7 @@
                 <tbody>
                     @foreach ($entries as $entry)
                         <tr data-waitlist-entry="{{ $entry->id }}">
-                            <td>{{ $entry->patient->name }}<br><span class="small text-secondary">{{ $entry->patient->email }}</span></td>
+                            <td>{{ $entry->patient->name }}<br><span class="small text-secondary">{{ $entry->patient->contactLabel() }}</span></td>
                             <td>{{ $entry->doctorProfile->user->name }}</td>
                             <td class="small">{{ $entry->date_from->format('M j') }} – {{ $entry->date_to->format('M j, Y') }}<br>{{ App\Models\WaitlistEntry::timeOfDayLabel($entry->time_of_day) }} · {{ $entry->location?->name ?? 'Any location' }}</td>
                             <td><span class="badge text-bg-light">{{ $entry->statusLabel() }}</span>@if ($entry->expired_offer_count)<br><span class="small text-secondary">{{ $entry->expired_offer_count }} unanswered</span>@endif</td>

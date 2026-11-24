@@ -17,6 +17,6 @@
             </div>
             <button class="btn btn-primary w-100" type="submit" data-loading-text="Sending…">Email reset link</button>
         </form>
-        <p class="text-center text-secondary mt-4 mb-0"><a href="{{ route('login') }}">Back to log in</a></p>
+        <p class="text-center mt-4 mb-0"><a class="back-link" href="{{ route('login') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to log in</a></p>
     </x-auth.card>
 @endsection

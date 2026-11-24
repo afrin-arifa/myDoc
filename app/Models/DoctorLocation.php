@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use Database\Factories\DoctorLocationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class DoctorLocation extends Model
 {
     /** @use HasFactory<DoctorLocationFactory> */
-    use HasFactory;
+    use HasFactory, HasUrlKey;
 
     public function doctorProfile(): BelongsTo
     {

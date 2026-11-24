@@ -22,16 +22,17 @@ class AdminWaitlistController extends Controller
         Gate::authorize('viewAny', WaitlistEntry::class);
 
         $filters = $request->validate([
-            'doctor' => ['nullable', 'integer'],
+            'doctor' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', Rule::in(array_keys(WaitlistEntry::STATUS_LABELS))],
-            'offer' => ['nullable', 'integer'],
+            'offer' => ['nullable', 'string', 'max:20'],
         ]);
-        $offerEntryId = isset($filters['offer']) ? WaitlistOffer::query()->whereKey($filters['offer'])->value('waitlist_entry_id') : null;
+        $selectedDoctorId = isset($filters['doctor']) ? DoctorProfile::idFromUrlKey($filters['doctor']) ?? 0 : null;
+        $offerEntryId = isset($filters['offer']) ? WaitlistOffer::query()->whereKey(WaitlistOffer::idFromUrlKey($filters['offer']) ?? 0)->value('waitlist_entry_id') : null;
 
         return view('admin.waitlist.index', [
             'entries' => WaitlistEntry::query()
-                ->with(['patient:id,name,email', 'doctorProfile.user:id,name', 'location:id,name', 'pendingOffer.slot'])
-                ->when($filters['doctor'] ?? null, fn ($query, $doctorId) => $query->where('doctor_profile_id', $doctorId))
+                ->with(['patient:id,name,email,phone', 'doctorProfile.user:id,name', 'location:id,name', 'pendingOffer.slot'])
+                ->when($selectedDoctorId !== null, fn ($query) => $query->where('doctor_profile_id', $selectedDoctorId))
                 ->when($filters['status'] ?? null, fn ($query, $status) => $query->where('status', $status))
                 ->when(isset($filters['offer']), fn ($query) => $query->whereKey($offerEntryId ?? 0))
                 ->latest('id')
@@ -39,6 +40,7 @@ class AdminWaitlistController extends Controller
                 ->withQueryString(),
             'doctors' => DoctorProfile::query()->with('user:id,name')->get()->sortBy('user.name')->values(),
             'filters' => $filters,
+            'selectedDoctorId' => $selectedDoctorId,
         ]);
     }
 }

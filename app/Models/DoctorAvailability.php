@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\HasUrlKey;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
@@ -18,6 +19,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 ])]
 class DoctorAvailability extends Model
 {
+    use HasUrlKey;
+
     /**
      * The only supported appointment slot length. The slot_duration_minutes
      * column is retained for backward compatibility but is not configurable.

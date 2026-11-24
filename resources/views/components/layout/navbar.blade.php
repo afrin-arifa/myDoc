@@ -22,6 +22,7 @@
             ['label' => 'Schedule', 'icon' => 'fa-regular fa-clock', 'url' => route('doctor.schedule'), 'active' => ['doctor.schedule']],
             ['label' => 'Patients', 'icon' => 'fa-solid fa-user-group', 'url' => route('doctor.patients.index'), 'active' => ['doctor.patients.*']],
             ['label' => 'Medical records', 'icon' => 'fa-regular fa-folder-open', 'url' => route('doctor.medical-records.index'), 'active' => ['doctor.medical-records.*']],
+            ['label' => 'Assistants', 'icon' => 'fa-solid fa-user-nurse', 'url' => route('doctor.assistants.index'), 'active' => ['doctor.assistants.*']],
             ['label' => 'Profile', 'icon' => 'fa-regular fa-id-card', 'url' => route('doctor.profile'), 'active' => ['doctor.profile']],
             ['label' => 'Settings', 'icon' => 'fa-solid fa-gear', 'url' => route('doctor.settings'), 'active' => ['doctor.settings']],
         ],
@@ -39,6 +40,7 @@
             ['label' => 'Medical records', 'icon' => 'fa-regular fa-folder-open', 'url' => route('admin.medical-documents.index'), 'active' => ['admin.medical-documents.*']],
             ['label' => 'Specialties', 'icon' => 'fa-solid fa-stethoscope', 'url' => route('admin.specialties.index'), 'active' => ['admin.specialties.*']],
             ['label' => 'Delivery issues', 'icon' => 'fa-regular fa-bell', 'url' => route('admin.sms-issues.index'), 'active' => ['admin.sms-issues.*']],
+            ['label' => 'Profile', 'icon' => 'fa-regular fa-id-card', 'url' => route('admin.profile'), 'active' => ['admin.profile']],
         ],
         default => [],
     };
@@ -136,7 +138,7 @@
 
             @auth
                 <div class="site-navbar__account">
-                    <x-ui.avatar :name="$user->name" :src="$role === 'doctor' ? ($navProfile?->photoUrl() ?? asset('images/doctor.png')) : null" size="sm" />
+                    <x-ui.avatar :name="$user->name" :src="match ($role) { 'doctor' => $navProfile?->photoUrl() ?? asset('images/doctor.png'), 'patient', 'admin', App\Models\User::ROLE_ASSISTANT => $user->photoUrl(), default => null }" size="sm" />
                     <div class="site-navbar__identity">
                         <span class="site-navbar__name">{{ $user->name }}</span>
                         <span class="site-navbar__role">{{ $subtitle }}</span>

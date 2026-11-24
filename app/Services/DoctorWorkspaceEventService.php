@@ -40,9 +40,9 @@ class DoctorWorkspaceEventService
         'previous_slot_id', 'new_slot_id', 'previous_starts_at', 'new_starts_at', 'reschedule_history_id',
         'slot_count', 'range_start', 'range_end', 'weekdays', 'slot_released',
         'day_of_week', 'start_time', 'end_time', 'is_active', 'changes',
-        'blocked_slot_count', 'blocked_slot_ids',
+        'blocked_slot_count', 'blocked_slot_ids', 'removed_slot_count', 'removed_slot_ids',
         'doctor_location_id', 'changed_fields',
-        'follow_up_of_id',
+        'follow_up_of_id', 'walk_in',
         'waitlist_entry_id', 'waitlist_offer_id', 'expires_at', 'waitlist_enabled', 'withdrawn_offer_count',
     ];
 

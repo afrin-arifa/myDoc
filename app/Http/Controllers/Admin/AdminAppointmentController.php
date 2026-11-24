@@ -26,7 +26,7 @@ class AdminAppointmentController extends Controller
             ->when($validated['search'] ?? null, fn ($query, $search) => $query->where(fn ($q) => $q
                 ->whereHas('patient', fn ($patient) => $patient->where('name', 'like', "%{$search}%"))
                 ->orWhereHas('slot.doctorProfile.user', fn ($doctor) => $doctor->where('name', 'like', "%{$search}%"))))
-            ->with(['patient:id,name,email', 'slot.doctorProfile.user:id,name'])
+            ->with(['patient:id,name,email,phone', 'slot.doctorProfile.user:id,name'])
             ->join('appointment_slots', 'appointments.appointment_slot_id', '=', 'appointment_slots.id')
             ->orderByDesc('appointment_slots.starts_at')
             ->select('appointments.*')
@@ -40,7 +40,7 @@ class AdminAppointmentController extends Controller
     {
         Gate::authorize('view', $appointment);
 
-        $appointment->load(['patient:id,name,email', 'slot.doctorProfile.user:id,name', 'followUpOf.slot', 'followUps.slot']);
+        $appointment->load(['patient:id,name,email,phone', 'slot.doctorProfile.user:id,name', 'followUpOf.slot', 'followUps.slot']);
 
         return view('admin.appointments.show', compact('appointment'));
     }

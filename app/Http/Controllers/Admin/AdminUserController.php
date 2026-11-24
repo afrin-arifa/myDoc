@@ -84,6 +84,8 @@ class AdminUserController extends Controller
         }
 
         $user->update($data);
+        // With an email the patient can claim the record through "Forgot password", so it is an ordinary account.
+        $user->is_walk_in = $user->is_walk_in && $user->email === null;
         $user->role = $targetRole;
         $user->deactivated_at = $deactivate ? now() : null;
         $user->save();

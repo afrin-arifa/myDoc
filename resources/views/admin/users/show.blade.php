@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Manage user | myDoc')
 @section('content')
-<div class="container py-5"><a href="{{ route('admin.users.index') }}">&larr; Users</a><h1 class="h2 my-4">Manage {{ $user->name }}</h1>
+<div class="container py-5"><a class="back-link" href="{{ route('admin.users.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Users</a><h1 class="h2 my-4">Manage {{ $user->name }}</h1>
 @if ($doctorStatus)
     <x-ui.alert type="info" class="mb-4">
         <p class="mb-1">This is a doctor account. Status: <x-admin.account-status :status="$doctorStatus" :labels="$statusLabels" /></p>
@@ -21,7 +21,7 @@
     </x-ui.alert>
 @else
 <form class="card border-0 shadow-sm p-4" method="POST" action="{{ route('admin.users.update', $user) }}" data-disable-on-submit>@csrf @method('PATCH')
-<div class="row g-3"><div class="col-md-6"><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="{{ old('name', $user->name) }}" required></div><div class="col-md-6"><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="{{ old('email', $user->email) }}" required></div><div class="col-md-6"><label class="form-label" for="phone">Phone</label><input class="form-control" id="phone" name="phone" value="{{ old('phone', $user->phone) }}"></div><div class="col-md-6"><label class="form-label" for="role">Role</label>
+<div class="row g-3"><div class="col-md-6"><label class="form-label" for="name">Name</label><input class="form-control" id="name" name="name" value="{{ old('name', $user->name) }}" required></div><div class="col-md-6"><label class="form-label" for="email">Email</label><input class="form-control" id="email" name="email" type="email" value="{{ old('email', $user->email) }}" @if (! $user->is_walk_in) required @endif>@if ($user->is_walk_in)<div class="form-text">Walk-in patient without an account. Add their email so they can set a password with "Forgot password".</div>@endif</div><div class="col-md-6"><label class="form-label" for="phone">Phone</label><input class="form-control" id="phone" name="phone" value="{{ old('phone', $user->phone) }}"></div><div class="col-md-6"><label class="form-label" for="role">Role</label>
 @if ($user->role === 'doctor')
     <input type="hidden" name="role" value="doctor"><input class="form-control" id="role" value="Doctor" readonly aria-describedby="role_help"><div class="form-text" id="role_help">Doctor accounts keep the doctor role.</div>
 @else

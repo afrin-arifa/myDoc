@@ -37,7 +37,7 @@ class DoctorPatientController extends Controller
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")
                 ->orWhere('phone', 'like', "%{$search}%")))
-            ->select(['id', 'name', 'email', 'phone', 'deactivated_at'])
+            ->select(['id', 'name', 'email', 'phone', 'photo_path', 'is_walk_in', 'deactivated_at'])
             ->withCount([
                 'appointments as appointment_count' => $ownAppointments,
                 'appointments as upcoming_count' => fn (Builder $appointments) => $ownAppointments($appointments)->upcoming(),

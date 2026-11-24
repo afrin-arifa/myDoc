@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Models\Concerns\HasUrlKey;
 use App\Notifications\Account\ResetPasswordNotification;
 use App\Rules\BangladeshiMobileNumber;
 use Database\Factories\UserFactory;
@@ -17,11 +18,11 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'password', 'phone', 'address', 'sms_notifications_enabled'])]
-#[Hidden(['password', 'remember_token'])]
+#[Hidden(['password', 'remember_token', 'photo_path'])]
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable;
+    use HasFactory, HasUrlKey, Notifiable;
 
     /**
      * Stored value of the Doctor Assistant role. The role column is never mass assignable.
@@ -68,6 +69,22 @@ class User extends Authenticatable
     public function roleLabel(): string
     {
         return self::ROLE_LABELS[$this->role] ?? ucfirst((string) $this->role);
+    }
+
+    /**
+     * How staff identify the person: their email, or the mobile number of a walk-in patient without one.
+     */
+    public function contactLabel(): string
+    {
+        return $this->email ?? $this->phone ?? 'No contact details';
+    }
+
+    /**
+     * URL of the patient's, administrator's or assistant's photo, served through an authorizing controller (never a direct storage path).
+     */
+    public function photoUrl(): ?string
+    {
+        return $this->photo_path ? route('users.photo', ['user' => $this, 'v' => substr(md5($this->photo_path), 0, 8)]) : null;
     }
 
     public function appointments(): HasMany
@@ -138,6 +155,7 @@ class User extends Authenticatable
             'password' => 'hashed',
             'deactivated_at' => 'datetime',
             'sms_notifications_enabled' => 'boolean',
+            'is_walk_in' => 'boolean',
         ];
     }
 }

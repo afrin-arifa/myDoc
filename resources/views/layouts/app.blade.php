@@ -7,6 +7,10 @@
 
         <title>@yield('title', 'myDoc')</title>
 
+        <link rel="icon" href="{{ asset('favicon.ico') }}?v=2" sizes="32x32">
+        <link rel="icon" href="{{ asset('favicon.svg') }}?v=2" type="image/svg+xml">
+        <link rel="apple-touch-icon" href="{{ asset('apple-touch-icon.png') }}?v=2">
+
         @fonts
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -18,30 +22,9 @@
         </header>
 
         <main class="app-main" id="main-content" tabindex="-1">
-            @if (session('status'))
-                <div class="container pt-4">
-                    <x-ui.alert class="mb-0">{{ session('status') }}</x-ui.alert>
-                </div>
-            @endif
-
-            @if (session('warning'))
-                <div class="container pt-4">
-                    <x-ui.alert type="warning" role="alert" class="mb-0">{{ session('warning') }}</x-ui.alert>
-                </div>
-            @endif
-
-            @if ($errors->any())
-                <div class="container pt-4">
-                    <x-ui.alert type="danger" role="alert" class="mb-0">
-                        <p class="fw-semibold mb-2">Please review the highlighted fields.</p>
-                        <ul class="mb-0 ps-3">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </x-ui.alert>
-                </div>
-            @endif
+            @auth
+                <x-layout.alerts class="container" />
+            @endauth
 
             @yield('content')
         </main>

@@ -5,7 +5,7 @@
 @section('content')
     @php($slot = $offer->slot)
     <div class="container py-5">
-        <a class="link-secondary d-inline-block mb-4" href="{{ route('patient.waitlist.index') }}">&larr; Back to waiting list</a>
+        <a class="back-link mb-4" href="{{ route('patient.waitlist.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to waiting list</a>
         <div class="row justify-content-center">
             <div class="col-lg-7">
                 <div class="card border-0 shadow-sm">

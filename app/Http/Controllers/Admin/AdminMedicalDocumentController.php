@@ -25,7 +25,7 @@ class AdminMedicalDocumentController extends Controller
         $search = $filters['search'] ?? null;
 
         $documents = MedicalDocument::query()
-            ->with(['patient:id,name,email', 'uploader:id,name', 'appointment.slot.doctorProfile.user:id,name'])
+            ->with(['patient:id,name,email,phone', 'uploader:id,name', 'appointment.slot.doctorProfile.user:id,name'])
             ->when($filters['category'] ?? null, fn (Builder $query, string $category) => $query->where('category', $category))
             ->when($filters['from'] ?? null, fn (Builder $query, string $from) => $query->whereDate('created_at', '>=', $from))
             ->when($filters['to'] ?? null, fn (Builder $query, string $to) => $query->whereDate('created_at', '<=', $to))
@@ -50,7 +50,7 @@ class AdminMedicalDocumentController extends Controller
         abort_unless(request()->user()->role === 'admin', 403);
 
         $document->load([
-            'patient:id,name,email',
+            'patient:id,name,email,phone',
             'uploader:id,name',
             'appointment.slot.doctorProfile.user:id,name',
             'events' => fn ($events) => $events->with('actor:id,name,role')->latest()->latest('id')->limit(50),
