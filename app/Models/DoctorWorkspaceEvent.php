@@ -63,6 +63,9 @@ class DoctorWorkspaceEvent extends Model
 
     public const ACTION_WAITLIST_SETTINGS = 'waitlist_settings';
 
+    /** A doctor's assistant uploaded a medical document for a patient in the doctor's care. */
+    public const ACTION_DOCUMENT_UPLOADED = 'document_uploaded';
+
     /**
      * @var list<string>
      */
@@ -80,7 +83,7 @@ class DoctorWorkspaceEvent extends Model
         self::ACTION_AVAILABILITY_CREATED, self::ACTION_AVAILABILITY_UPDATED, self::ACTION_AVAILABILITY_DELETED,
         self::ACTION_LOCATION_CREATED, self::ACTION_LOCATION_UPDATED, self::ACTION_LOCATION_DELETED,
         self::ACTION_WAITLIST_OFFERED, self::ACTION_WAITLIST_DECLINED, self::ACTION_WAITLIST_OFFER_EXPIRED,
-        self::ACTION_WAITLIST_WITHDRAWN, self::ACTION_WAITLIST_SETTINGS,
+        self::ACTION_WAITLIST_WITHDRAWN, self::ACTION_WAITLIST_SETTINGS, self::ACTION_DOCUMENT_UPLOADED,
     ];
 
     /**
@@ -116,6 +119,7 @@ class DoctorWorkspaceEvent extends Model
     {
         return match (true) {
             $this->action === self::ACTION_SLOTS_GENERATED => 'Generated slots',
+            $this->action === self::ACTION_DOCUMENT_UPLOADED => 'Uploaded a document',
             in_array($this->action, self::APPOINTMENT_ACTIONS, true) => ucfirst($this->action).' appointment',
             default => ucfirst(str_replace('_', ' ', $this->action)),
         };

@@ -31,7 +31,7 @@ class MedicalDocumentController extends Controller
 
         return view('patient.documents.index', [
             'documents' => $request->user()->medicalDocuments()
-                ->with('appointment.slot.doctorProfile.user:id,name')
+                ->with(['appointment.slot.doctorProfile.user:id,name', 'uploader:id,name,role'])
                 ->when($category, fn ($query) => $query->where('category', $category))
                 ->latest()
                 ->latest('id')

@@ -207,7 +207,7 @@ class MedicalDocumentPatientTest extends TestCase
         foreach (['patient.documents.index', 'patient.dashboard'] as $page) {
             $this->actingAs($patient)->get(route($page))->assertOk()
                 ->assertSee('data-max-file-bytes="'.$expectedBytes.'"', false)
-                ->assertSee('up to '.MedicalDocument::maxUploadLabel().'.');
+                ->assertSee('up to '.MedicalDocument::maxUploadLabel().'</span>', false);
         }
     }
 

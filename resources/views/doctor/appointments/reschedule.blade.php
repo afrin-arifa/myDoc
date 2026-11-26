@@ -23,15 +23,10 @@
         @elseif ($hasOpenSlots)
             <form method="POST" action="{{ $workspace->url('doctor.appointments.reschedule.store', $appointment) }}" class="card card-body">
                 @csrf
-                <label class="form-label" for="slot_id">New appointment slot</label>
-                <select class="form-select mb-3" id="slot_id" name="slot_id" required>
-                    @foreach ($slots as $slot)
-                        <option value="{{ $slot->id }}" @selected(old('slot_id') == $slot->id)>{{ $slot->starts_at->format('D, M j, Y g:i A') }} – {{ $slot->ends_at->format('g:i A') }} · {{ $slot->location?->name ?? 'Location not specified' }}</option>
-                    @endforeach
-                </select>
+                <x-appointments.slot-picker class="mb-2" :slots="$slots" :legend="'New time on '.$selectedDate->format('D, M j, Y')" />
                 <label class="form-label" for="reason">Reason (optional)</label>
                 <textarea class="form-control mb-3" id="reason" name="reason" rows="3">{{ old('reason') }}</textarea>
-                <button class="btn btn-primary" type="submit">Confirm reschedule</button>
+                <button class="btn btn-primary align-self-start" type="submit">Confirm reschedule</button>
             </form>
         @endif
     </div>

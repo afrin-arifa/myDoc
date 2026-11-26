@@ -90,7 +90,7 @@ class ConsultationFeeSnapshotTest extends TestCase
         $this->actingAs($this->patient)->post(route('appointment-slots.book', $slot), ['consultation_type' => 'physical', 'follow_up_of_id' => $original->id])->assertSessionHasNoErrors();
         $followUp = Appointment::where('appointment_slot_id', $slot->id)->sole();
         $this->assertSame(['800.00', ConsultationFee::TYPE_FOLLOW_UP], [$followUp->consultation_fee, $followUp->fee_type]);
-        $this->actingAs($this->patient)->get(route('patient.appointments.show', $followUp))->assertSee('Follow-up fee:')->assertSee('BDT 800.00');
+        $this->actingAs($this->patient)->get(route('patient.appointments.show', $followUp))->assertSee('Follow-up fee</dt>', false)->assertSee('BDT 800.00');
 
         // A regular booking is never charged the follow-up fee, and a submitted fee is ignored.
         $regular = $this->slot('2026-11-11 09:00');

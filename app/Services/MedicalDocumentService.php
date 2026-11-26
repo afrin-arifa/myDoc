@@ -28,10 +28,16 @@ class MedicalDocumentService
     public const DIRECTORY = 'medical-documents';
 
     /**
+     * Store a document for the patient. The uploader is the patient themselves unless staff upload it for them;
+     * $inTransaction runs inside the same transaction, so a failure there also removes the stored file.
+     *
      * @param  array{category: string, title?: string|null, description?: string|null, appointment_id?: int|null}  $details
+     * @param  (callable(MedicalDocument): void)|null  $inTransaction
      */
-    public function store(User $patient, UploadedFile $file, array $details, ?string $ipAddress = null): MedicalDocument
+    public function store(User $patient, UploadedFile $file, array $details, ?string $ipAddress = null, ?User $uploader = null, ?callable $inTransaction = null): MedicalDocument
     {
+        $uploader ??= $patient;
+
         $mimeType = MedicalDocument::detectMimeType($file);
         $extension = (MedicalDocument::hasAcceptedContent($file) ? MedicalDocument::FILE_TYPES[$mimeType] ?? null : null)
             ?? throw new RuntimeException('Unsupported medical document type.');
@@ -43,11 +49,11 @@ class MedicalDocumentService
         }
 
         try {
-            return DB::transaction(function () use ($patient, $file, $details, $path, $mimeType, $ipAddress): MedicalDocument {
+            return DB::transaction(function () use ($patient, $uploader, $file, $details, $path, $mimeType, $ipAddress, $inTransaction): MedicalDocument {
                 $document = new MedicalDocument;
                 $document->forceFill([
                     'patient_id' => $patient->id,
-                    'uploaded_by' => $patient->id,
+                    'uploaded_by' => $uploader->id,
                     'appointment_id' => $details['appointment_id'] ?? null,
                     'category' => $details['category'],
                     'title' => $details['title'] ?? null,
@@ -58,7 +64,11 @@ class MedicalDocumentService
                     'size' => Storage::disk(self::DISK)->size($path),
                 ])->save();
 
-                $this->recordEvent($document, $patient, MedicalDocumentEvent::ACTION_UPLOADED, $ipAddress);
+                $this->recordEvent($document, $uploader, MedicalDocumentEvent::ACTION_UPLOADED, $ipAddress);
+
+                if ($inTransaction !== null) {
+                    $inTransaction($document);
+                }
 
                 return $document;
             });

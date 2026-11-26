@@ -274,7 +274,7 @@ document.querySelectorAll("[data-preview-thumbnail]").forEach((thumbnail) => {
 
 // Reject files above the server's real upload limit before they are sent: PHP silently discards them otherwise.
 document.querySelectorAll("input[type='file'][data-max-file-bytes]").forEach((input) => {
-    const feedback = input.parentElement.querySelector("[data-file-size-error]");
+    const feedback = (input.closest("[data-file-field]") ?? input.parentElement).querySelector("[data-file-size-error]");
 
     input.addEventListener("change", () => {
         const file = input.files[0];
@@ -283,10 +283,36 @@ document.querySelectorAll("input[type='file'][data-max-file-bytes]").forEach((in
 
         input.setCustomValidity(message);
         input.classList.toggle("is-invalid", tooLarge);
+        input.closest("[data-dropzone]")?.classList.toggle("is-invalid", tooLarge);
         if (feedback) {
             feedback.textContent = message;
         }
     });
+});
+
+// File drop zones: highlight while a file is dragged over, and show the chosen file's name and size.
+document.querySelectorAll("[data-dropzone]").forEach((zone) => {
+    const input = zone.querySelector("input[type='file']");
+    const empty = zone.querySelector("[data-dropzone-empty]");
+    const chosen = zone.querySelector("[data-dropzone-chosen]");
+    const formatSize = (bytes) => (bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`);
+    const showFile = () => {
+        const file = input.files[0];
+
+        empty.hidden = file !== undefined;
+        chosen.hidden = file === undefined;
+        zone.classList.toggle("has-file", file !== undefined);
+        if (file !== undefined) {
+            chosen.querySelector("[data-dropzone-file-name]").textContent = file.name;
+            chosen.querySelector("[data-dropzone-file-size]").textContent = formatSize(file.size);
+            chosen.querySelector("[data-dropzone-file-icon]").className = file.type.startsWith("image/") ? "fa-regular fa-file-image" : file.type === "application/pdf" ? "fa-regular fa-file-pdf" : "fa-regular fa-file-lines";
+        }
+    };
+
+    ["dragenter", "dragover"].forEach((type) => input.addEventListener(type, () => zone.classList.add("is-dragging")));
+    ["dragleave", "drop"].forEach((type) => input.addEventListener(type, () => zone.classList.remove("is-dragging")));
+    input.addEventListener("change", showFile);
+    showFile();
 });
 
 // Add assistant: the password fields apply only when the admin sets the password themselves.

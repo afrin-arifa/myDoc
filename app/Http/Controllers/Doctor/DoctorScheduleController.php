@@ -126,12 +126,11 @@ class DoctorScheduleController extends Controller
                 ])->all();
             }
 
-            // "held": offered to a waiting-list patient, not bookable by anyone else until the offer ends.
-            if (! in_array($slot->status, ['available', 'held', 'blocked'], true)) {
+            // "held": offered to a waiting-list patient, not bookable by anyone else until the offer ends. A time
+            // without an appointment that has already started can no longer be used, so it is not shown.
+            if (! in_array($slot->status, ['available', 'held', 'blocked'], true) || ! $startsAt->isFuture()) {
                 return [];
             }
-
-            $isFuture = $startsAt->isFuture();
 
             return [[
                 ...$event,
@@ -144,9 +143,9 @@ class DoctorScheduleController extends Controller
                 'filter_status' => $slot->status,
                 'can_confirm' => false,
                 'can_start' => false,
-                'can_book' => $isFuture && $slot->status === 'available',
-                'can_block' => $isFuture && $slot->status === 'available',
-                'can_unblock' => $isFuture && $slot->status === 'blocked',
+                'can_book' => $slot->status === 'available',
+                'can_block' => $slot->status === 'available',
+                'can_unblock' => $slot->status === 'blocked',
             ]];
         })->values();
         $activeFilters = $validated['filters'] ?? ['available', 'held', 'blocked', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
@@ -156,8 +155,9 @@ class DoctorScheduleController extends Controller
             'confirmed' => $selectedAppointments->where('status', 'confirmed')->count(),
             'pending' => $selectedAppointments->where('status', 'booked')->count(),
             'cancelled' => $selectedAppointments->whereIn('status', Appointment::CLOSED_STATUSES)->count(),
-            'available' => $selectedSlots->where('status', 'available')->count(),
-            'blocked' => $selectedSlots->where('status', 'blocked')->count(),
+            // Only times still to come can be booked or unblocked.
+            'available' => $selectedSlots->filter(fn (AppointmentSlot $slot): bool => $slot->status === 'available' && $slot->starts_at->isFuture())->count(),
+            'blocked' => $selectedSlots->filter(fn (AppointmentSlot $slot): bool => $slot->status === 'blocked' && $slot->starts_at->isFuture())->count(),
         ];
 
         // Waiting list tab: open entries in first-come order, and the open times staff could offer them.

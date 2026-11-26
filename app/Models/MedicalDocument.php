@@ -33,6 +33,20 @@ class MedicalDocument extends Model
     ];
 
     /**
+     * Icon shown with each type when a patient chooses one.
+     *
+     * @var array<string, string>
+     */
+    public const CATEGORY_ICONS = [
+        'prescription' => 'fa-solid fa-prescription-bottle-medical',
+        'laboratory_report' => 'fa-solid fa-flask',
+        'diagnostic_report' => 'fa-solid fa-stethoscope',
+        'imaging_report' => 'fa-solid fa-x-ray',
+        'medical_certificate' => 'fa-solid fa-file-signature',
+        'other' => 'fa-regular fa-file-lines',
+    ];
+
+    /**
      * Accepted file types: detected MIME type => stored file extension.
      *
      * @var array<string, string>

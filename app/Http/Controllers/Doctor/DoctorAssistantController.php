@@ -44,4 +44,35 @@ class DoctorAssistantController extends Controller
                 ->withQueryString(),
         ]);
     }
+
+    /**
+     * One of this doctor's current assistants: contact details, what they may do and what they last did here. Any
+     * other account, including a former assistant of this doctor, is not found.
+     */
+    public function show(Request $request, User $assistant): View
+    {
+        $profile = $request->user()->doctorProfile;
+        abort_unless($profile, 403);
+
+        $assignment = $profile->assistantAssignments()->where('assistant_id', $assistant->id)->first();
+        abort_if($assignment === null, 404);
+
+        $events = DoctorWorkspaceEvent::query()
+            ->where('doctor_profile_id', $profile->id)
+            ->where('actor_role', User::ROLE_ASSISTANT)
+            ->where('actor_id', $assistant->id);
+
+        return view('doctor.assistants.show', [
+            'assistant' => $assistant,
+            'assignment' => $assignment,
+            'activityCount' => (clone $events)->count(),
+            'lastActiveAt' => (clone $events)->max('created_at'),
+            'recentEvents' => $events
+                ->with(['appointment.patient:id,name', 'appointment.slot'])
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->limit(8)
+                ->get(),
+        ]);
+    }
 }

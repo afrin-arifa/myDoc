@@ -180,7 +180,7 @@ class DoctorAppointmentController extends Controller
     {
         Gate::authorize('view', $appointment);
         $this->contextFor($request, DoctorAccess::VIEW_APPOINTMENTS, $appointment);
-        $appointment->load(['slot.doctorProfile.specialties', 'patient:id,name,email,phone,photo_path', 'followUpOf.slot', 'followUps.slot']);
+        $appointment->load(['slot.doctorProfile.specialties', 'patient:id,name,email,phone,photo_path,is_walk_in', 'followUpOf.slot', 'followUps.slot']);
         $canStart = $appointment->canStartConsultation();
         $canBookFollowUp = $this->workspace->routeAvailable('doctor.appointments.create')
             && $this->access->canActFor($request->user(), $appointment->slot->doctorProfile, DoctorAccess::BOOK_APPOINTMENTS)

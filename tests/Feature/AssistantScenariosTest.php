@@ -6,7 +6,9 @@ use App\Models\Appointment;
 use App\Models\AppointmentSlot;
 use App\Models\AssistantAssignmentEvent;
 use App\Models\DoctorProfile;
+use App\Models\MedicalDocument;
 use App\Models\User;
+use App\Services\MedicalDocumentService;
 use App\Services\UserPhotoStorage;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -124,6 +126,82 @@ class AssistantScenariosTest extends TestCase
             $this->flushSession();
             $this->actingAs($user)->get(route('doctor.assistants.index'))->assertForbidden();
         }
+    }
+
+    public function test_a_doctor_opens_the_profile_of_their_own_assistants_only(): void
+    {
+        [$doctor, $profile] = $this->doctor();
+        [$otherDoctor, $otherProfile] = $this->doctor();
+        $mine = $this->assigned('mine@example.com', $profile);
+        $theirs = $this->assigned('theirs@example.com', $otherProfile);
+        $appointment = $this->appointment($profile);
+
+        $this->flushSession();
+        $this->actingAs($mine)->post(route('assistant.workspace.appointments.confirm', [$profile, $appointment]))->assertSessionHasNoErrors();
+
+        $this->flushSession();
+        $this->actingAs($doctor)->get(route('doctor.assistants.index'))->assertSee(route('doctor.assistants.show', $mine), false);
+        $this->get(route('doctor.assistants.show', $mine))->assertOk()
+            ->assertSee('mine@example.com')->assertSee('What they can do for you')
+            ->assertSee('Confirmed appointment')->assertSee($appointment->reference());
+        $this->get(route('doctor.assistants.show', $theirs))->assertNotFound();
+        $this->get(route('doctor.assistants.show', $doctor->getRouteKey()))->assertNotFound();
+
+        $this->flushSession();
+        $this->actingAs($otherDoctor)->get(route('doctor.assistants.show', $mine))->assertNotFound();
+
+        // A former assistant's profile closes; their actions stay in the activity list.
+        $this->flushSession();
+        $this->actingAs($this->admin())->delete(route('admin.assistants.assignments.destroy', [$mine, $profile]))->assertSessionHasNoErrors();
+        $this->flushSession();
+        $this->actingAs($doctor)->get(route('doctor.assistants.show', $mine))->assertNotFound();
+
+        foreach ([$theirs, User::factory()->create(['role' => 'patient'])] as $user) {
+            $this->flushSession();
+            $this->actingAs($user)->get(route('doctor.assistants.show', $mine))->assertForbidden();
+        }
+    }
+
+    public function test_an_assistant_uploads_a_prescription_for_a_patient_in_the_doctors_care(): void
+    {
+        Storage::fake(MedicalDocumentService::DISK);
+        [$doctor, $profile] = $this->doctor();
+        [, $otherProfile] = $this->doctor();
+        $assistant = $this->assigned('rina@example.com', $profile);
+        $patient = $this->appointment($profile)->patient;
+        $stranger = $this->appointment($otherProfile)->patient;
+        $prescription = fn (): UploadedFile => UploadedFile::fake()->createWithContent('rx.pdf', "%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n");
+
+        $this->flushSession();
+        $this->actingAs($assistant)->get(route('assistant.workspace.medical-records.index', $profile))->assertOk()
+            ->assertSee('Upload for a patient')->assertSee($patient->name)->assertDontSee($stranger->name);
+
+        // Only patients in this doctor's care.
+        $this->post(route('assistant.workspace.medical-records.store', $profile), ['patient' => $stranger->getRouteKey(), 'category' => 'prescription', 'document' => $prescription()])
+            ->assertSessionHasErrors('patient');
+        $this->assertSame(0, MedicalDocument::count());
+
+        $this->post(route('assistant.workspace.medical-records.store', $profile), ['patient' => $patient->getRouteKey(), 'category' => 'prescription', 'title' => 'Antibiotics', 'document' => $prescription()])
+            ->assertSessionHasNoErrors()->assertRedirect(route('assistant.workspace.medical-records.index', $profile));
+        $document = MedicalDocument::sole();
+        $this->assertSame([$patient->id, $assistant->id, 'prescription', null], [$document->patient_id, $document->uploaded_by, $document->category, $document->appointment_id]);
+        Storage::disk(MedicalDocumentService::DISK)->assertExists($document->storage_path);
+        $this->assertDatabaseHas('medical_document_events', ['medical_document_id' => $document->id, 'actor_id' => $assistant->id, 'action' => 'uploaded']);
+        $this->assertDatabaseHas('doctor_workspace_events', ['doctor_profile_id' => $profile->id, 'actor_id' => $assistant->id, 'action' => 'document_uploaded']);
+
+        // The patient sees who added it, and the doctor sees it in the assistant's activity.
+        $this->flushSession();
+        $this->actingAs($patient)->get(route('patient.documents.index'))->assertSee('Antibiotics')->assertSee('Added by')->assertSee($assistant->name.' (assistant)');
+        $this->flushSession();
+        $this->actingAs($doctor)->get(route('doctor.assistants.show', $assistant))->assertSee('Uploaded a document')->assertSee('Prescription for '.$patient->name);
+
+        // Doctors do not upload through this route, and another doctor's assistant cannot use it.
+        $this->post(route('assistant.workspace.medical-records.store', $profile), ['patient' => $patient->getRouteKey(), 'category' => 'prescription', 'document' => $prescription()])->assertForbidden();
+        $this->flushSession();
+        $this->actingAs($this->assigned('other@example.com', $otherProfile))
+            ->post(route('assistant.workspace.medical-records.store', $profile), ['patient' => $patient->getRouteKey(), 'category' => 'prescription', 'document' => $prescription()])
+            ->assertForbidden();
+        $this->assertSame(1, MedicalDocument::count());
     }
 
     public function test_admins_see_a_doctors_assistants_and_find_assistants_without_a_doctor(): void

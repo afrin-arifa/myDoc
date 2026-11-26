@@ -148,7 +148,7 @@ class UrlKeyTest extends TestCase
 
         $this->actingAs($profile->user)
             ->get(route('doctor.appointments.create', ['date' => $slot->starts_at->toDateString(), 'slot' => $slot->getRouteKey()]))
-            ->assertOk()->assertSee('value="'.$slot->id.'" selected', false);
+            ->assertOk()->assertSee('value="'.$slot->id.'" required checked', false);
     }
 
     private function assertNoIdsInLinks(User $user, string $url): void

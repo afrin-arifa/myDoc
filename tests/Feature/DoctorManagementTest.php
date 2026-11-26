@@ -293,6 +293,8 @@ class DoctorManagementTest extends TestCase
 
     public function test_schedule_uses_monday_to_sunday_week_and_month_ranges(): void
     {
+        // Before the slots below, so they are still to come.
+        $this->travelTo(CarbonImmutable::create(2026, 11, 1, 8, 0, 0, config('app.timezone')));
         $doctor = $this->makeDoctor();
         $mondaySlot = AppointmentSlot::create([
             'doctor_profile_id' => $doctor->doctorProfile->id,
@@ -321,6 +323,8 @@ class DoctorManagementTest extends TestCase
 
     public function test_schedule_status_filters_limit_calendar_events_without_changing_summary_counts(): void
     {
+        // Before the slots below, so they are still to come.
+        $this->travelTo(CarbonImmutable::create(2026, 11, 1, 8, 0, 0, config('app.timezone')));
         $doctor = $this->makeDoctor();
         $patient = User::factory()->create(['role' => 'patient', 'name' => 'Pending Patient']);
         $bookedSlot = AppointmentSlot::create([

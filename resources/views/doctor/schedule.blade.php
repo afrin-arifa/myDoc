@@ -153,11 +153,13 @@
                                             <a class="{{ $monthDay->isSameDay($selectedDate) ? 'is-selected' : '' }} {{ $monthDay->month !== $selectedDate->month ? 'is-muted' : '' }} {{ $monthDay->isToday() ? 'is-today' : '' }}" data-calendar-date="{{ $monthDay->toDateString() }}" href="{{ $workspace->url('doctor.schedule', ['date' => $monthDay->toDateString(), 'view' => 'day']) }}">
                                                 <strong>{{ $monthDay->day }}</strong>
                                                 @php
+                                                    // Open, held and blocked times that have passed are not counted: they can no longer be used.
+                                                    $upcomingSlots = $monthDay->lt($now->startOfDay()) ? collect() : $monthDaySlots->filter(fn ($slot) => $slot->starts_at->isFuture());
                                                     $monthCounts = [
                                                         'booked' => $monthDaySlots->where('status', 'booked')->count(),
-                                                        'available' => $monthDaySlots->where('status', 'available')->count(),
-                                                        'held' => $monthDaySlots->where('status', 'held')->count(),
-                                                        'blocked' => $monthDaySlots->where('status', 'blocked')->count(),
+                                                        'available' => $upcomingSlots->where('status', 'available')->count(),
+                                                        'held' => $upcomingSlots->where('status', 'held')->count(),
+                                                        'blocked' => $upcomingSlots->where('status', 'blocked')->count(),
                                                     ];
                                                 @endphp
                                                 @foreach (array_filter($monthCounts) as $slotStatus => $count)

@@ -83,6 +83,12 @@
         ? App\Models\Appointment::query()->where('status', 'booked')->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $navProfile->id))->count()
         : 0;
     $subtitle = $role === 'doctor' ? ($navProfile?->professional_title ?? 'Doctor') : $user?->roleLabel();
+    $accountLink = collect($links)->first(fn (array $link): bool => in_array($link['label'], ['Profile', 'Account'], true));
+    $avatarSource = match ($role) {
+        'doctor' => $navProfile?->photoUrl() ?? asset('images/doctor.png'),
+        'patient', 'admin', App\Models\User::ROLE_ASSISTANT => $user->photoUrl(),
+        default => null,
+    };
 @endphp
 
 <nav @class(["navbar navbar-expand-{$breakpoint} site-navbar", 'site-navbar--side' => $isSidebar]) aria-label="Main navigation">
@@ -137,16 +143,34 @@
             </ul>
 
             @auth
-                <div class="site-navbar__account">
-                    <x-ui.avatar :name="$user->name" :src="match ($role) { 'doctor' => $navProfile?->photoUrl() ?? asset('images/doctor.png'), 'patient', 'admin', App\Models\User::ROLE_ASSISTANT => $user->photoUrl(), default => null }" size="sm" />
-                    <div class="site-navbar__identity">
-                        <span class="site-navbar__name">{{ $user->name }}</span>
-                        <span class="site-navbar__role">{{ $subtitle }}</span>
+                <div @class(['site-navbar__account dropdown', 'dropup' => $isSidebar])>
+                    <button class="site-navbar__account-toggle" type="button" data-bs-toggle="dropdown" data-bs-display="static" aria-expanded="false" aria-label="Account menu for {{ $user->name }}">
+                        <span class="site-navbar__avatar">
+                            <x-ui.avatar :name="$user->name" :src="$avatarSource" size="sm" />
+                        </span>
+                        <span class="site-navbar__identity">
+                            <span class="site-navbar__name">{{ $user->name }}</span>
+                            <span class="site-navbar__role">{{ $subtitle }}</span>
+                        </span>
+                        <i class="fa-solid fa-chevron-down site-navbar__chevron" aria-hidden="true"></i>
+                    </button>
+                    <div @class(['dropdown-menu site-navbar__menu', 'dropdown-menu-end' => ! $isSidebar])>
+                        <div class="site-navbar__menu-header">
+                            <x-ui.avatar :name="$user->name" :src="$avatarSource" />
+                            <div class="min-w-0">
+                                <span class="site-navbar__menu-name">{{ $user->name }}</span>
+                                <span class="site-navbar__menu-meta">{{ $user->email ?? $subtitle }}</span>
+                            </div>
+                        </div>
+                        @if ($accountLink)
+                            <a class="dropdown-item site-navbar__menu-item" href="{{ $accountLink['url'] }}"><i class="fa-regular fa-user" aria-hidden="true"></i>{{ $accountLink['label'] }}</a>
+                        @endif
+                        <div class="dropdown-divider"></div>
+                        <form method="POST" action="{{ route('logout') }}">
+                            @csrf
+                            <button class="dropdown-item site-navbar__menu-item site-navbar__logout" type="submit"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Log out</span></button>
+                        </form>
                     </div>
-                    <form method="POST" action="{{ route('logout') }}">
-                        @csrf
-                        <button class="site-navbar__logout" type="submit"><i class="fa-solid fa-arrow-right-from-bracket" aria-hidden="true"></i><span>Log out</span></button>
-                    </form>
                 </div>
             @endauth
         </div>

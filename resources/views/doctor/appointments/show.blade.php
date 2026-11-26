@@ -3,80 +3,137 @@
 @section('title', 'Appointment details | myDoc')
 
 @section('content')
-    <div class="container py-5">
+    @php
+        $slot = $appointment->slot;
+        $patient = $appointment->patient;
+        $isOpen = in_array($appointment->status, ['booked', 'confirmed'], true);
+        $canCancel = $isOpen && $workspace->routeAvailable('doctor.appointments.cancel') && auth()->user()->can('cancel', $appointment);
+        $canComplete = $appointment->status === 'confirmed' && $workspace->routeAvailable('doctor.appointments.complete');
+        $when = match (true) {
+            $slot->starts_at->isToday() => 'Today',
+            $slot->starts_at->isTomorrow() => 'Tomorrow',
+            $slot->starts_at->isYesterday() => 'Yesterday',
+            default => $slot->starts_at->diffForHumans(['parts' => 1]),
+        };
+    @endphp
+    <div class="container py-5 appointment-detail">
         <a class="back-link mb-4" href="{{ $workspace->url('doctor.appointments.index') }}"><i class="fa-solid fa-arrow-left" aria-hidden="true"></i>Back to appointments</a>
         <x-assistant.workspace-banner class="mb-4" />
-        <p class="hero__eyebrow mb-2">{{ $workspace->inAssistantWorkspace() ? 'Doctor Assistant' : 'Doctor space' }}</p>
-        <h1 class="h2 mb-4">Appointment details</h1>
-        <div class="card border-0 shadow-sm">
-            <div class="card-body p-4 detail-list">
-                @if ($workspace->inAssistantWorkspace())
-                    <p><strong>Doctor:</strong> {{ $appointment->slot->doctorProfile->user->name }}</p>
-                @endif
-                <p><strong>Patient:</strong> @if ($appointment->patient->photoUrl())<x-ui.avatar class="me-2" :name="$appointment->patient->name" :src="$appointment->patient->photoUrl()" size="sm" />@endif{{ $appointment->patient->name }}</p>
-                <p><strong>Contact:</strong> {{ $appointment->patient->contactLabel() }}</p>
-                <p><strong>Date and time:</strong> {{ $appointment->slot->starts_at->format('D, M j, Y g:i A') }}</p>
-                <p><strong>Location:</strong> <x-appointments.location :location="$appointment->slot->location" compact /></p>
-                <x-appointments.fee :appointment="$appointment" />
-                <p><strong>Consultation:</strong> <x-appointments.consultation-type :type="$appointment->consultation_type" /></p>
-                <p><strong>Status:</strong> <x-ui.status-badge :status="$appointment->status" /></p>
-                <x-appointments.follow-up-links :appointment="$appointment" audience="staff" class="small mb-3" />
-                @if ($canBookFollowUp)
-                    <a class="btn btn-outline-primary mb-3" href="{{ $workspace->url('doctor.appointments.create', ['follow_up' => $appointment->getRouteKey()]) }}">Book follow-up</a>
-                @endif
-                @if ($appointment->status === 'cancelled' && $appointment->cancellation_reason)
-                    <p class="mb-1"><strong>Cancellation reason (staff only):</strong></p>
-                    <p class="text-secondary" data-cancellation-reason>{{ $appointment->cancellation_reason }}</p>
-                @endif
-                @if ($appointment->cancelled_at)
-                    <p><strong>Cancelled:</strong> {{ $appointment->cancelled_at->format('D, M j, Y g:i A') }}</p>
-                @endif
-                @if ($appointment->consultation_type === 'physical')
-                    <p><strong>Visit details:</strong> In-person appointment at the configured clinic location.</p>
-                @elseif ($appointment->status === 'confirmed')
-                    <p><strong>Online visit:</strong> No voice/video provider is configured yet.</p>
-                @endif
-                @if ($appointment->status === 'booked')
-                    <div class="d-flex gap-2">
+        <header class="appointment-detail__header">
+            <div>
+                <p class="hero__eyebrow mb-2">{{ $workspace->inAssistantWorkspace() ? 'Doctor Assistant' : 'Doctor space' }}</p>
+                <h1 class="h2 mb-0">Appointment details</h1>
+            </div>
+            <span class="appointment-detail__reference">{{ $appointment->reference() }}</span>
+        </header>
+
+        <section class="appointment-detail__summary" aria-label="Patient and time">
+            <div class="appointment-detail__patient">
+                <x-ui.avatar :name="$patient->name" :src="$patient->photoUrl()" size="lg" />
+                <div>
+                    <h2 class="appointment-detail__name">{{ $patient->name }}@if ($patient->is_walk_in) <span class="badge text-bg-light align-middle">Walk-in</span>@endif</h2>
+                    <p class="appointment-detail__contact"><i class="fa-regular {{ $patient->email ? 'fa-envelope' : 'fa-address-card' }}" aria-hidden="true"></i>{{ $patient->contactLabel() }}</p>
+                    @if ($workspace->inAssistantWorkspace())
+                        <p class="appointment-detail__contact"><i class="fa-solid fa-user-doctor" aria-hidden="true"></i>With {{ $slot->doctorProfile->user->name }}</p>
+                    @endif
+                </div>
+            </div>
+            <div @class(['appointment-detail__when', 'is-today' => $slot->starts_at->isToday()])>
+                <x-ui.status-badge :status="$appointment->status" />
+                <span class="appointment-detail__date"><i class="fa-regular fa-calendar" aria-hidden="true"></i>{{ $slot->starts_at->format('D, M j, Y') }}</span>
+                <span class="appointment-detail__time"><i class="fa-regular fa-clock" aria-hidden="true"></i>{{ $slot->starts_at->format('g:i A') }} – {{ $slot->ends_at->format('g:i A') }}<span class="appointment-detail__relative">{{ $when }}</span></span>
+            </div>
+        </section>
+
+        <dl class="appointment-detail__facts">
+            <div class="appointment-detail__fact">
+                <dt><i class="fa-regular fa-clock" aria-hidden="true"></i>Requested</dt>
+                <dd>{{ ($appointment->booked_at ?? $appointment->created_at)?->format('M j, Y g:i A') ?? 'Not recorded' }}</dd>
+            </div>
+            <div class="appointment-detail__fact">
+                <dt><i class="fa-solid fa-location-dot" aria-hidden="true"></i>Location</dt>
+                <dd><x-appointments.location :location="$slot->location" /></dd>
+            </div>
+            <div class="appointment-detail__fact">
+                <dt><i class="fa-solid fa-stethoscope" aria-hidden="true"></i>Consultation</dt>
+                <dd><x-appointments.consultation-type :type="$appointment->consultation_type" /></dd>
+            </div>
+            <div class="appointment-detail__fact">
+                <dt><i class="fa-regular fa-money-bill-1" aria-hidden="true"></i>{{ App\Services\ConsultationFee::label($appointment->fee_type) ?? 'Consultation fee' }}</dt>
+                <dd @class(['text-secondary' => $appointment->consultation_fee === null]) data-appointment-fee>{{ App\Services\ConsultationFee::format($appointment->consultation_fee) }}</dd>
+            </div>
+        </dl>
+
+        <section class="appointment-detail__notes" aria-label="Visit details">
+            @if ($appointment->consultation_type === 'physical')
+                <p><strong>Visit details:</strong> In-person appointment at the configured clinic location.</p>
+            @elseif ($appointment->status === 'confirmed')
+                <p><strong>Online visit:</strong> No voice/video provider is configured yet.</p>
+            @endif
+            <x-appointments.follow-up-links :appointment="$appointment" audience="staff" />
+            @if ($appointment->cancelled_at)
+                <p><strong>Cancelled:</strong> {{ $appointment->cancelled_at->format('D, M j, Y g:i A') }}</p>
+            @endif
+            @if ($appointment->status === 'cancelled' && $appointment->cancellation_reason)
+                <div class="appointment-detail__reason">
+                    <strong>Cancellation reason (staff only):</strong>
+                    <p class="mb-0" data-cancellation-reason>{{ $appointment->cancellation_reason }}</p>
+                </div>
+            @endif
+        </section>
+
+        @if ($isOpen || $canBookFollowUp || ($canStart && $workspace->routeAvailable('doctor.appointments.start')))
+            <div class="appointment-detail__actions">
+                <div class="appointment-detail__action-group">
+                    @if ($appointment->status === 'booked')
                         <form method="POST" action="{{ $workspace->url('doctor.appointments.confirm', $appointment) }}">
                             @csrf
-                            <button class="btn btn-primary" type="submit">Confirm</button>
+                            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check me-1" aria-hidden="true"></i>Confirm</button>
                         </form>
-                        <form method="POST" action="{{ $workspace->url('doctor.appointments.reject', $appointment) }}">
+                    @endif
+                    @if ($canStart && $workspace->routeAvailable('doctor.appointments.start'))
+                        <details class="consultation-launch">
+                            <summary class="btn btn-primary">Start now</summary>
+                            <div class="consultation-launch__menu">
+                                <p class="small text-secondary mb-2">This is a {{ $appointment->consultation_type }} consultation.</p>
+                                <form method="POST" action="{{ route('doctor.appointments.start', $appointment) }}">
+                                    @csrf
+                                    <button class="btn btn-sm btn-outline-primary w-100" type="submit">{{ ucfirst($appointment->consultation_type) }} call</button>
+                                </form>
+                            </div>
+                        </details>
+                    @endif
+                    @if ($canComplete)
+                        <form method="POST" action="{{ route('doctor.appointments.complete', $appointment) }}">
                             @csrf
-                            <button class="btn btn-outline-danger" type="submit">Reject</button>
+                            <button class="btn btn-primary" type="submit"><i class="fa-solid fa-check-double me-1" aria-hidden="true"></i>Mark completed</button>
                         </form>
+                    @endif
+                    @if ($isOpen)
+                        <a class="btn btn-outline-primary" href="{{ $workspace->url('doctor.appointments.reschedule', $appointment) }}"><i class="fa-regular fa-calendar me-1" aria-hidden="true"></i>Reschedule</a>
+                    @endif
+                    @if ($canBookFollowUp)
+                        <a class="btn btn-outline-primary" href="{{ $workspace->url('doctor.appointments.create', ['follow_up' => $appointment->getRouteKey()]) }}"><i class="fa-solid fa-rotate-right me-1" aria-hidden="true"></i>Book follow-up</a>
+                    @endif
+                </div>
+                @if ($appointment->status === 'booked' || $canCancel)
+                    <div class="appointment-detail__action-group">
+                        @if ($appointment->status === 'booked')
+                            <form method="POST" action="{{ $workspace->url('doctor.appointments.reject', $appointment) }}">
+                                @csrf
+                                <button class="btn btn-outline-danger" type="submit">Reject</button>
+                            </form>
+                        @endif
+                        @if ($canCancel)
+                            <button class="btn btn-outline-danger" type="button" data-bs-toggle="modal" data-bs-target="#cancel-appointment">Cancel appointment</button>
+                        @endif
                     </div>
                 @endif
-                @if (in_array($appointment->status, ['booked', 'confirmed'], true))
-                    <a class="btn btn-outline-primary mt-3" href="{{ $workspace->url('doctor.appointments.reschedule', $appointment) }}">Reschedule</a>
-                @endif
-                @if (in_array($appointment->status, ['booked', 'confirmed'], true) && $workspace->routeAvailable('doctor.appointments.cancel') && auth()->user()->can('cancel', $appointment))
-                    <button class="btn btn-outline-danger mt-3" type="button" data-bs-toggle="modal" data-bs-target="#cancel-appointment">Cancel appointment</button>
-                @endif
-                @if ($appointment->status === 'confirmed' && $workspace->routeAvailable('doctor.appointments.complete'))
-                    <form class="d-inline-block mt-3" method="POST" action="{{ route('doctor.appointments.complete', $appointment) }}">
-                        @csrf
-                        <button class="btn btn-outline-success" type="submit">Mark completed</button>
-                    </form>
-                @endif
-                @if ($canStart && $workspace->routeAvailable('doctor.appointments.start'))
-                    <details class="consultation-launch mt-3">
-                        <summary class="btn btn-primary">Start now</summary>
-                        <div class="consultation-launch__menu">
-                            <p class="small text-secondary mb-2">This is a {{ $appointment->consultation_type }} consultation.</p>
-                            <form method="POST" action="{{ route('doctor.appointments.start', $appointment) }}">
-                                @csrf
-                                <button class="btn btn-sm btn-outline-primary w-100" type="submit">{{ ucfirst($appointment->consultation_type) }} call</button>
-                            </form>
-                        </div>
-                    </details>
-                @endif
             </div>
-        </div>
+        @endif
     </div>
 
-    @if (in_array($appointment->status, ['booked', 'confirmed'], true) && $workspace->routeAvailable('doctor.appointments.cancel') && auth()->user()->can('cancel', $appointment))
+    @if ($canCancel)
         <div class="modal fade" id="cancel-appointment" tabindex="-1" aria-labelledby="cancel-appointment-title" aria-hidden="true"
             @if ($errors->has('reason')) data-show-on-load @endif>
             <div class="modal-dialog modal-dialog-centered">

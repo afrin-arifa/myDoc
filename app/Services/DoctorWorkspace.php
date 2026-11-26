@@ -65,6 +65,7 @@ class DoctorWorkspace
         'doctor.slots.block' => 'slots.block',
         'doctor.slots.unblock' => 'slots.unblock',
         'doctor.medical-records.index' => 'medical-records.index',
+        'doctor.medical-records.store' => 'medical-records.store',
         'medical-documents.download' => 'medical-documents.download',
         'medical-documents.preview' => 'medical-documents.preview',
     ];

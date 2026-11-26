@@ -7,13 +7,32 @@
     <div class="container py-5">
         <div class="row g-4">
             <div class="col-12">
-                <div class="doctor-page-header">
+                <div class="doctor-page-header d-flex flex-wrap justify-content-between align-items-end gap-3">
                     <div>
                         <p class="doctor-eyebrow">Patients</p>
                         <h1 class="doctor-page-title">Medical records</h1>
                         <p class="text-secondary mb-0">Documents shared by patients who have a booked, confirmed or completed appointment with {{ $forAssistant ? $profile->user->name : 'you' }}.</p>
                     </div>
+                    @if ($uploadPatients !== null)
+                        <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#upload-document" aria-expanded="{{ $errors->any() ? 'true' : 'false' }}" aria-controls="upload-document">
+                            <i class="fa-solid fa-arrow-up-from-bracket me-1" aria-hidden="true"></i>Upload for a patient
+                        </button>
+                    @endif
                 </div>
+
+                @if ($uploadPatients !== null)
+                    <section @class(['collapse', 'show' => $errors->any()]) id="upload-document" aria-labelledby="upload-document-heading">
+                        <div class="card border-0 shadow-sm p-4 mb-4">
+                            <h2 class="h5 mb-1" id="upload-document-heading">Upload a document for a patient</h2>
+                            <p class="small text-secondary mb-3">For example a prescription from {{ $profile->user->name }}. Only patients with an appointment with {{ $profile->user->name }} are listed.</p>
+                            @if ($uploadPatients->isEmpty())
+                                <p class="text-secondary mb-0">No patients yet. Patients appear here once they have an appointment.</p>
+                            @else
+                                <x-medical-documents.upload-form :action="$workspace->url('doctor.medical-records.store')" :patients="$uploadPatients" default-category="prescription" />
+                            @endif
+                        </div>
+                    </section>
+                @endif
 
                 <form class="filter-bar row g-2 align-items-end mb-4" method="GET" action="{{ $workspace->url('doctor.medical-records.index') }}" role="search">
                     <div class="col-md-6">

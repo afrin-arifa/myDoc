@@ -145,6 +145,7 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
 Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::get('/doctor/dashboard', [DoctorProfileController::class, 'show'])->name('doctor.dashboard');
     Route::get('/doctor/assistants', [DoctorAssistantController::class, 'index'])->name('doctor.assistants.index');
+    Route::get('/doctor/assistants/{assistant}', [DoctorAssistantController::class, 'show'])->name('doctor.assistants.show');
     Route::get('/doctor/schedule', [DoctorScheduleController::class, 'index'])->name('doctor.schedule');
     Route::get('/doctor/profile', [DoctorProfileController::class, 'profile'])->name('doctor.profile');
     Route::get('/doctor/settings', [DoctorProfileController::class, 'settings'])->name('doctor.settings');
@@ -242,6 +243,9 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
         Route::post('/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('slots.block');
         Route::delete('/slots/{slot}/block', [DoctorSlotController::class, 'unblock'])->name('slots.unblock');
         Route::get('/medical-records', [DoctorMedicalRecordController::class, 'index'])->name('medical-records.index');
+        Route::post('/medical-records', [DoctorMedicalRecordController::class, 'store'])
+            ->middleware('throttle:20,1')
+            ->name('medical-records.store');
         Route::get('/medical-documents/{document}/download', [MedicalDocumentController::class, 'download'])
             ->middleware('throttle:60,1')
             ->name('medical-documents.download');

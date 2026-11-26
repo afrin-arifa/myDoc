@@ -90,8 +90,8 @@ class DoctorAccess
 
     /**
      * What a Doctor Assistant may do for an assigned doctor. Anything not listed is denied, including starting or
-     * completing consultations, editing the doctor's profile or account, Google Calendar and uploading or deleting
-     * patient documents.
+     * completing consultations, editing the doctor's profile or account, Google Calendar and deleting patient
+     * documents. Assistants may upload a document (such as a prescription) for a patient in the doctor's care.
      *
      * @var list<string>
      */
@@ -99,6 +99,7 @@ class DoctorAccess
         self::VIEW_APPOINTMENTS, self::BOOK_APPOINTMENTS, self::CONFIRM_APPOINTMENTS, self::REJECT_APPOINTMENTS,
         self::RESCHEDULE_APPOINTMENTS, self::CANCEL_APPOINTMENTS, self::MANAGE_SCHEDULE, self::MANAGE_SLOTS,
         self::VIEW_PATIENTS, self::VIEW_MEDICAL_DOCUMENTS, self::PREVIEW_MEDICAL_DOCUMENTS, self::DOWNLOAD_MEDICAL_DOCUMENTS,
+        self::UPLOAD_MEDICAL_DOCUMENTS,
     ];
 
     /**

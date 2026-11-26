@@ -18,13 +18,14 @@
             <div class="row row-cols-1 row-cols-md-2 row-cols-xxl-3 g-4 mb-4">
                 @foreach ($assignments as $assignment)
                     <div class="col">
-                        <article class="doctor-panel h-auto d-flex align-items-center gap-3">
+                        <article class="doctor-panel assistant-card h-auto d-flex align-items-center gap-3 position-relative">
                             <x-ui.avatar :name="$assignment->assistant->name" :src="$assignment->assistant->photoUrl()" size="lg" />
                             <div class="min-w-0">
-                                <h2 class="h6 mb-1">{{ $assignment->assistant->name }}</h2>
+                                <h2 class="h6 mb-1"><a class="stretched-link link-body-emphasis text-decoration-none" href="{{ route('doctor.assistants.show', $assignment->assistant) }}">{{ $assignment->assistant->name }}</a></h2>
                                 <p class="small text-secondary mb-1 text-break">{{ $assignment->assistant->email }}{{ $assignment->assistant->phone ? ' · '.$assignment->assistant->phone : '' }}</p>
                                 <p class="small text-secondary mb-0">Since {{ $assignment->created_at->format('M j, Y') }}</p>
                             </div>
+                            <span class="assistant-card__open ms-auto" aria-hidden="true"><i class="fa-solid fa-chevron-right"></i></span>
                         </article>
                     </div>
                 @endforeach
@@ -55,20 +56,7 @@
                                     <td class="text-nowrap">{{ $event->created_at->format('M j, Y g:i A') }}</td>
                                     <td>{{ $event->actor?->name ?? 'Former account' }}</td>
                                     <td>{{ $event->actionLabel() }}</td>
-                                    <td>
-                                        @if ($event->appointment)
-                                            <a href="{{ route('doctor.appointments.show', $event->appointment) }}">{{ $event->appointment->reference() }}</a>
-                                            · {{ $event->appointment->patient?->name }} · {{ $event->appointment->slot?->starts_at->format('M j, g:i A') }}
-                                        @elseif (isset($event->context['slot_count']))
-                                            {{ $event->context['slot_count'] }} {{ Str::plural('slot', $event->context['slot_count']) }}, {{ $event->context['range_start'] ?? '' }} to {{ $event->context['range_end'] ?? '' }}
-                                        @elseif (isset($event->context['day_of_week'], $event->context['start_time'], $event->context['end_time']))
-                                            {{ ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][$event->context['day_of_week']] ?? '' }} {{ $event->context['start_time'] }}–{{ $event->context['end_time'] }}
-                                        @elseif (isset($event->context['starts_at']))
-                                            {{ Carbon\Carbon::parse($event->context['starts_at'])->setTimezone(config('app.timezone'))->format('M j, Y g:i A') }}
-                                        @else
-                                            <span class="text-secondary">—</span>
-                                        @endif
-                                    </td>
+                                    <td><x-assistant.event-details :event="$event" /></td>
                                 </tr>
                             @endforeach
                         </tbody>

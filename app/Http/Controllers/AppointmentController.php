@@ -51,7 +51,7 @@ class AppointmentController extends Controller
         $patient = $request->user();
         $appointments = Appointment::query()
             ->whereBelongsTo($patient, 'patient')
-            ->with(['slot.doctorProfile.user'])
+            ->with(['slot.doctorProfile.user', 'slot.doctorProfile.specialties'])
             ->orderByDesc('created_at')
             ->paginate(10)
             ->withQueryString();

@@ -56,6 +56,12 @@
                 <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> Uploaded</dt>
                 <dd><time datetime="{{ $document->created_at->toIso8601String() }}">{{ $document->created_at->format('M j, Y') }}</time></dd>
             </div>
+            @if ($document->uploaded_by !== null && $document->uploaded_by !== $document->patient_id && $document->relationLoaded('uploader') && $document->uploader)
+                <div>
+                    <dt><i class="fa-solid fa-user-pen" aria-hidden="true"></i> Added by</dt>
+                    <dd class="text-truncate" title="{{ $document->uploader->name }}">{{ $document->uploader->name }}{{ $document->uploader->role === App\Models\User::ROLE_ASSISTANT ? ' (assistant)' : '' }}</dd>
+                </div>
+            @endif
             <div>
                 <dt><i class="fa-regular fa-file" aria-hidden="true"></i> File</dt>
                 <dd>{{ $document->fileTypeLabel() }} · {{ $document->humanSize() }}</dd>

@@ -28,12 +28,12 @@ class DoctorAccessAuthorizationTest extends TestCase
     private const ASSISTANT_ALLOWED = [
         'view_appointments', 'book_appointments', 'confirm_appointments', 'reject_appointments', 'reschedule_appointments',
         'cancel_appointments', 'manage_schedule', 'manage_slots', 'view_patients', 'view_medical_documents',
-        'preview_medical_documents', 'download_medical_documents',
+        'preview_medical_documents', 'download_medical_documents', 'upload_medical_documents',
     ];
 
     private const ASSISTANT_DENIED = [
         'start_appointments', 'complete_appointments', 'edit_doctor_profile', 'manage_doctor_account',
-        'manage_google_calendar', 'upload_medical_documents', 'delete_medical_documents',
+        'manage_google_calendar', 'delete_medical_documents',
     ];
 
     /**
@@ -276,7 +276,7 @@ class DoctorAccessAuthorizationTest extends TestCase
             $this->assertFalse($user->can('delete', $image));
         }
         $this->assertFalse($this->assistant->can('download', $pdf), 'Assistants need a doctor context.');
-        $this->assertFalse($this->assistant->can('create', MedicalDocument::class), 'Assistants never upload.');
+        $this->assertFalse($this->assistant->can('create', MedicalDocument::class), 'Assistants upload only through a doctor workspace.');
         $this->assertFalse($this->doctorB->can('view', $image));
         $this->assertFalse($this->assistant([$this->profileB])->can('view', [$image, $this->profileB]));
         $this->assertTrue($this->assistant->can('viewAny', MedicalDocument::class));

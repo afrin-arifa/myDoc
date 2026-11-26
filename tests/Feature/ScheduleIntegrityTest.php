@@ -56,19 +56,29 @@ class ScheduleIntegrityTest extends TestCase
             ->assertSee('data-timeline="8-23"', false);
     }
 
-    public function test_past_available_slots_cannot_be_booked_from_the_calendar(): void
+    public function test_unused_times_that_have_passed_leave_the_calendar_but_appointments_stay(): void
     {
         $doctor = $this->doctor();
-        $this->slot($doctor->doctorProfile, '2026-11-02 07:00');
+        $profile = $doctor->doctorProfile;
+        $this->slot($profile, '2026-11-02 07:00');
+        $this->slot($profile, '2026-11-02 07:10', 'blocked');
+        $this->appointment($profile, '2026-11-02 07:20', 'completed');
         $url = route('doctor.schedule', ['date' => '2026-11-02', 'view' => 'day']);
 
-        $this->actingAs($doctor)->get($url)->assertOk()
-            ->assertSee('data-event-type="available"', false)
+        $page = $this->actingAs($doctor)->get($url)->assertOk()
+            ->assertDontSee('data-event-type="available"', false)
+            ->assertDontSee('data-event-type="blocked"', false)
+            ->assertSee('data-event-type="appointment"', false)
             ->assertDontSee('Book this available slot');
+        $this->assertSame(['total slots' => 3, 'available' => 0, 'blocked' => 0], array_intersect_key($page->viewData('summary'), array_flip(['total slots', 'available', 'blocked'])));
+        $this->get(route('doctor.schedule', ['date' => '2026-11-02', 'view' => 'month']))->assertOk()
+            ->assertDontSee('doctor-month-calendar__count--available', false);
 
-        $this->slot($doctor->doctorProfile, '2026-11-02 22:50');
+        $this->slot($profile, '2026-11-02 22:50');
 
         $this->get($url)->assertOk()->assertSee('Book this available slot');
+        $this->get(route('doctor.schedule', ['date' => '2026-11-02', 'view' => 'month']))->assertOk()
+            ->assertSee('1 <span>open</span>', false);
     }
 
     public function test_the_dashboard_drops_open_times_that_have_passed_but_keeps_appointments(): void
