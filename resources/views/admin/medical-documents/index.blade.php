@@ -35,30 +35,19 @@
     @if ($documents->isEmpty())
         <x-ui.empty-state title="No documents found" :message="array_filter($filters) ? 'No documents match these filters.' : 'Patients have not uploaded any documents yet.'" />
     @else
-        <div class="table-responsive">
-            <table class="table align-middle">
-                <caption class="visually-hidden">Medical documents</caption>
-                <thead>
-                    <tr><th scope="col">Patient</th><th scope="col">Document</th><th scope="col">Type</th><th scope="col">Linked doctor</th><th scope="col">Uploaded</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
-                </thead>
-                <tbody>
-                    @foreach ($documents as $document)
-                        <tr>
-                            <td><strong>{{ $document->patient->name }}</strong><br><span class="small text-secondary">{{ $document->patient->contactLabel() }}</span></td>
-                            <td>{{ $document->displayTitle() }}<br><span class="small text-secondary">{{ $document->original_name }} · {{ $document->fileTypeLabel() }} · {{ $document->humanSize() }}</span></td>
-                            <td><span class="badge text-bg-light">{{ $document->categoryLabel() }}</span></td>
-                            <td>{{ $document->appointment?->slot?->doctorProfile?->user?->name ?? '—' }}</td>
-                            <td>{{ $document->created_at->format('M j, Y') }}</td>
-                            <td class="text-end text-nowrap">
-                                <a class="btn btn-sm btn-outline-secondary" href="{{ route('admin.medical-documents.show', $document) }}">Details</a>
-                                <a class="btn btn-sm btn-outline-primary" href="{{ route('medical-documents.download', $document) }}">Download</a>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
+        <p class="small text-secondary mb-3">{{ $documents->total() }} {{ Str::plural('document', $documents->total()) }}</p>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-xl-3 row-cols-xxl-4 g-4">
+            @foreach ($documents as $document)
+                <div class="col">
+                    <x-medical-documents.card :document="$document" viewer="admin" />
+                </div>
+            @endforeach
         </div>
-        {{ $documents->links() }}
+        <div class="mt-4">
+            {{ $documents->links() }}
+        </div>
     @endif
 </div>
+
+<x-medical-documents.preview-modal />
 @endsection

@@ -3,6 +3,8 @@
     viewer="patient" (default): the owner's view, with the linked doctor and a Delete action.
     viewer="doctor": a treating doctor's (or their assistant's) view, showing whose document it is, linking the
     appointment to its page in the current workspace, and offering Download only (staff never delete patient documents).
+    viewer="admin": the platform-wide view, with the patient's contact, the linked doctor and a Details link to the
+    activity log.
     Images load through the authorized preview route; nothing links to storage. Download and preview use the current
     workspace's routes, so in an assistant workspace they carry the selected doctor.
 --}}
@@ -12,7 +14,8 @@
     $name = $document->title ?: $document->original_name;
     $downloadUrl = $workspace->url('medical-documents.download', $document);
     $previewUrl = $workspace->url('medical-documents.preview', $document);
-    $isDoctorView = $viewer === 'doctor';
+    $isAdminView = $viewer === 'admin';
+    $isDoctorView = $viewer === 'doctor' || $isAdminView;
 @endphp
 
 <article class="card document-card h-100">
@@ -52,6 +55,12 @@
                     <dd class="text-truncate" title="{{ $document->patient->name }}">{{ $document->patient->name }}</dd>
                 </div>
             @endif
+            @if ($isAdminView)
+                <div>
+                    <dt><i class="fa-regular fa-envelope" aria-hidden="true"></i> Contact</dt>
+                    <dd class="text-truncate" title="{{ $document->patient->contactLabel() }}">{{ $document->patient->contactLabel() }}</dd>
+                </div>
+            @endif
             <div>
                 <dt><i class="fa-regular fa-calendar" aria-hidden="true"></i> Uploaded</dt>
                 <dd><time datetime="{{ $document->created_at->toIso8601String() }}">{{ $document->created_at->format('M j, Y') }}</time></dd>
@@ -69,7 +78,9 @@
             <div>
                 <dt><i class="fa-solid fa-stethoscope" aria-hidden="true"></i> Appointment</dt>
                 <dd>
-                    @if ($document->appointment && $isDoctorView)
+                    @if ($document->appointment && $isAdminView)
+                        {{ $document->appointment->slot->starts_at->format('M j, Y') }} · {{ $document->appointment->slot->doctorProfile->user->name }}
+                    @elseif ($document->appointment && $isDoctorView)
                         <a href="{{ $workspace->url('doctor.appointments.show', $document->appointment) }}">{{ $document->appointment->slot->starts_at->format('M j, Y g:i A') }}</a>
                     @elseif ($document->appointment)
                         {{ $document->appointment->slot->starts_at->format('M j, Y') }} · {{ $document->appointment->slot->doctorProfile->user->name }}
@@ -81,6 +92,11 @@
         </dl>
 
         <div class="d-flex gap-2 mt-auto">
+            @if ($isAdminView)
+                <a class="btn btn-sm btn-outline-secondary flex-fill" href="{{ route('admin.medical-documents.show', $document) }}">
+                    <i class="fa-solid fa-clock-rotate-left me-1" aria-hidden="true"></i>Details<span class="visually-hidden"> of {{ $name }}</span>
+                </a>
+            @endif
             <a class="btn btn-sm btn-outline-primary flex-fill" href="{{ $downloadUrl }}">
                 <i class="fa-solid fa-download me-1" aria-hidden="true"></i>Download<span class="visually-hidden"> {{ $name }}</span>
             </a>
