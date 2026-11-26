@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Assistant;
 
 use App\Http\Controllers\Controller;
 use App\Models\Appointment;
+use App\Models\DoctorAnnouncement;
 use App\Models\DoctorProfile;
 use App\Services\DoctorAccess;
 use App\Services\DoctorWorkspace;
@@ -37,6 +38,13 @@ class AssistantDashboardController extends Controller
             ],
             'pending' => $this->nextAppointments($appointments()->where('appointments.status', 'booked')->upcoming()),
             'assistant' => $request->user(),
+            // The doctors are already loaded, so each notice reuses its doctor instead of querying it again.
+            'teamNotices' => DoctorAnnouncement::query()
+                ->unreadForStaff($request->user(), $doctors->modelKeys())
+                ->with('author:id,name,role')
+                ->limit(5)
+                ->get()
+                ->each(fn (DoctorAnnouncement $notice) => $notice->setRelation('doctorProfile', $doctors->firstWhere('id', $notice->doctor_profile_id))),
             'doctors' => $doctors,
             'upcoming' => $this->nextAppointments($appointments()->upcoming()),
         ]);

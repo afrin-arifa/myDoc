@@ -16,6 +16,8 @@
             </div>
         </div>
 
+        <x-patients.announcements :announcements="$announcements" />
+
         <div class="row g-3 mb-4">
             @foreach ([
                 'total' => ['Total appointments', 'fa-regular fa-calendar', 'primary'],

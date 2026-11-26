@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Appointment\BookAppointmentRequest;
 use App\Models\Appointment;
 use App\Models\AppointmentSlot;
+use App\Models\DoctorAnnouncement;
 use App\Services\AppointmentBookingService;
 use App\Services\ConsultationFee;
 use App\Services\PatientAppointmentRules;
@@ -68,6 +69,11 @@ class AppointmentController extends Controller
                 ->get();
 
             return view('patient.dashboard', [
+                'announcements' => DoctorAnnouncement::query()
+                    ->visibleToPatient($patient)
+                    ->with('doctorProfile.user:id,name')
+                    ->limit(5)
+                    ->get(),
                 'upcomingAppointments' => $upcomingAppointments,
                 'appointmentCounts' => array_map('intval', (array) $patient->appointments()
                     ->join('appointment_slots', 'appointment_slots.id', '=', 'appointments.appointment_slot_id')

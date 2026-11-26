@@ -13,7 +13,7 @@ use App\Services\DoctorWorkspace;
 use App\Services\DoctorWorkspaceEventService;
 use App\Services\MedicalDocumentService;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Collection as EloquentCollection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -42,7 +42,7 @@ class DoctorMedicalRecordController extends Controller
 
         $documents = MedicalDocument::query()
             ->visibleToDoctorProfiles($profileIds)
-            ->with(['patient:id,name,email,phone', 'appointment.slot', 'uploader:id,name,role'])
+            ->with(['patient:id,name,email,phone', 'appointment.slot' => fn ($slots) => $slots->without('location')])
             ->when($filters['category'] ?? null, fn (Builder $query, string $category) => $query->where('category', $category))
             ->when($filters['patient'] ?? null, fn (Builder $query, string $patientKey) => $query->where('patient_id', User::idFromUrlKey($patientKey) ?? 0))
             ->when($search, fn (Builder $query) => $query->where(fn (Builder $matches) => $matches
@@ -53,21 +53,24 @@ class DoctorMedicalRecordController extends Controller
             ->paginate(15)
             ->withQueryString();
 
+        MedicalDocument::loadStaffUploaders($documents->getCollection());
+
         // A document may be linked to another doctor's appointment; that link is the other doctor's data.
         $documents->getCollection()->each(fn (MedicalDocument $document) => $document->setRelation(
             'appointment',
             in_array((int) $document->appointment?->slot?->doctor_profile_id, $profileIds, true) ? $document->appointment : null
         ));
 
+        // Within this workspace the actor already acts for the doctor, so only the role's ability list decides.
         $canUpload = $workspace->routeAvailable('doctor.medical-records.store')
             && $workspace->inAssistantWorkspace()
-            && $access->canActFor($request->user(), $profile, DoctorAccess::UPLOAD_MEDICAL_DOCUMENTS);
+            && $access->allows($request->user(), DoctorAccess::UPLOAD_MEDICAL_DOCUMENTS);
 
         return view('doctor.medical-records.index', [
             'profile' => $profile,
             'documents' => $documents,
             'filters' => $filters,
-            'uploadPatients' => $canUpload ? $this->patientsInCare($profile->id) : null,
+            'canUpload' => $canUpload,
         ]);
     }
 
@@ -109,19 +112,35 @@ class DoctorMedicalRecordController extends Controller
     }
 
     /**
-     * Patients with a booked, confirmed or completed appointment with this doctor, for the upload form.
-     *
-     * @return EloquentCollection<int, User>
+     * Patients an assistant may upload a document for (a booked, confirmed or completed appointment with this
+     * doctor), matching the search, for the upload form's patient picker.
      */
-    private function patientsInCare(int $profileId): EloquentCollection
+    public function searchPatients(Request $request, DoctorWorkspace $workspace): JsonResponse
     {
-        return User::query()
-            ->where('role', 'patient')
+        $profile = $workspace->forRequest($request, DoctorAccess::UPLOAD_MEDICAL_DOCUMENTS);
+        abort_unless($profile, 403);
+
+        $search = $request->validate(['search' => ['required', 'string', 'min:2', 'max:100']])['search'];
+
+        $patients = User::query()
+            ->activePatients()
             ->whereHas('appointments', fn (Builder $appointments) => $appointments
                 ->whereIn('status', MedicalDocument::CARE_STATUSES)
-                ->whereHas('slot', fn (Builder $slots) => $slots->where('doctor_profile_id', $profileId)))
+                ->whereHas('slot', fn (Builder $slots) => $slots->where('doctor_profile_id', $profile->id)))
+            ->where(fn (Builder $matches) => $matches
+                ->where('name', 'like', "%{$search}%")
+                ->orWhere('email', 'like', "%{$search}%")
+                ->orWhere('phone', 'like', "%{$search}%"))
             ->orderBy('name')
-            ->limit(500)
+            ->limit(20)
             ->get(['id', 'name', 'email', 'phone']);
+
+        return response()->json([
+            'data' => $patients->map(fn (User $patient): array => [
+                'key' => $patient->getRouteKey(),
+                'name' => $patient->name,
+                'email' => $patient->contactLabel(),
+            ])->all(),
+        ]);
     }
 }

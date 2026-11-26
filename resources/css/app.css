@@ -1936,31 +1936,6 @@ h1.h2,
     }
 }
 
-.date-tile {
-    align-items: center;
-    align-self: flex-start;
-    background: var(--mydoc-tint);
-    border-radius: 0.85rem;
-    color: var(--mydoc-primary-dark);
-    display: flex;
-    flex: 0 0 4.5rem;
-    flex-direction: column;
-    line-height: 1.15;
-    padding: 0.7rem 0.5rem;
-    width: 4.5rem;
-}
-
-.date-tile__month,
-.date-tile__weekday {
-    font-size: 0.8rem;
-    font-weight: 600;
-}
-
-.date-tile__day {
-    font-size: 1.6rem;
-    font-weight: 700;
-}
-
 .doctor-card {
     box-shadow: var(--mydoc-shadow);
 }
@@ -5501,4 +5476,355 @@ dd > a:not([class]),
 .assistant-profile .doctor-panel {
     max-height: none;
     overflow: visible;
+}
+
+/* One-time password handed to a patient: shown once to staff after creating the account. */
+.credentials-notice {
+    background: linear-gradient(135deg, #fff 50%, #fff7e6);
+    border: 1px solid #f4d48a;
+    border-radius: 1.15rem;
+    box-shadow: var(--mydoc-shadow);
+    margin-bottom: 1.5rem;
+    padding: 1.25rem 1.4rem;
+}
+
+.credentials-notice__header {
+    align-items: flex-start;
+    display: flex;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+}
+
+.credentials-notice__icon {
+    align-items: center;
+    background: #fdecc8;
+    border-radius: 0.85rem;
+    color: #a15c07;
+    display: inline-flex;
+    flex-shrink: 0;
+    height: 2.6rem;
+    justify-content: center;
+    width: 2.6rem;
+}
+
+.credentials-notice__title {
+    color: var(--mydoc-ink);
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin: 0 0 0.2rem;
+}
+
+.credentials-notice__lead {
+    color: #8a5300;
+    font-size: 0.9rem;
+    font-weight: 500;
+    margin: 0;
+}
+
+.credentials-notice__details {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    margin: 0 0 1rem;
+
+    > div {
+        background: #fff;
+        border: 1px solid var(--mydoc-line);
+        border-radius: 0.85rem;
+        padding: 0.7rem 0.9rem;
+    }
+
+    dt {
+        color: var(--mydoc-muted);
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        margin-bottom: 0.3rem;
+        text-transform: uppercase;
+    }
+
+    dd {
+        align-items: center;
+        display: flex;
+        gap: 0.5rem;
+        justify-content: space-between;
+        margin: 0;
+    }
+
+    code {
+        color: var(--mydoc-ink);
+        font-size: 0.95rem;
+        overflow-wrap: anywhere;
+    }
+}
+
+.credentials-notice__password {
+    font-size: 1.2rem !important;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+}
+
+.credentials-notice__copy {
+    background: var(--mydoc-tint);
+    border: 0;
+    border-radius: 0.55rem;
+    color: var(--mydoc-primary-dark);
+    flex-shrink: 0;
+    height: 2rem;
+    width: 2rem;
+
+    &:hover,
+    &.is-copied {
+        background: var(--mydoc-primary);
+        color: #fff;
+    }
+}
+
+.credentials-notice__rules {
+    color: var(--mydoc-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.85rem;
+    gap: 0.4rem 1.25rem;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    i {
+        color: var(--mydoc-primary);
+        margin-right: 0.4rem;
+    }
+}
+
+.credentials-help {
+    background: var(--mydoc-surface);
+    border-radius: 1rem;
+    padding: 1.25rem 1.4rem;
+
+    h2 {
+        color: var(--mydoc-ink);
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+    }
+
+    ol {
+        color: var(--mydoc-ink);
+        font-size: 0.9rem;
+        margin-bottom: 0.85rem;
+        padding-left: 1.1rem;
+
+        li + li {
+            margin-top: 0.4rem;
+        }
+    }
+}
+
+/* Announcements: staff compose and list. */
+.announcement-compose__icon {
+    align-items: center;
+    background: var(--mydoc-tint);
+    border-radius: 0.85rem;
+    color: var(--mydoc-primary);
+    display: inline-flex;
+    height: 2.6rem;
+    justify-content: center;
+    width: 2.6rem;
+}
+
+.announcement-card {
+    background: #fff;
+    border-left: 4px solid var(--mydoc-primary);
+    border-radius: 1rem;
+    box-shadow: var(--mydoc-shadow);
+    margin-bottom: 0.85rem;
+    padding: 1rem 1.15rem;
+
+    &.is-important {
+        border-left-color: #e8a317;
+    }
+
+    &.is-expired {
+        border-left-color: var(--mydoc-line-strong);
+        opacity: 0.7;
+    }
+}
+
+.announcement-card__top {
+    align-items: flex-start;
+    display: flex;
+    gap: 0.75rem;
+    justify-content: space-between;
+}
+
+.announcement-card__title {
+    color: var(--mydoc-ink);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0 0 0.15rem;
+}
+
+.announcement-card__meta {
+    color: var(--mydoc-muted);
+    font-size: 0.8rem;
+    margin: 0;
+}
+
+.announcement-card__body {
+    color: var(--mydoc-ink);
+    font-size: 0.9rem;
+    margin: 0.65rem 0;
+    white-space: pre-line;
+}
+
+.announcement-card__footer {
+    align-items: center;
+    border-top: 1px solid var(--mydoc-line);
+    color: var(--mydoc-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    gap: 0.5rem 1.25rem;
+    padding-top: 0.65rem;
+
+    form {
+        margin: 0;
+    }
+}
+
+/* Announcements: the patient's dashboard notices. */
+.patient-notices {
+    display: grid;
+    gap: 0.75rem;
+}
+
+.patient-notice {
+    align-items: flex-start;
+    background: linear-gradient(135deg, var(--mydoc-tint), #fff 70%);
+    border: 1px solid rgba(22, 125, 145, 0.2);
+    border-radius: 1rem;
+    display: flex;
+    gap: 0.9rem;
+    padding: 1rem 1.1rem;
+
+    &.is-important {
+        background: linear-gradient(135deg, #fff1d6, #fff 70%);
+        border-color: #f4c56a;
+
+        .patient-notice__icon {
+            background: #e8a317;
+        }
+    }
+
+    form {
+        margin: 0;
+    }
+}
+
+.patient-notice__icon {
+    align-items: center;
+    background: var(--mydoc-primary);
+    border-radius: 0.8rem;
+    color: #fff;
+    display: inline-flex;
+    flex-shrink: 0;
+    height: 2.4rem;
+    justify-content: center;
+    width: 2.4rem;
+}
+
+.patient-notice__content {
+    flex: 1;
+    min-width: 0;
+}
+
+.patient-notice__from {
+    align-items: center;
+    color: var(--mydoc-primary-dark);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    font-weight: 600;
+    gap: 0.4rem;
+    margin: 0 0 0.15rem;
+}
+
+.patient-notice__flag {
+    background: #e8a317;
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.5rem;
+}
+
+.patient-notice__date {
+    color: var(--mydoc-muted);
+    font-weight: 500;
+}
+
+.patient-notice__title {
+    color: var(--mydoc-ink);
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 0.2rem;
+}
+
+.patient-notice__body {
+    color: var(--mydoc-ink);
+    font-size: 0.9rem;
+    margin: 0;
+    white-space: pre-line;
+}
+
+.patient-notice__dismiss {
+    align-items: center;
+    background: transparent;
+    border: 0;
+    border-radius: 50%;
+    color: var(--mydoc-muted);
+    display: inline-flex;
+    height: 2rem;
+    justify-content: center;
+    width: 2rem;
+
+    &:hover,
+    &:focus-visible {
+        background: rgba(22, 50, 79, 0.08);
+        color: var(--mydoc-ink);
+    }
+}
+
+.patient-notices-page {
+    max-width: 60rem;
+}
+
+.patient-notice.is-read {
+    background: #fff;
+    border-color: var(--mydoc-line);
+
+    .patient-notice__icon {
+        background: var(--mydoc-tint);
+        color: var(--mydoc-primary);
+    }
+}
+
+.patient-notice__new {
+    background: var(--mydoc-primary);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 0.1rem 0.5rem;
+}
+
+.patient-notice__meta {
+    color: var(--mydoc-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: 0.8rem;
+    gap: 0.3rem 1rem;
+    margin: 0.5rem 0 0;
+
+    i {
+        color: var(--mydoc-primary);
+        margin-right: 0.35rem;
+    }
 }

@@ -15,6 +15,7 @@
             ['label' => 'My appointments', 'icon' => 'fa-regular fa-calendar-check', 'url' => route('patient.appointments.index'), 'active' => ['patient.appointments.*', 'appointment-slots.*']],
             ['label' => 'Waiting list', 'icon' => 'fa-regular fa-hourglass-half', 'url' => route('patient.waitlist.index'), 'active' => ['patient.waitlist.*']],
             ['label' => 'Medical records', 'icon' => 'fa-regular fa-folder-open', 'url' => route('patient.documents.index'), 'active' => ['patient.documents.*']],
+            ['label' => 'Notices', 'icon' => 'fa-solid fa-bullhorn', 'url' => route('patient.announcements.index'), 'active' => ['patient.announcements.*'], 'counter' => 'notices'],
             ['label' => 'Profile', 'icon' => 'fa-regular fa-user', 'url' => route('patient.profile'), 'active' => ['patient.profile']],
         ])),
         'doctor' => [
@@ -22,6 +23,7 @@
             ['label' => 'Schedule', 'icon' => 'fa-regular fa-clock', 'url' => route('doctor.schedule'), 'active' => ['doctor.schedule']],
             ['label' => 'Patients', 'icon' => 'fa-solid fa-user-group', 'url' => route('doctor.patients.index'), 'active' => ['doctor.patients.*']],
             ['label' => 'Medical records', 'icon' => 'fa-regular fa-folder-open', 'url' => route('doctor.medical-records.index'), 'active' => ['doctor.medical-records.*']],
+            ['label' => 'Announcements', 'icon' => 'fa-solid fa-bullhorn', 'url' => route('doctor.announcements.index'), 'active' => ['doctor.announcements.*'], 'counter' => 'notices'],
             ['label' => 'Assistants', 'icon' => 'fa-solid fa-user-nurse', 'url' => route('doctor.assistants.index'), 'active' => ['doctor.assistants.*']],
             ['label' => 'Profile', 'icon' => 'fa-regular fa-id-card', 'url' => route('doctor.profile'), 'active' => ['doctor.profile']],
             ['label' => 'Settings', 'icon' => 'fa-solid fa-gear', 'url' => route('doctor.settings'), 'active' => ['doctor.settings']],
@@ -68,6 +70,7 @@
             ['label' => 'Schedule and slots', 'icon' => 'fa-regular fa-clock', 'url' => $workspace->url('doctor.schedule'), 'active' => ['assistant.workspace.schedule']],
             ['label' => 'Patients', 'icon' => 'fa-solid fa-user-group', 'url' => $workspace->url('doctor.patients.index'), 'active' => ['assistant.workspace.patients.*']],
             ['label' => 'Medical records', 'icon' => 'fa-regular fa-folder-open', 'url' => $workspace->url('doctor.medical-records.index'), 'active' => ['assistant.workspace.medical-records.*']],
+            ['label' => 'Announcements', 'icon' => 'fa-solid fa-bullhorn', 'url' => $workspace->url('doctor.announcements.index'), 'active' => ['assistant.workspace.announcements.*'], 'counter' => 'notices'],
         ];
         $currentSection = str_replace('assistant.workspace.', '', (string) request()->route()?->getName());
         $switchSection = in_array($currentSection, ['appointments.index', 'schedule', 'patients.index', 'medical-records.index'], true) ? $currentSection : 'appointments.index';
@@ -82,6 +85,12 @@
     $pendingCount = $navProfile
         ? App\Models\Appointment::query()->where('status', 'booked')->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $navProfile->id))->count()
         : 0;
+    // Unread notices: a patient's from their doctors; staff's new announcements from colleagues for this doctor.
+    $unreadNotices = match (true) {
+        $role === 'patient' => App\Models\DoctorAnnouncement::query()->visibleToPatient($user)->count(),
+        $navProfile !== null => App\Models\DoctorAnnouncement::query()->unreadForStaff($user, [$navProfile->id])->count(),
+        default => 0,
+    };
     $subtitle = $role === 'doctor' ? ($navProfile?->professional_title ?? 'Doctor') : $user?->roleLabel();
     $accountLink = collect($links)->first(fn (array $link): bool => in_array($link['label'], ['Profile', 'Account'], true));
     $avatarSource = match ($role) {
@@ -128,7 +137,7 @@
                 @foreach ([...$workspaceLinks, ...$links] as $link)
                     @php($isActive = $link['active'] !== [] && ($link['only'] ?? true) && request()->routeIs(...$link['active']))
                     <li @class(['nav-item', 'site-navbar__divider' => $workspaceLinks !== [] && $loop->index === count($workspaceLinks)])>
-                        <a @class(['nav-link', 'active' => $isActive]) href="{{ $link['url'] }}" @if ($isActive) aria-current="page" @endif><i class="{{ $link['icon'] }} site-navbar__icon" aria-hidden="true"></i>{{ $link['label'] }}@if (($link['counter'] ?? null) === 'pending' && $pendingCount > 0)<span class="site-navbar__count">{{ $pendingCount }}<span class="visually-hidden"> pending approval</span></span>@endif</a>
+                        <a @class(['nav-link', 'active' => $isActive]) href="{{ $link['url'] }}" @if ($isActive) aria-current="page" @endif><i class="{{ $link['icon'] }} site-navbar__icon" aria-hidden="true"></i>{{ $link['label'] }}@if (($link['counter'] ?? null) === 'pending' && $pendingCount > 0)<span class="site-navbar__count">{{ $pendingCount }}<span class="visually-hidden"> pending approval</span></span>@endif @if (($link['counter'] ?? null) === 'notices' && $unreadNotices > 0)<span class="site-navbar__count">{{ $unreadNotices }}<span class="visually-hidden"> new</span></span>@endif</a>
                     </li>
                 @endforeach
 

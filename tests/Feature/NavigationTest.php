@@ -39,6 +39,7 @@ class NavigationTest extends TestCase
             'My appointments' => route('patient.appointments.index'),
             'Waiting list' => route('patient.waitlist.index'),
             'Medical records' => route('patient.documents.index'),
+            'Notices' => route('patient.announcements.index'),
             'Profile' => route('patient.profile'),
         ], $this->navLinks($response));
         $this->assertSame(['Medical records'], $this->activeLinks($response));
@@ -59,6 +60,7 @@ class NavigationTest extends TestCase
             'Schedule' => route('doctor.schedule'),
             'Patients' => route('doctor.patients.index'),
             'Medical records' => route('doctor.medical-records.index'),
+            'Announcements' => route('doctor.announcements.index'),
             'Assistants' => route('doctor.assistants.index'),
             'Profile' => route('doctor.profile'),
             'Settings' => route('doctor.settings'),

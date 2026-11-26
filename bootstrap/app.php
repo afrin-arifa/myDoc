@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AddSecurityHeaders;
+use App\Http\Middleware\EnsurePasswordIsChanged;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\EnsureWorksForDoctor;
 use App\Http\Middleware\RedirectNumberedUrls;
@@ -25,7 +26,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // The assistant workspace guard needs the route-bound {doctorProfile}, so it runs after route model binding.
         $middleware->appendToPriorityList(SubstituteBindings::class, EnsureWorksForDoctor::class);
 
-        $middleware->web(append: [AddSecurityHeaders::class, RedirectNumberedUrls::class]);
+        $middleware->web(append: [AddSecurityHeaders::class, RedirectNumberedUrls::class, EnsurePasswordIsChanged::class]);
 
         // Sign out every other session (and remember-me cookie) of a user whose password changes, e.g. after a
         // password reset. The session that made the change stays signed in.

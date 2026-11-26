@@ -14,9 +14,11 @@ use App\Http\Controllers\Assistant\AssistantAccountController;
 use App\Http\Controllers\Assistant\AssistantDashboardController;
 use App\Http\Controllers\Assistant\AssistantInvitationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\FirstPasswordController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Doctor\DoctorAnnouncementController;
 use App\Http\Controllers\Doctor\DoctorAppointmentController;
 use App\Http\Controllers\Doctor\DoctorAssistantController;
 use App\Http\Controllers\Doctor\DoctorAvailabilityController;
@@ -33,6 +35,7 @@ use App\Http\Controllers\DoctorDirectoryController;
 use App\Http\Controllers\DoctorPhotoController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\MedicalDocumentController;
+use App\Http\Controllers\PatientAnnouncementController;
 use App\Http\Controllers\PatientWaitlistController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserPhotoController;
@@ -97,6 +100,16 @@ Route::post('/logout', [AuthenticatedSessionController::class, 'destroy'])
 Route::middleware('auth')->put('/profile/password', [ProfileController::class, 'updatePassword'])
     ->name('profile.password.update');
 
+// A doctor or assistant marks a colleague's announcement as read (access decided per announcement).
+Route::middleware(['auth', 'role:doctor,assistant'])->post('/announcements/{announcement}/read', [DoctorAnnouncementController::class, 'markRead'])
+    ->name('announcements.read');
+
+// Accounts created by clinic staff start with a one-time password, which must be replaced before anything else.
+Route::middleware('auth')->group(function () {
+    Route::get('/set-password', [FirstPasswordController::class, 'edit'])->name('password.first');
+    Route::put('/set-password', [FirstPasswordController::class, 'update'])->name('password.first.update');
+});
+
 // Medical documents: shared download, preview and delete routes, authorized per document by MedicalDocumentPolicy
 // (patients: own documents; doctors: patients in their care; admins: all). Assistants are refused here: they use
 // the download and preview routes inside a doctor's workspace below, which carry the doctor context.
@@ -118,6 +131,8 @@ Route::middleware(['auth', 'role:patient'])->group(function () {
     Route::delete('/patient/account', [ProfileController::class, 'deactivate'])->name('patient.account.deactivate');
     Route::get('/patient/appointments', [AppointmentController::class, 'index'])->name('patient.appointments.index');
     Route::get('/patient/documents', [MedicalDocumentController::class, 'index'])->name('patient.documents.index');
+    Route::get('/patient/notices', [PatientAnnouncementController::class, 'index'])->name('patient.announcements.index');
+    Route::post('/patient/announcements/{announcement}/dismiss', [PatientAnnouncementController::class, 'dismiss'])->name('patient.announcements.dismiss');
     Route::post('/patient/documents', [MedicalDocumentController::class, 'store'])
         ->middleware('throttle:20,1')
         ->name('patient.documents.store');
@@ -180,6 +195,12 @@ Route::middleware(['auth', 'role:doctor'])->group(function () {
     Route::post('/doctor/appointments', [DoctorAppointmentController::class, 'store'])
         ->name('doctor.appointments.store');
     Route::get('/doctor/patients', [DoctorPatientController::class, 'index'])->name('doctor.patients.index');
+    Route::get('/doctor/patients/create', [DoctorPatientController::class, 'create'])->name('doctor.patients.create');
+    Route::post('/doctor/patients', [DoctorPatientController::class, 'store'])->middleware('throttle:20,1')->name('doctor.patients.store');
+    Route::post('/doctor/patients/{patient}/one-time-password', [DoctorPatientController::class, 'issuePassword'])->middleware('throttle:20,1')->name('doctor.patients.password');
+    Route::get('/doctor/announcements', [DoctorAnnouncementController::class, 'index'])->name('doctor.announcements.index');
+    Route::post('/doctor/announcements', [DoctorAnnouncementController::class, 'store'])->middleware('throttle:20,1')->name('doctor.announcements.store');
+    Route::delete('/doctor/announcements/{announcement}', [DoctorAnnouncementController::class, 'destroy'])->name('doctor.announcements.destroy');
     Route::get('/doctor/medical-records', [DoctorMedicalRecordController::class, 'index'])->name('doctor.medical-records.index');
     Route::get('/doctor/patients/search', [DoctorAppointmentController::class, 'searchPatients'])
         ->middleware('throttle:60,1')
@@ -224,6 +245,12 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
         Route::get('/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'rescheduleForm'])->name('appointments.reschedule');
         Route::post('/appointments/{appointment}/reschedule', [DoctorAppointmentController::class, 'reschedule'])->name('appointments.reschedule.store');
         Route::get('/patients', [DoctorPatientController::class, 'index'])->name('patients.index');
+        Route::get('/patients/create', [DoctorPatientController::class, 'create'])->name('patients.create');
+        Route::post('/patients', [DoctorPatientController::class, 'store'])->middleware('throttle:20,1')->name('patients.store');
+        Route::post('/patients/{patient}/one-time-password', [DoctorPatientController::class, 'issuePassword'])->middleware('throttle:20,1')->name('patients.password');
+        Route::get('/announcements', [DoctorAnnouncementController::class, 'index'])->name('announcements.index');
+        Route::post('/announcements', [DoctorAnnouncementController::class, 'store'])->middleware('throttle:20,1')->name('announcements.store');
+        Route::delete('/announcements/{announcement}', [DoctorAnnouncementController::class, 'destroy'])->name('announcements.destroy');
         Route::get('/patients/search', [DoctorAppointmentController::class, 'searchPatients'])
             ->middleware('throttle:60,1')
             ->name('patients.search');
@@ -243,6 +270,9 @@ Route::middleware(['auth', 'role:assistant'])->prefix('assistant')->name('assist
         Route::post('/slots/{slot}/block', [DoctorSlotController::class, 'block'])->name('slots.block');
         Route::delete('/slots/{slot}/block', [DoctorSlotController::class, 'unblock'])->name('slots.unblock');
         Route::get('/medical-records', [DoctorMedicalRecordController::class, 'index'])->name('medical-records.index');
+        Route::get('/medical-records/patients', [DoctorMedicalRecordController::class, 'searchPatients'])
+            ->middleware('throttle:60,1')
+            ->name('medical-records.patients');
         Route::post('/medical-records', [DoctorMedicalRecordController::class, 'store'])
             ->middleware('throttle:20,1')
             ->name('medical-records.store');

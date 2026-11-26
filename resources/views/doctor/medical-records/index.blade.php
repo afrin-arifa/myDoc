@@ -13,23 +13,19 @@
                         <h1 class="doctor-page-title">Medical records</h1>
                         <p class="text-secondary mb-0">Documents shared by patients who have a booked, confirmed or completed appointment with {{ $forAssistant ? $profile->user->name : 'you' }}.</p>
                     </div>
-                    @if ($uploadPatients !== null)
+                    @if ($canUpload)
                         <button class="btn btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#upload-document" aria-expanded="{{ $errors->any() ? 'true' : 'false' }}" aria-controls="upload-document">
                             <i class="fa-solid fa-arrow-up-from-bracket me-1" aria-hidden="true"></i>Upload for a patient
                         </button>
                     @endif
                 </div>
 
-                @if ($uploadPatients !== null)
+                @if ($canUpload)
                     <section @class(['collapse', 'show' => $errors->any()]) id="upload-document" aria-labelledby="upload-document-heading">
                         <div class="card border-0 shadow-sm p-4 mb-4">
                             <h2 class="h5 mb-1" id="upload-document-heading">Upload a document for a patient</h2>
-                            <p class="small text-secondary mb-3">For example a prescription from {{ $profile->user->name }}. Only patients with an appointment with {{ $profile->user->name }} are listed.</p>
-                            @if ($uploadPatients->isEmpty())
-                                <p class="text-secondary mb-0">No patients yet. Patients appear here once they have an appointment.</p>
-                            @else
-                                <x-medical-documents.upload-form :action="$workspace->url('doctor.medical-records.store')" :patients="$uploadPatients" default-category="prescription" />
-                            @endif
+                            <p class="small text-secondary mb-3">For example a prescription from {{ $profile->user->name }}. Only patients with an appointment with {{ $profile->user->name }} can be chosen.</p>
+                            <x-medical-documents.upload-form :action="$workspace->url('doctor.medical-records.store')" :patient-search-url="$workspace->url('doctor.medical-records.patients')" default-category="prescription" />
                         </div>
                     </section>
                 @endif

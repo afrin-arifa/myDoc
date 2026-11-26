@@ -16,6 +16,8 @@
                         <a class="btn btn-primary" href="{{ route('doctor.appointments.index') }}">New appointment</a>
                     </div>
 
+                    <x-announcements.team-notices :announcements="$teamNotices" />
+
                     <div class="row g-3 mb-4">
                         @foreach ([
                             ['label' => 'Total appointments', 'value' => $appointmentCounts['total'], 'icon' => 'fa-regular fa-calendar', 'tone' => 'primary'],

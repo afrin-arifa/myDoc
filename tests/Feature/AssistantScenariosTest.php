@@ -174,7 +174,10 @@ class AssistantScenariosTest extends TestCase
 
         $this->flushSession();
         $this->actingAs($assistant)->get(route('assistant.workspace.medical-records.index', $profile))->assertOk()
-            ->assertSee('Upload for a patient')->assertSee($patient->name)->assertDontSee($stranger->name);
+            ->assertSee('Upload for a patient')->assertSee(route('assistant.workspace.medical-records.patients', $profile), false);
+        $this->getJson(route('assistant.workspace.medical-records.patients', [$profile, 'search' => $patient->name]))
+            ->assertOk()->assertJsonPath('data.0.key', $patient->getRouteKey());
+        $this->getJson(route('assistant.workspace.medical-records.patients', [$profile, 'search' => $stranger->name]))->assertJsonCount(0, 'data');
 
         // Only patients in this doctor's care.
         $this->post(route('assistant.workspace.medical-records.store', $profile), ['patient' => $stranger->getRouteKey(), 'category' => 'prescription', 'document' => $prescription()])

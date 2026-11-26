@@ -137,7 +137,7 @@ class DoctorAppointmentController extends Controller
 
         $patients = User::query()
             ->activePatients()
-            ->withAppointmentsForDoctor($profileId)
+            ->ofDoctor($profileId)
             ->where(fn ($query) => $query
                 ->where('name', 'like', "%{$search}%")
                 ->orWhere('email', 'like', "%{$search}%")

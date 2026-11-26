@@ -5,10 +5,12 @@ namespace App\Models;
 use App\Models\Concerns\HasUrlKey;
 use App\Services\DoctorAccess;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 
 /**
  * A patient-owned medical document. The appointment link is optional metadata and never grants access.
@@ -120,17 +122,6 @@ class MedicalDocument extends Model
     }
 
     /**
-     * Documents of patients who are (or were) in this doctor's care, decided from the patient's own appointment
-     * history rather than from the document's optional appointment link.
-     *
-     * @param  Builder<MedicalDocument>  $query
-     */
-    public function scopeVisibleToDoctor(Builder $query, int $doctorProfileId): void
-    {
-        $query->visibleToDoctorProfiles([$doctorProfileId]);
-    }
-
-    /**
      * Documents of patients in the care of any of these doctors: at least one booked, confirmed or completed
      * appointment with one of them. Cancelled or rejected appointments alone never qualify. An empty list matches
      * nothing. Callers must pass doctor profiles the user is authorized for (see scopeVisibleToActor).
@@ -146,9 +137,25 @@ class MedicalDocument extends Model
             return;
         }
 
-        $query->whereHas('patient.appointments', fn (Builder $appointments) => $appointments
+        // One indexed list of the doctors' patients, rather than walking from every document to its patient's
+        // appointments and their slots.
+        $query->whereIn('medical_documents.patient_id', DB::table('appointments')
+            ->select('appointments.patient_id')
+            ->join('appointment_slots', 'appointment_slots.id', '=', 'appointments.appointment_slot_id')
             ->whereIn('appointments.status', self::CARE_STATUSES)
-            ->whereHas('slot', fn (Builder $slots) => $slots->whereIn('doctor_profile_id', $doctorProfileIds)));
+            ->whereIn('appointment_slots.doctor_profile_id', $doctorProfileIds));
+    }
+
+    /**
+     * Load who uploaded each document, only where that is not the patient themselves (staff uploads), which is the
+     * only time the cards show it.
+     *
+     * @param  EloquentCollection<int, MedicalDocument>  $documents
+     */
+    public static function loadStaffUploaders(EloquentCollection $documents): void
+    {
+        $documents->filter(fn (MedicalDocument $document): bool => $document->uploaded_by !== null && $document->uploaded_by !== $document->patient_id)
+            ->load('uploader:id,name,role');
     }
 
     /**

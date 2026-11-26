@@ -29,14 +29,17 @@ class MedicalDocumentController extends Controller
             'category' => ['nullable', 'in:'.implode(',', array_keys(MedicalDocument::CATEGORIES))],
         ])['category'] ?? null;
 
+        $documents = $request->user()->medicalDocuments()
+            ->with(['appointment.slot' => fn ($slots) => $slots->without('location'), 'appointment.slot.doctorProfile.user:id,name'])
+            ->when($category, fn ($query) => $query->where('category', $category))
+            ->latest()
+            ->latest('id')
+            ->paginate(12)
+            ->withQueryString();
+        MedicalDocument::loadStaffUploaders($documents->getCollection());
+
         return view('patient.documents.index', [
-            'documents' => $request->user()->medicalDocuments()
-                ->with(['appointment.slot.doctorProfile.user:id,name', 'uploader:id,name,role'])
-                ->when($category, fn ($query) => $query->where('category', $category))
-                ->latest()
-                ->latest('id')
-                ->paginate(12)
-                ->withQueryString(),
+            'documents' => $documents,
             'appointments' => $this->appointmentOptions($request),
             'category' => $category,
         ]);

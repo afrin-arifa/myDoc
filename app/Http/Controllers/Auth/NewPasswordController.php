@@ -37,6 +37,9 @@ class NewPasswordController extends Controller
                 $user->forceFill([
                     'password' => $password,
                     'remember_token' => Str::random(60),
+                    // A reset through the patient's own inbox replaces any one-time password from the clinic.
+                    'password_change_required' => false,
+                    'temporary_password_expires_at' => null,
                 ])->save();
 
                 event(new PasswordReset($user));

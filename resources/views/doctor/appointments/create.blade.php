@@ -35,7 +35,7 @@
                         @endforeach
                     </div>
                 </fieldset>
-                <div class="col-12" data-patient-panel="returning">
+                <div class="col-12" data-patient-panel="returning" data-patient-picker>
                     <label class="form-label" for="patient_search">Returning patient</label>
                     <input class="form-control" id="patient_search" type="search" autocomplete="off" placeholder="Search by name, email or phone" aria-describedby="patient_search_help" data-patient-search data-search-url="{{ $workspace->url('doctor.patients.search') }}">
                     <input name="patient_id" type="hidden" value="{{ old('patient_id') }}" data-patient-id>

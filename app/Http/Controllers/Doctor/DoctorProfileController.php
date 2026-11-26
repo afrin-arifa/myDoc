@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Doctor\UpdateDoctorAccountRequest;
 use App\Http\Requests\Doctor\UpdateDoctorProfileRequest;
 use App\Models\Appointment;
+use App\Models\DoctorAnnouncement;
 use App\Models\Specialty;
 use App\Services\DoctorPhotoStorage;
 use Illuminate\Database\Eloquent\Builder;
@@ -63,6 +64,9 @@ class DoctorProfileController extends Controller
         $appointmentCounts = $profile ? $this->appointmentCounts($profile->id) : ['total' => 0, 'booked' => 0, 'confirmed' => 0, 'cancelled' => 0];
 
         return view('doctor.dashboard', [
+            'teamNotices' => $profile
+                ? DoctorAnnouncement::query()->unreadForStaff($user, [$profile->id])->with('author:id,name,role')->limit(5)->get()
+                : collect(),
             'profile' => $profile,
             'appointments' => $appointments,
             'pendingAppointments' => $pendingAppointments,

@@ -151,20 +151,24 @@ document.querySelector("[data-slot-preview]")?.addEventListener("click", async (
     }
 });
 
-const patientSearchInput = document.querySelector("[data-patient-search]");
-
-if (patientSearchInput) {
-    const patientResults = document.querySelector("[data-patient-search-results]");
-    const patientIdInput = document.querySelector("[data-patient-id]");
-    const patientLabelInput = document.querySelector("[data-patient-label]");
-    const patientSelected = document.querySelector("[data-patient-selected]");
+// Patient search pickers (booking, document upload): type to search the doctor's patients, then pick one. The root
+// says which field of the result is submitted (data-value-field, default "id").
+document.querySelectorAll("[data-patient-picker]").forEach((picker) => {
+    const patientSearchInput = picker.querySelector("[data-patient-search]");
+    const patientResults = picker.querySelector("[data-patient-search-results]");
+    const patientIdInput = picker.querySelector("[data-patient-id]");
+    const patientLabelInput = picker.querySelector("[data-patient-label]");
+    const patientSelected = picker.querySelector("[data-patient-selected]");
+    const valueField = picker.dataset.valueField || "id";
     let searchTimer;
     let searchController;
 
     const selectPatient = (patient) => {
-        patientIdInput.value = patient ? patient.id : "";
-        patientLabelInput.value = patient ? `${patient.name} (${patient.email})` : "";
-        patientSelected.textContent = patient ? `Selected: ${patientLabelInput.value}` : "";
+        patientIdInput.value = patient ? patient[valueField] : "";
+        if (patientLabelInput) {
+            patientLabelInput.value = patient ? `${patient.name} (${patient.email})` : "";
+        }
+        patientSelected.textContent = patient ? `Selected: ${patient.name} (${patient.email})` : "";
         patientResults.replaceChildren();
     };
 
@@ -206,7 +210,7 @@ if (patientSearchInput) {
                           })
                         : [Object.assign(document.createElement("div"), {
                               className: "list-group-item text-secondary",
-                              textContent: "No matching patients with previous appointments.",
+                              textContent: picker.dataset.emptyText || "No matching patients with previous appointments.",
                           })]),
                 );
             } catch (error) {
@@ -219,7 +223,7 @@ if (patientSearchInput) {
             }
         }, 300);
     });
-}
+});
 
 document.querySelectorAll("form[data-confirm]").forEach((form) => {
     form.addEventListener("submit", (event) => {
@@ -313,6 +317,21 @@ document.querySelectorAll("[data-dropzone]").forEach((zone) => {
     ["dragleave", "drop"].forEach((type) => input.addEventListener(type, () => zone.classList.remove("is-dragging")));
     input.addEventListener("change", showFile);
     showFile();
+});
+
+// Copy buttons: copy the text of the element named by data-copy, and confirm briefly on the button.
+document.querySelectorAll("[data-copy]").forEach((button) => {
+    button.addEventListener("click", async () => {
+        const source = document.querySelector(`[data-copy-source='${button.dataset.copy}']`);
+
+        if (!source || !navigator.clipboard) {
+            return;
+        }
+
+        await navigator.clipboard.writeText(source.textContent.trim());
+        button.classList.add("is-copied");
+        setTimeout(() => button.classList.remove("is-copied"), 1500);
+    });
 });
 
 // Add assistant: the password fields apply only when the admin sets the password themselves.

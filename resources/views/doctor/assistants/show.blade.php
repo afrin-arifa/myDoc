@@ -22,11 +22,15 @@
             ]],
             ['icon' => 'fa-regular fa-folder-open', 'title' => 'Patients and records', 'abilities' => [
                 $access::VIEW_PATIENTS => 'See your patients',
+                $access::REGISTER_PATIENTS => 'Create patient accounts with a one-time password',
                 $access::VIEW_MEDICAL_DOCUMENTS => 'See medical documents',
                 $access::PREVIEW_MEDICAL_DOCUMENTS => 'Preview documents',
                 $access::DOWNLOAD_MEDICAL_DOCUMENTS => 'Download documents',
                 $access::UPLOAD_MEDICAL_DOCUMENTS => 'Upload documents',
                 $access::DELETE_MEDICAL_DOCUMENTS => 'Delete documents',
+            ]],
+            ['icon' => 'fa-solid fa-bullhorn', 'title' => 'Announcements', 'abilities' => [
+                $access::MANAGE_ANNOUNCEMENTS => 'Post and remove notices for your patients',
             ]],
             ['icon' => 'fa-solid fa-user-gear', 'title' => 'Your account', 'abilities' => [
                 $access::EDIT_DOCTOR_PROFILE => 'Edit your profile',

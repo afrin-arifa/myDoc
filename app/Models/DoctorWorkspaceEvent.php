@@ -66,6 +66,16 @@ class DoctorWorkspaceEvent extends Model
     /** A doctor's assistant uploaded a medical document for a patient in the doctor's care. */
     public const ACTION_DOCUMENT_UPLOADED = 'document_uploaded';
 
+    /** Staff created a patient account with a one-time password. */
+    public const ACTION_PATIENT_REGISTERED = 'patient_registered';
+
+    /** Staff issued a new one-time password to a patient who had not signed in yet. */
+    public const ACTION_PATIENT_PASSWORD_RESET = 'patient_password_reset';
+
+    public const ACTION_ANNOUNCEMENT_POSTED = 'announcement_posted';
+
+    public const ACTION_ANNOUNCEMENT_REMOVED = 'announcement_removed';
+
     /**
      * @var list<string>
      */
@@ -84,6 +94,8 @@ class DoctorWorkspaceEvent extends Model
         self::ACTION_LOCATION_CREATED, self::ACTION_LOCATION_UPDATED, self::ACTION_LOCATION_DELETED,
         self::ACTION_WAITLIST_OFFERED, self::ACTION_WAITLIST_DECLINED, self::ACTION_WAITLIST_OFFER_EXPIRED,
         self::ACTION_WAITLIST_WITHDRAWN, self::ACTION_WAITLIST_SETTINGS, self::ACTION_DOCUMENT_UPLOADED,
+        self::ACTION_PATIENT_REGISTERED, self::ACTION_PATIENT_PASSWORD_RESET, self::ACTION_ANNOUNCEMENT_POSTED,
+        self::ACTION_ANNOUNCEMENT_REMOVED,
     ];
 
     /**
@@ -120,6 +132,10 @@ class DoctorWorkspaceEvent extends Model
         return match (true) {
             $this->action === self::ACTION_SLOTS_GENERATED => 'Generated slots',
             $this->action === self::ACTION_DOCUMENT_UPLOADED => 'Uploaded a document',
+            $this->action === self::ACTION_PATIENT_REGISTERED => 'Created a patient account',
+            $this->action === self::ACTION_PATIENT_PASSWORD_RESET => 'Issued a new one-time password',
+            $this->action === self::ACTION_ANNOUNCEMENT_POSTED => 'Posted an announcement',
+            $this->action === self::ACTION_ANNOUNCEMENT_REMOVED => 'Removed an announcement',
             in_array($this->action, self::APPOINTMENT_ACTIONS, true) => ucfirst($this->action).' appointment',
             default => ucfirst(str_replace('_', ' ', $this->action)),
         };

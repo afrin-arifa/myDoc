@@ -92,7 +92,7 @@ class StoreDoctorAppointmentRequest extends FormRequest
                 $this->resolvedPatient = match (true) {
                     $profileId === null => null,
                     $this->filled('patient_id') => $patients
-                        ->withAppointmentsForDoctor($profileId)
+                        ->ofDoctor($profileId)
                         ->whereKey($this->integer('patient_id'))
                         ->first(),
                     default => $patients

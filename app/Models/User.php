@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 
 #[Fillable(['name', 'email', 'password', 'phone', 'address', 'sms_notifications_enabled'])]
 #[Hidden(['password', 'remember_token', 'photo_path'])]
@@ -126,6 +127,43 @@ class User extends Authenticatable
     }
 
     /**
+     * Limit the query to the doctor's patients: anyone with an appointment with the doctor, or whose account the
+     * doctor's staff created.
+     *
+     * @param  Builder<User>  $query
+     */
+    public function scopeOfDoctor(Builder $query, int $doctorProfileId): void
+    {
+        // One indexed id list instead of "registered or has appointment" per user, which scans every patient.
+        $query->whereIn('users.id', DB::table('appointments')
+            ->select('appointments.patient_id')
+            ->join('appointment_slots', 'appointment_slots.id', '=', 'appointments.appointment_slot_id')
+            ->where('appointment_slots.doctor_profile_id', $doctorProfileId)
+            ->union(DB::table('users')->select('id')->where('registered_by_doctor_profile_id', $doctorProfileId)));
+    }
+
+    /**
+     * True while the account still uses the one-time password staff gave the patient.
+     */
+    public function mustChangePassword(): bool
+    {
+        return $this->password_change_required === true;
+    }
+
+    /**
+     * True when the one-time password can no longer be used to sign in.
+     */
+    public function temporaryPasswordExpired(): bool
+    {
+        return $this->mustChangePassword() && ($this->temporary_password_expires_at?->isPast() ?? true);
+    }
+
+    public function dismissedAnnouncements(): BelongsToMany
+    {
+        return $this->belongsToMany(DoctorAnnouncement::class, 'doctor_announcement_dismissals')->withPivot('created_at');
+    }
+
+    /**
      * Get the attributes that should be cast.
      *
      * @return array<string, string>
@@ -156,6 +194,8 @@ class User extends Authenticatable
             'deactivated_at' => 'datetime',
             'sms_notifications_enabled' => 'boolean',
             'is_walk_in' => 'boolean',
+            'password_change_required' => 'boolean',
+            'temporary_password_expires_at' => 'datetime',
         ];
     }
 }

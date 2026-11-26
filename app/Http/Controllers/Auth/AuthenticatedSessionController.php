@@ -57,6 +57,18 @@ class AuthenticatedSessionController extends Controller
         }
 
         RateLimiter::clear($this->accountThrottleKey($request));
+
+        // A one-time password from the clinic stops working after its lifetime; the clinic can issue a new one.
+        if (Auth::user()->temporaryPasswordExpired()) {
+            Auth::guard('web')->logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            return redirect()->route('login')
+                ->withErrors(['email' => 'Your one-time password has expired. Ask your clinic for a new one, or use "Forgot password".'])
+                ->onlyInput('email');
+        }
+
         $dashboard = self::dashboardRoute(Auth::user()->role);
 
         // Unknown roles are signed straight back out: they must never fall through to another role's dashboard.
@@ -71,6 +83,10 @@ class AuthenticatedSessionController extends Controller
         }
 
         $request->session()->regenerate();
+
+        if (Auth::user()->mustChangePassword()) {
+            return redirect()->route('password.first');
+        }
 
         return redirect()->intended(route($dashboard));
     }

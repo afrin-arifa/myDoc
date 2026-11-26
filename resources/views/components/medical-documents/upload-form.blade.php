@@ -1,22 +1,21 @@
-@props(['appointments' => null, 'compact' => false, 'action' => null, 'patients' => null, 'defaultCategory' => null])
+@props(['appointments' => null, 'compact' => false, 'action' => null, 'patientSearchUrl' => null, 'defaultCategory' => null])
 {{--
     Medical document upload. Patients upload for themselves (optionally linking one of their appointments); staff pass
-    $patients and $action to upload for a patient in the doctor's care, with Prescription chosen by default.
+    $patientSearchUrl and $action to upload for a patient in the doctor's care, with Prescription chosen by default.
 --}}
 
 <form method="POST" action="{{ $action ?? route('patient.documents.store') }}" enctype="multipart/form-data" data-disable-on-submit>
     @csrf
     <div class="row g-3">
-        @if ($patients !== null)
-            <div class="col-12">
-                <label class="form-label" for="patient">Patient</label>
-                <select class="form-select @error('patient') is-invalid @enderror" id="patient" name="patient" required>
-                    <option value="">Choose a patient</option>
-                    @foreach ($patients as $patient)
-                        <option value="{{ $patient->getRouteKey() }}" @selected(old('patient') === $patient->getRouteKey())>{{ $patient->name }}{{ $patient->email || $patient->phone ? ' · '.($patient->email ?? $patient->phone) : '' }}</option>
-                    @endforeach
-                </select>
-                @error('patient')<div class="invalid-feedback">{{ $message }}</div>@enderror
+        @if ($patientSearchUrl !== null)
+            <div class="col-12" data-patient-picker data-value-field="key" data-empty-text="No matching patients with a booked, confirmed or completed appointment.">
+                <label class="form-label" for="patient_search">Patient</label>
+                <input class="form-control @error('patient') is-invalid @enderror" id="patient_search" type="search" autocomplete="off" placeholder="Search by name, email or phone" aria-describedby="patient_help" data-patient-search data-search-url="{{ $patientSearchUrl }}">
+                <input name="patient" type="hidden" value="{{ old('patient') }}" data-patient-id>
+                <div class="form-text" id="patient_help">Type at least two letters, then choose the patient.</div>
+                @error('patient')<div class="invalid-feedback d-block">{{ $message }}</div>@enderror
+                <div class="small fw-semibold mt-1" data-patient-selected aria-live="polite"></div>
+                <div class="list-group mt-2" data-patient-search-results></div>
             </div>
         @endif
         <div class="col-12">
@@ -87,7 +86,7 @@
     <div class="document-upload__footer">
         <p class="document-upload__privacy mb-0">
             <i class="fa-solid fa-lock" aria-hidden="true"></i>
-            {{ $patients !== null ? 'The patient, their doctors and administrators can see it. It is recorded under your account.' : 'Only you, doctors you have appointments with, and administrators can see it.' }}
+            {{ $patientSearchUrl !== null ? 'The patient, their doctors and administrators can see it. It is recorded under your account.' : 'Only you, doctors you have appointments with, and administrators can see it.' }}
         </p>
         <button class="btn btn-primary" type="submit" data-loading-text="Uploading…">
             <i class="fa-solid fa-arrow-up-from-bracket me-1" aria-hidden="true"></i>Upload document

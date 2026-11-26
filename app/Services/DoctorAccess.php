@@ -61,6 +61,12 @@ class DoctorAccess
 
     public const MANAGE_GOOGLE_CALENDAR = 'manage_google_calendar';
 
+    /** Create patient accounts with a one-time password, and issue a new one before the patient's first sign-in. */
+    public const REGISTER_PATIENTS = 'register_patients';
+
+    /** Post and remove announcements for the doctor's own patients. */
+    public const MANAGE_ANNOUNCEMENTS = 'manage_announcements';
+
     /**
      * Every ability this service knows. Checking any other name is a programming error and is always denied.
      *
@@ -72,6 +78,7 @@ class DoctorAccess
         self::MANAGE_SCHEDULE, self::MANAGE_SLOTS, self::VIEW_PATIENTS, self::VIEW_MEDICAL_DOCUMENTS,
         self::PREVIEW_MEDICAL_DOCUMENTS, self::DOWNLOAD_MEDICAL_DOCUMENTS, self::UPLOAD_MEDICAL_DOCUMENTS,
         self::DELETE_MEDICAL_DOCUMENTS, self::EDIT_DOCTOR_PROFILE, self::MANAGE_DOCTOR_ACCOUNT, self::MANAGE_GOOGLE_CALENDAR,
+        self::REGISTER_PATIENTS, self::MANAGE_ANNOUNCEMENTS,
     ];
 
     /**
@@ -86,6 +93,7 @@ class DoctorAccess
         self::RESCHEDULE_APPOINTMENTS, self::CANCEL_APPOINTMENTS, self::START_APPOINTMENTS, self::COMPLETE_APPOINTMENTS, self::MANAGE_SCHEDULE,
         self::MANAGE_SLOTS, self::VIEW_PATIENTS, self::VIEW_MEDICAL_DOCUMENTS, self::PREVIEW_MEDICAL_DOCUMENTS,
         self::DOWNLOAD_MEDICAL_DOCUMENTS, self::EDIT_DOCTOR_PROFILE, self::MANAGE_GOOGLE_CALENDAR,
+        self::REGISTER_PATIENTS, self::MANAGE_ANNOUNCEMENTS,
     ];
 
     /**
@@ -99,7 +107,7 @@ class DoctorAccess
         self::VIEW_APPOINTMENTS, self::BOOK_APPOINTMENTS, self::CONFIRM_APPOINTMENTS, self::REJECT_APPOINTMENTS,
         self::RESCHEDULE_APPOINTMENTS, self::CANCEL_APPOINTMENTS, self::MANAGE_SCHEDULE, self::MANAGE_SLOTS,
         self::VIEW_PATIENTS, self::VIEW_MEDICAL_DOCUMENTS, self::PREVIEW_MEDICAL_DOCUMENTS, self::DOWNLOAD_MEDICAL_DOCUMENTS,
-        self::UPLOAD_MEDICAL_DOCUMENTS,
+        self::UPLOAD_MEDICAL_DOCUMENTS, self::REGISTER_PATIENTS, self::MANAGE_ANNOUNCEMENTS,
     ];
 
     /**

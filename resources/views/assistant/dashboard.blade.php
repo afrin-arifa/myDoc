@@ -22,6 +22,8 @@
                 @endforeach
             </div>
 
+            <x-announcements.team-notices :announcements="$teamNotices" :show-doctor="$doctors->count() > 1" />
+
             @if ($pending->isNotEmpty())
                 <section class="doctor-panel mb-4" aria-labelledby="pending-heading" data-pending-requests>
                     <div class="doctor-profile-section mb-2"><i class="fa-regular fa-hourglass-half" aria-hidden="true"></i><div><h2 class="doctor-panel__title" id="pending-heading">Requests to answer</h2><p>Soonest first. Confirm or reject before the time passes.</p></div></div>

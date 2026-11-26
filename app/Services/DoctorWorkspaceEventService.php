@@ -44,7 +44,7 @@ class DoctorWorkspaceEventService
         'doctor_location_id', 'changed_fields',
         'follow_up_of_id', 'walk_in',
         'waitlist_entry_id', 'waitlist_offer_id', 'expires_at', 'waitlist_enabled', 'withdrawn_offer_count',
-        'medical_document_id', 'document_category', 'patient_name',
+        'medical_document_id', 'document_category', 'patient_name', 'patient_id', 'announcement_title',
     ];
 
     /**

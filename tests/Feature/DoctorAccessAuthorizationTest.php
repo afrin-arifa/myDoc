@@ -28,7 +28,8 @@ class DoctorAccessAuthorizationTest extends TestCase
     private const ASSISTANT_ALLOWED = [
         'view_appointments', 'book_appointments', 'confirm_appointments', 'reject_appointments', 'reschedule_appointments',
         'cancel_appointments', 'manage_schedule', 'manage_slots', 'view_patients', 'view_medical_documents',
-        'preview_medical_documents', 'download_medical_documents', 'upload_medical_documents',
+        'preview_medical_documents', 'download_medical_documents', 'upload_medical_documents', 'register_patients',
+        'manage_announcements',
     ];
 
     private const ASSISTANT_DENIED = [
@@ -44,7 +45,7 @@ class DoctorAccessAuthorizationTest extends TestCase
         'view_appointments', 'book_appointments', 'confirm_appointments', 'reject_appointments', 'reschedule_appointments',
         'cancel_appointments', 'start_appointments', 'complete_appointments', 'manage_schedule', 'manage_slots', 'view_patients',
         'view_medical_documents', 'preview_medical_documents', 'download_medical_documents', 'edit_doctor_profile',
-        'manage_google_calendar',
+        'manage_google_calendar', 'register_patients', 'manage_announcements',
     ];
 
     private DoctorAccess $access;
