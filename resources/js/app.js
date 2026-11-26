@@ -1,5 +1,7 @@
-import "bootstrap";
-import { Modal } from "bootstrap";
+// Only the Bootstrap components the pages use (data attributes and the modal opened on load).
+import "bootstrap/js/dist/collapse";
+import "bootstrap/js/dist/dropdown";
+import Modal from "bootstrap/js/dist/modal";
 
 const applyScheduleFilters = () => {
     const selected = [...document.querySelectorAll(".schedule-filter:checked")].map((item) => item.value);

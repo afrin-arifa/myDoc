@@ -69,12 +69,17 @@ class AppointmentController extends Controller
 
             return view('patient.dashboard', [
                 'upcomingAppointments' => $upcomingAppointments,
-                'appointmentCounts' => [
-                    'total' => $patient->appointments()->count(),
-                    'upcoming' => $patient->appointments()->upcoming()->count(),
-                    'booked' => $patient->appointments()->where('status', 'booked')->count(),
-                    'confirmed' => $patient->appointments()->where('status', 'confirmed')->count(),
-                ],
+                'appointmentCounts' => array_map('intval', (array) $patient->appointments()
+                    ->join('appointment_slots', 'appointment_slots.id', '=', 'appointments.appointment_slot_id')
+                    ->selectRaw(
+                        "count(*) as total,
+                        sum(case when appointments.status in (?, ?) and appointment_slots.starts_at > ? then 1 else 0 end) as upcoming,
+                        sum(case when appointments.status = 'booked' then 1 else 0 end) as booked,
+                        sum(case when appointments.status = 'confirmed' then 1 else 0 end) as confirmed",
+                        [...Appointment::ACTIVE_STATUSES, now()]
+                    )
+                    ->toBase()
+                    ->first()),
             ]);
         }
 

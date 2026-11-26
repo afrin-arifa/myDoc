@@ -62,10 +62,6 @@ class DoctorPatientController extends Controller
             'profile' => $profile,
             'patients' => $patients,
             'search' => $search,
-            'pendingCount' => Appointment::query()
-                ->where('status', 'booked')
-                ->whereHas('slot', fn (Builder $slots) => $slots->where('doctor_profile_id', $profile->id))
-                ->count(),
         ]);
     }
 }

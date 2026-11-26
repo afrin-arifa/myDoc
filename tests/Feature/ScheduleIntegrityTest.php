@@ -98,6 +98,23 @@ class ScheduleIntegrityTest extends TestCase
         $this->assertNotContains($cancelled->appointment_slot_id, $response->viewData('todaySlots')->pluck('id'));
     }
 
+    public function test_the_dashboard_counts_each_time_once_by_the_status_of_its_appointments(): void
+    {
+        $doctor = $this->doctor();
+        $profile = $doctor->doctorProfile;
+        $this->appointment($profile, '2026-11-05 09:00', 'booked');
+        $this->appointment($profile, '2026-11-05 09:10', 'confirmed');
+        $this->appointment($profile, '2026-11-05 09:20', 'cancelled');
+        $reused = $this->appointment($profile, '2026-11-05 09:30', 'rejected');
+        Appointment::create(['appointment_slot_id' => $reused->appointment_slot_id, 'patient_id' => User::factory()->create(['role' => 'patient'])->id, 'status' => 'booked', 'consultation_type' => 'physical']);
+        $this->appointment($this->doctor()->doctorProfile, '2026-11-05 09:00', 'booked');
+
+        $dashboard = $this->actingAs($doctor)->get(route('doctor.dashboard'))->assertOk();
+
+        $this->assertSame(['total' => 4, 'booked' => 2, 'confirmed' => 1, 'cancelled' => 2], $dashboard->viewData('appointmentCounts'));
+        $this->assertSame(2, $dashboard->viewData('pendingCount'));
+    }
+
     public function test_the_dashboard_says_when_nothing_is_left_today(): void
     {
         $doctor = $this->doctor();

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 
 /**
  * A patient waiting for a time with a doctor within a date range (Asia/Dhaka calendar days), optionally limited to a
@@ -114,12 +115,50 @@ class WaitlistEntry extends Model
      */
     public function wantsSlot(AppointmentSlot $slot): bool
     {
-        $startsAt = $slot->starts_at->copy()->setTimezone(config('app.timezone'));
-        $day = $startsAt->toDateString();
+        $startsAt = $slot->starts_at->setTimezone(config('app.timezone'));
 
+        return $this->wants($slot, $startsAt, $startsAt->toDateString(), $this->date_from->toDateString(), $this->date_to->toDateString());
+    }
+
+    /**
+     * For each entry, the first open times (sorted by start) it would take, for staff to offer: the same rule as
+     * wantsSlot(). Each slot's start is read once for all entries, and an entry's scan stops at the limit or past
+     * its last wanted day.
+     *
+     * @param  Collection<int, self>  $entries
+     * @param  Collection<int, AppointmentSlot>  $slots
+     * @return array<int, Collection<int, AppointmentSlot>>
+     */
+    public static function offerableSlots(Collection $entries, Collection $slots, int $limit): array
+    {
+        $starts = $slots->map(fn (AppointmentSlot $slot): array => [$slot, $startsAt = $slot->starts_at->setTimezone(config('app.timezone')), $startsAt->toDateString()])->all();
+        $offerable = [];
+
+        foreach ($entries as $entry) {
+            [$from, $to] = [$entry->date_from->toDateString(), $entry->date_to->toDateString()];
+            $matching = collect();
+
+            foreach ($starts as [$slot, $startsAt, $day]) {
+                if ($day > $to || $matching->count() >= $limit) {
+                    break;
+                }
+
+                if ($entry->wants($slot, $startsAt, $day, $from, $to)) {
+                    $matching->push($slot);
+                }
+            }
+
+            $offerable[$entry->id] = $matching;
+        }
+
+        return $offerable;
+    }
+
+    private function wants(AppointmentSlot $slot, CarbonInterface $startsAt, string $day, string $from, string $to): bool
+    {
         return (int) $slot->doctor_profile_id === (int) $this->doctor_profile_id
-            && $day >= $this->date_from->toDateString()
-            && $day <= $this->date_to->toDateString()
+            && $day >= $from
+            && $day <= $to
             && ($this->doctor_location_id === null || (int) $slot->doctor_location_id === (int) $this->doctor_location_id)
             && $this->matchesTimeOfDay($startsAt);
     }

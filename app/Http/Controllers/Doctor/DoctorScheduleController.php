@@ -10,6 +10,7 @@ use App\Services\DoctorAccess;
 use App\Services\DoctorWorkspace;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\View\View;
@@ -75,47 +76,54 @@ class DoctorScheduleController extends Controller
                 $rangeEnd = $customEnd;
             }
         }
+        // The month grid only shows counts per day, so its slots are loaded without appointments or locations;
+        // the selected day's appointments are loaded on their own below.
+        $isMonth = $view === 'month';
         $slots = AppointmentSlot::query()
             ->where('doctor_profile_id', $profile->id)
             ->whereBetween('starts_at', [$rangeStart, $rangeEnd])
-            ->with(['appointments.patient:id,name'])
+            ->when($isMonth, fn ($query) => $query->without('location'), fn ($query) => $query->with(['appointments.patient:id,name']))
             ->orderBy('starts_at')
             ->get();
-        $selectedAppointments = $slots
-            ->filter(fn (AppointmentSlot $slot): bool => $slot->starts_at->isSameDay($date))
-            ->flatMap(function (AppointmentSlot $slot) {
-                return $slot->appointments->map(function (Appointment $appointment) use ($slot): Appointment {
-                    return $appointment->setRelation('slot', $slot);
-                });
-            })
-            ->sortBy(fn (Appointment $appointment): string => $appointment->slot->starts_at->toDateTimeString())
+        // Each cast date is a new object on every access, so every slot's start is read once here.
+        $slotsByDate = $slots->groupBy(fn (AppointmentSlot $slot): string => $slot->starts_at->setTimezone($timezone)->toDateString());
+        $selectedSlots = $slotsByDate->get($date->toDateString(), new EloquentCollection);
+
+        if ($isMonth) {
+            $selectedSlots->load(['appointments.patient:id,name', 'location']);
+        }
+
+        $selectedAppointments = $selectedSlots
+            ->flatMap(fn (AppointmentSlot $slot) => $slot->appointments->each(fn (Appointment $appointment) => $appointment->setRelation('slot', $slot)))
             ->values();
-        $selectedSlots = $slots->filter(fn (AppointmentSlot $slot): bool => $slot->starts_at->isSameDay($date));
-        $calendarEvents = $slots->flatMap(function (AppointmentSlot $slot) use ($timezone): array {
+        $calendarEvents = $isMonth ? collect() : $slots->flatMap(function (AppointmentSlot $slot) use ($timezone): array {
+            $startsAt = $slot->starts_at->toImmutable()->setTimezone($timezone);
+            $event = [
+                'slot_id' => $slot->id,
+                'date' => $startsAt->toDateString(),
+                'starts_at' => $startsAt,
+                'ends_at' => $slot->ends_at->toImmutable()->setTimezone($timezone),
+                'slot_status' => $slot->status,
+                'location' => $slot->location?->name,
+            ];
+
             if ($slot->appointments->isNotEmpty()) {
-                return $slot->appointments->map(function (Appointment $appointment) use ($slot, $timezone): array {
-                    return [
-                        'id' => 'appointment-'.$appointment->id,
-                        'type' => 'appointment',
-                        'appointment_id' => $appointment->id,
-                        'slot_id' => $slot->id,
-                        'date' => $slot->starts_at->timezone($timezone)->toDateString(),
-                        'starts_at' => $slot->starts_at->timezone($timezone)->toIso8601String(),
-                        'ends_at' => $slot->ends_at->timezone($timezone)->toIso8601String(),
-                        'patient_name' => $appointment->patient?->name,
-                        'consultation_type' => $appointment->consultation_type,
-                        'appointment_status' => $appointment->status,
-                        'slot_status' => $slot->status,
-                        'location' => $slot->location?->name,
-                        'filter_status' => match ($appointment->status) {
-                            'completed' => 'confirmed',
-                            'cancelled', 'rejected', Appointment::STATUS_EXPIRED => 'cancelled',
-                            default => $appointment->status,
-                        },
-                        'can_confirm' => $appointment->status === 'booked',
-                        'can_start' => $appointment->status === 'confirmed',
-                    ];
-                })->all();
+                return $slot->appointments->map(fn (Appointment $appointment): array => [
+                    ...$event,
+                    'id' => 'appointment-'.$appointment->id,
+                    'type' => 'appointment',
+                    'appointment_id' => $appointment->id,
+                    'patient_name' => $appointment->patient?->name,
+                    'consultation_type' => $appointment->consultation_type,
+                    'appointment_status' => $appointment->status,
+                    'filter_status' => match ($appointment->status) {
+                        'completed' => 'confirmed',
+                        'cancelled', 'rejected', Appointment::STATUS_EXPIRED => 'cancelled',
+                        default => $appointment->status,
+                    },
+                    'can_confirm' => $appointment->status === 'booked',
+                    'can_start' => $appointment->status === 'confirmed',
+                ])->all();
             }
 
             // "held": offered to a waiting-list patient, not bookable by anyone else until the offer ends.
@@ -123,21 +131,16 @@ class DoctorScheduleController extends Controller
                 return [];
             }
 
-            $isFuture = $slot->starts_at->isFuture();
+            $isFuture = $startsAt->isFuture();
 
             return [[
+                ...$event,
                 'id' => 'slot-'.$slot->id,
                 'type' => $slot->status,
                 'appointment_id' => null,
-                'slot_id' => $slot->id,
-                'date' => $slot->starts_at->timezone($timezone)->toDateString(),
-                'starts_at' => $slot->starts_at->timezone($timezone)->toIso8601String(),
-                'ends_at' => $slot->ends_at->timezone($timezone)->toIso8601String(),
                 'patient_name' => null,
                 'consultation_type' => null,
                 'appointment_status' => null,
-                'slot_status' => $slot->status,
-                'location' => $slot->location?->name,
                 'filter_status' => $slot->status,
                 'can_confirm' => false,
                 'can_start' => false,
@@ -147,9 +150,6 @@ class DoctorScheduleController extends Controller
             ]];
         })->values();
         $activeFilters = $validated['filters'] ?? ['available', 'held', 'blocked', 'booked', 'confirmed', 'completed', 'cancelled', 'rejected'];
-        $visibleCalendarEvents = $calendarEvents->filter(
-            fn (array $event): bool => in_array($event['filter_status'], $activeFilters, true)
-        )->values();
         $summary = [
             'total slots' => $selectedSlots->count(),
             'appointments' => $selectedAppointments->count(),
@@ -182,17 +182,16 @@ class DoctorScheduleController extends Controller
         return view('doctor.schedule', [
             'profile' => $profile,
             'waitlistEntries' => $waitlistEntries,
-            'waitlistSlots' => $waitlistSlots,
+            'offerableSlots' => WaitlistEntry::offerableSlots($waitlistEntries->where('status', WaitlistEntry::STATUS_WAITING), $waitlistSlots, 30),
             'slots' => $slots,
             'selectedDate' => $date,
             'view' => $view,
-            'slotsByDate' => $slots->groupBy(fn (AppointmentSlot $slot): string => $slot->starts_at->toDateString()),
-            'calendarEventsByDate' => $visibleCalendarEvents->groupBy('date'),
+            'slotsByDate' => $slotsByDate,
+            'calendarEventsByDate' => $calendarEvents->whereIn('filter_status', $activeFilters)->groupBy('date'),
             'timelineHours' => $this->timelineHours($calendarEvents, $date, $view),
             'selectedAppointments' => $selectedAppointments,
             'summary' => $summary,
             'activeFilters' => $activeFilters,
-            'pendingCount' => $this->pendingCount($profile->id),
         ]);
     }
 
@@ -213,21 +212,13 @@ class DoctorScheduleController extends Controller
             return [self::TIMELINE_START_HOUR, self::TIMELINE_END_HOUR];
         }
 
-        $start = (int) $shown->min(fn (array $event): int => CarbonImmutable::parse($event['starts_at'])->hour);
+        $start = (int) $shown->min(fn (array $event): int => $event['starts_at']->hour);
         $end = (int) $shown->max(function (array $event): int {
-            $endsAt = CarbonImmutable::parse($event['ends_at']);
+            $endsAt = $event['ends_at'];
 
             return $endsAt->toDateString() > $event['date'] ? 24 : (int) ceil(($endsAt->hour * 60 + $endsAt->minute) / 60);
         });
 
         return [min($start, self::TIMELINE_START_HOUR), max($end, self::TIMELINE_END_HOUR)];
-    }
-
-    private function pendingCount(int $profileId): int
-    {
-        return Appointment::query()
-            ->where('appointments.status', 'booked')
-            ->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $profileId))
-            ->count();
     }
 }

@@ -389,6 +389,33 @@ class WaitlistTest extends TestCase
     /**
      * @return array{0: User, 1: DoctorProfile}
      */
+    public function test_times_offered_on_the_schedule_follow_the_same_rule_as_automatic_offers(): void
+    {
+        $location = DoctorLocation::factory()->create(['doctor_profile_id' => $this->profile->id]);
+        $slots = collect([
+            $this->slot('2026-11-03 09:00'), $this->slot('2026-11-04 13:30'), $this->slot('2026-11-05 18:00'),
+            $this->slot('2026-11-07 10:00'), $this->slot('2026-11-12 09:00'), $this->slot('2026-11-20 19:00'),
+        ]);
+        $slots[3]->update(['doctor_location_id' => $location->id]);
+        $slots = AppointmentSlot::query()->orderBy('starts_at')->get();
+        $entries = collect([
+            $this->entry($this->patient('Any time')),
+            $this->entry($this->patient('Mornings'), timeOfDay: 'morning'),
+            $this->entry($this->patient('Evenings later'), '2026-11-10', '2026-11-30', 'evening'),
+            tap($this->entry($this->patient('One chamber')), fn (WaitlistEntry $entry) => $entry->update(['doctor_location_id' => $location->id])),
+            $this->entry($this->patient('Nothing fits'), '2026-12-01', '2026-12-05'),
+        ]);
+
+        $offerable = WaitlistEntry::offerableSlots($entries, $slots, 30);
+
+        foreach ($entries as $entry) {
+            $this->assertSame($slots->filter(fn (AppointmentSlot $slot) => $entry->wantsSlot($slot))->pluck('id')->values()->all(), $offerable[$entry->id]->pluck('id')->all(), $entry->patient->name);
+        }
+
+        $this->assertCount(4, $offerable[$entries[0]->id]);
+        $this->assertSame([$slots[0]->id], WaitlistEntry::offerableSlots($entries->take(1), $slots, 1)[$entries[0]->id]->pluck('id')->all(), 'The limit is respected.');
+    }
+
     private function doctorWithProfile(string $name): array
     {
         $doctor = User::factory()->create(['role' => 'doctor', 'name' => $name]);

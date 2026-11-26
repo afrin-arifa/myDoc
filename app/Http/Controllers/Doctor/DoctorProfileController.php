@@ -60,20 +60,16 @@ class DoctorProfileController extends Controller
         $hadSlotsToday = $profile && ($todaySlots->isNotEmpty()
             || $profile->appointmentSlots()->whereDate('starts_at', $today)->exists());
 
+        $appointmentCounts = $profile ? $this->appointmentCounts($profile->id) : ['total' => 0, 'booked' => 0, 'confirmed' => 0, 'cancelled' => 0];
+
         return view('doctor.dashboard', [
             'profile' => $profile,
-            'specialties' => Specialty::query()->where('is_active', true)->orderBy('name')->get(),
             'appointments' => $appointments,
             'pendingAppointments' => $pendingAppointments,
             'todaySlots' => $todaySlots,
             'hadSlotsToday' => $hadSlotsToday,
-            'appointmentCounts' => [
-                'total' => $profile?->appointmentSlots()->whereHas('appointments')->count() ?? 0,
-                'booked' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'booked'))->count() ?? 0,
-                'confirmed' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'confirmed'))->count() ?? 0,
-                'cancelled' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->whereIn('status', Appointment::CLOSED_STATUSES))->count() ?? 0,
-            ],
-            'pendingCount' => $profile?->appointmentSlots()->whereHas('appointments', fn ($query) => $query->where('status', 'booked'))->count() ?? 0,
+            'appointmentCounts' => $appointmentCounts,
+            'pendingCount' => $appointmentCounts['booked'],
         ]);
     }
 
@@ -85,7 +81,6 @@ class DoctorProfileController extends Controller
         return view('doctor.profile', [
             'profile' => $profile,
             'specialties' => Specialty::query()->where('is_active', true)->orderBy('name')->get(),
-            'pendingCount' => $this->pendingCount($profile->id),
         ]);
     }
 
@@ -96,19 +91,34 @@ class DoctorProfileController extends Controller
 
         return view('doctor.settings', [
             'profile' => $profile,
-            'pendingCount' => $this->pendingCount($profile->id),
             'calendarIssueCount' => $profile->googleCalendarConnection
                 ? $profile->googleCalendarConnection->appointmentEvents()->whereIn('status', ['failed', 'delete_pending'])->count()
                 : 0,
         ]);
     }
 
-    private function pendingCount(int $profileId): int
+    /**
+     * Slots of this doctor with at least one appointment, in total and by status, in one query.
+     *
+     * @return array{total: int, booked: int, confirmed: int, cancelled: int}
+     */
+    private function appointmentCounts(int $profileId): array
     {
-        return Appointment::query()
-            ->where('status', 'booked')
-            ->whereHas('slot', fn ($query) => $query->where('doctor_profile_id', $profileId))
-            ->count();
+        $closed = implode(', ', array_fill(0, count(Appointment::CLOSED_STATUSES), '?'));
+        $counts = Appointment::query()
+            ->join('appointment_slots', 'appointment_slots.id', '=', 'appointments.appointment_slot_id')
+            ->where('appointment_slots.doctor_profile_id', $profileId)
+            ->selectRaw(
+                "count(distinct appointments.appointment_slot_id) as total,
+                count(distinct case when appointments.status = 'booked' then appointments.appointment_slot_id end) as booked,
+                count(distinct case when appointments.status = 'confirmed' then appointments.appointment_slot_id end) as confirmed,
+                count(distinct case when appointments.status in ({$closed}) then appointments.appointment_slot_id end) as cancelled",
+                Appointment::CLOSED_STATUSES
+            )
+            ->toBase()
+            ->first();
+
+        return array_map('intval', (array) $counts);
     }
 
     public function update(UpdateDoctorProfileRequest $request, DoctorPhotoStorage $photos): RedirectResponse

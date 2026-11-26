@@ -195,8 +195,8 @@
                                                         @endphp
                                                         @foreach ($dayEvents as $event)
                                                         @php
-                                                                $eventStart = Carbon\CarbonImmutable::parse($event['starts_at']);
-                                                                $eventEnd = Carbon\CarbonImmutable::parse($event['ends_at']);
+                                                                $eventStart = $event['starts_at'];
+                                                                $eventEnd = $event['ends_at'];
                                                                 $status = $event['filter_status'];
                                                                 $minutesFromStart = $timelineStart->diffInMinutes($eventStart, false);
                                                                 $durationMinutes = max(1, $eventStart->diffInMinutes($eventEnd));
@@ -461,7 +461,7 @@
                                             <form method="POST" action="{{ $workspace->url('doctor.waitlist.withdraw', $pending) }}" data-confirm="Withdraw this offer? The time goes to the next waiting patient or becomes bookable again.">@csrf<button class="btn btn-sm btn-outline-danger" type="submit">Withdraw offer</button></form>
                                         </div>
                                     @elseif ($entry->status === 'waiting' && $profile->waitlist_enabled && $workspace->routeAvailable('doctor.waitlist.offer'))
-                                        @php($matching = $waitlistSlots->filter(fn ($slot) => $entry->wantsSlot($slot))->take(30))
+                                        @php($matching = $offerableSlots[$entry->id] ?? collect())
                                         @if ($matching->isNotEmpty())
                                             <form class="d-flex flex-wrap gap-2 mt-2" method="POST" action="{{ $workspace->url('doctor.waitlist.offer', $entry) }}">
                                                 @csrf

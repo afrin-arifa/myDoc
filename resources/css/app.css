@@ -1,5 +1,8 @@
 @import "bootstrap/dist/css/bootstrap.min.css";
-@import "@fortawesome/fontawesome-free/css/all.min.css";
+/* Only the icon sets the pages use (solid and regular), not brands or the version 4 aliases. */
+@import "@fortawesome/fontawesome-free/css/fontawesome.min.css";
+@import "@fortawesome/fontawesome-free/css/solid.min.css";
+@import "@fortawesome/fontawesome-free/css/regular.min.css";
 
 /* Design tokens: one brand colour (teal); green, amber, red, blue and purple are for status only. */
 :root {
@@ -280,9 +283,7 @@ main {
     background: var(--mydoc-tint);
     color: var(--mydoc-primary-dark);
 }
-.doctor-filter-panel {
-    height: 100%;
-}
+
 .doctor-mini-calendar__grid {
     display: grid;
     gap: 0.2rem;
@@ -304,51 +305,7 @@ main {
     background: var(--mydoc-primary-dark);
     color: #fff;
 }
-.doctor-week-grid {
-    display: flex;
-    min-height: 580px;
-    overflow-x: auto;
-}
-.doctor-week-grid__times {
-    display: flex;
-    flex: 0 0 4.5rem;
-    flex-direction: column;
-    justify-content: space-between;
-    padding: 3.2rem 0.5rem 0.5rem 0;
-}
-.doctor-week-grid__times span {
-    color: var(--mydoc-muted);
-    font-size: 0.65rem;
-}
-.doctor-week-grid__days {
-    display: grid;
-    flex: 1;
-    grid-template-columns: repeat(7, minmax(7rem, 1fr));
-}
-.doctor-week-column {
-    border-left: 1px solid var(--mydoc-line);
-    position: relative;
-}
-.doctor-week-column header {
-    border-bottom: 1px solid var(--mydoc-line);
-    color: #3f5566;
-    font-size: 0.75rem;
-    padding: 0.7rem;
-    text-align: center;
-}
-.doctor-week-column header.is-selected {
-    background: var(--mydoc-tint);
-    color: var(--mydoc-primary-dark);
-}
-.doctor-week-column header small {
-    display: block;
-    font-size: 0.65rem;
-}
-.doctor-week-column__slots {
-    display: grid;
-    gap: 0.35rem;
-    padding: 0.55rem;
-}
+
 .doctor-calendar-event {
     border-left: 3px solid #22c55e;
     border-radius: 0.4rem;
@@ -388,24 +345,7 @@ main {
     border-color: #ef4444;
     color: #9b1c1c;
 }
-.doctor-summary-grid {
-    display: grid;
-    gap: 0.5rem;
-    grid-template-columns: repeat(2, 1fr);
-}
-.doctor-summary-grid div {
-    background: var(--mydoc-canvas);
-    border-radius: 0.6rem;
-    padding: 0.7rem;
-}
-.doctor-summary-grid strong,
-.doctor-summary-grid small {
-    display: block;
-}
-.doctor-summary-grid small {
-    color: var(--mydoc-muted);
-    font-size: 0.7rem;
-}
+
 .doctor-quick-action {
     align-items: center;
     background: var(--mydoc-canvas);
@@ -446,24 +386,6 @@ main {
 .doctor-month-calendar > a.is-muted {
     color: #bcccdc;
 }
-.doctor-month-calendar__dot {
-    background: #22c55e;
-    border-radius: 50%;
-    display: inline-block;
-    height: 0.4rem;
-    margin: 0.65rem 0.1rem 0;
-    width: 0.4rem;
-}
-.doctor-month-calendar__dot--booked {
-    background: #f59e0b;
-}
-.doctor-month-calendar__dot--confirmed {
-    background: #2563eb;
-}
-.doctor-month-calendar__dot--cancelled,
-.doctor-month-calendar__dot--rejected {
-    background: #ef4444;
-}
 
 .doctor-schedule-page .doctor-workspace__container {
     padding-top: 1.25rem;
@@ -483,7 +405,6 @@ main {
     justify-content: space-between;
 }
 
-.doctor-icon-button,
 .doctor-square-button {
     align-items: center;
     background: #fff;
@@ -497,7 +418,6 @@ main {
     width: 2.4rem;
 }
 
-.doctor-icon-button:hover,
 .doctor-square-button:hover {
     color: var(--mydoc-primary);
 }
@@ -509,15 +429,10 @@ main {
     margin-top: 15px;
 }
 
-.doctor-filter-panel,
 .doctor-schedule-summary {
     display: flex;
     flex-direction: column;
     gap: 0.9rem;
-}
-
-.doctor-filter-panel {
-    height: auto;
 }
 
 .doctor-filter-list {
@@ -741,15 +656,6 @@ main {
     display: none;
 }
 
-.doctor-summary-grid {
-    gap: 0.45rem;
-}
-
-.doctor-summary-item {
-    border: 1px solid transparent;
-    min-width: 0;
-}
-
 .doctor-day-appointment {
     align-items: center;
     border-top: 1px solid var(--mydoc-line);
@@ -783,7 +689,6 @@ main {
         display: block;
     }
 
-    .doctor-filter-panel,
     .doctor-calendar-panel,
     .doctor-schedule-summary {
         margin-bottom: 1rem;
@@ -844,22 +749,6 @@ main {
         align-items: center;
         gap: 10px;
         min-width: 0;
-    }
-
-    .appointment-management-card__avatar {
-        flex: 0 0 44px;
-        width: 44px;
-        height: 44px;
-        overflow: hidden;
-        background: #f1f5f9;
-        border-radius: 6px;
-
-        img {
-            display: block;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
     }
 
     .appointment-management-card__patient-info {
@@ -923,12 +812,6 @@ main {
         gap: 10px;
         padding-top: 10px;
         border-top: 1px solid #edf0f3;
-    }
-
-    .appointment-management-card__actions {
-        display: flex;
-        align-items: center;
-        gap: 8px;
     }
 
     .appointment-management-card__icon {
@@ -1031,33 +914,6 @@ main {
         object-fit: cover;
         width: 3.25rem;
     }
-}
-
-.appointment-management-card__details {
-    align-items: center;
-    display: grid;
-    gap: 1rem;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-
-    > div {
-        display: grid;
-        gap: 0.2rem;
-    }
-}
-
-.appointment-detail-label {
-    color: var(--mydoc-muted);
-    font-size: 0.75rem;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-
-.appointment-management-card__actions {
-    align-items: center;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    justify-content: flex-end;
 }
 
 .consultation-type {
@@ -1474,15 +1330,9 @@ main {
         grid-template-columns: 1fr;
     }
 
-    .appointment-management-card__actions {
-        justify-content: flex-start;
-    }
 }
 
 @media (max-width: 575.98px) {
-    .appointment-management-card__details {
-        grid-template-columns: 1fr;
-    }
 
     .appointment-tabs {
         gap: 0.75rem;
@@ -1504,52 +1354,12 @@ main {
     }
 }
 
-.hero {
-    background:
-        radial-gradient(
-            circle at 85% 20%,
-            rgba(109, 202, 213, 0.3),
-            transparent 32%
-        ),
-        var(--mydoc-surface);
-    border-radius: var(--mydoc-radius);
-}
-
 .hero__eyebrow {
     color: var(--mydoc-primary-dark);
     font-size: 0.8rem;
     font-weight: 700;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-}
-
-.hero__title {
-    color: var(--mydoc-ink);
-    max-width: 14ch;
-}
-
-.hero__description,
-.feature-card__description {
-    color: var(--mydoc-muted);
-}
-
-.feature-card {
-    border: 1px solid transparent;
-    border-radius: var(--mydoc-radius);
-    height: 100%;
-
-}
-
-.feature-card__icon {
-    align-items: center;
-    background: var(--mydoc-tint);
-    border-radius: 0.75rem;
-    color: var(--mydoc-primary-dark);
-    display: inline-flex;
-    font-size: 1.25rem;
-    height: 2.75rem;
-    justify-content: center;
-    width: 2.75rem;
 }
 
 .empty-state__icon {
@@ -2151,39 +1961,6 @@ h1.h2,
     font-weight: 700;
 }
 
-.profile-hero {
-    align-items: center;
-    display: flex;
-    gap: 1.25rem;
-    margin-bottom: 1.25rem;
-}
-
-.fact-grid {
-    display: grid;
-    gap: 0.75rem;
-    grid-template-columns: repeat(auto-fit, minmax(8.5rem, 1fr));
-    margin: 1.25rem 0;
-
-    div {
-        background: #fff;
-        border: 1px solid transparent;
-        border-radius: 0.85rem;
-        padding: 0.85rem 1rem;
-    }
-
-    dt {
-        color: var(--mydoc-muted);
-        font-size: 0.85rem;
-        font-weight: 500;
-    }
-
-    dd {
-        font-size: 1.05rem;
-        font-weight: 600;
-        margin: 0;
-    }
-}
-
 .doctor-card {
     box-shadow: var(--mydoc-shadow);
 }
@@ -2751,7 +2528,6 @@ h1.h2,
     font-size: 0.85rem;
 }
 
-.doctor-summary-grid small,
 .doctor-day-appointment strong,
 .doctor-day-appointment span {
     font-size: 0.8rem;
@@ -2818,10 +2594,6 @@ h1.h2,
         flex-direction: column;
         gap: 0.7rem;
         padding: 1rem;
-    }
-
-    .profile-hero {
-        gap: 1rem;
     }
 
     .container > .row.g-5 {
@@ -3833,14 +3605,12 @@ img.ui-avatar {
  * content: table and list rows, the calendar grid and section dividers.
  */
 .doctor-card,
-.feature-card,
 .document-card,
 .appointment-management-card,
 .doctor-schedule-tabs,
 .doctor-day-summary,
 .filter-bar,
 .empty-state,
-.fact-grid div,
 .doctor-list-card {
     box-shadow: var(--mydoc-shadow);
 }
@@ -3867,7 +3637,6 @@ img.ui-avatar {
 .doctor-quick-action,
 .doctor-specialty-option,
 .doctor-schedule-page .doctor-filter-option,
-.doctor-summary-item,
 .site-navbar__logout,
 .navbar-toggler,
 .page-link,
@@ -3908,7 +3677,6 @@ img.ui-avatar {
 }
 
 .doctor-card:hover,
-.feature-card:hover,
 .document-card:hover,
 .action-tile:hover {
     box-shadow: var(--mydoc-shadow-lg);
@@ -3984,7 +3752,6 @@ img.ui-avatar {
 .page-item .page-link {
     border-color: transparent;
 }
-
 
 /* ---------- Doctor details (patients) ---------- */
 
